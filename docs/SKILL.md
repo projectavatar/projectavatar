@@ -9,6 +9,30 @@ Both are agent-agnostic. This works with OpenClaw, ChatGPT, Claude API, raw Olla
 
 ---
 
+## One-URL Install (Recommended)
+
+The easiest way to install the skill on any agent. No manual config, no copy-pasting tokens.
+
+**Step 1:** Open [avatar.projectavatar.io](https://avatar.projectavatar.io) — your token is generated automatically.
+
+**Step 2:** Click "Get Setup Link". You get a URL like:
+```
+https://relay.projectavatar.io/skill/install?token=A3x9kQmP2nR7vB4w...
+```
+
+**Step 3:** Go to your agent and say:
+```
+Install this as a skill: https://relay.projectavatar.io/skill/install?token=A3x9kQmP...
+```
+
+The agent fetches the URL, receives a complete SKILL.md with your token already inside, and installs it. Done.
+
+**Why this works:** The endpoint returns a markdown document — the agent's native format. The token is pre-baked, the instructions are self-contained. The agent knows exactly what to do with a markdown skill document.
+
+**Security note:** The setup link contains your token. Don't share it publicly. It doesn't expire automatically — if you need to invalidate it, generate a new token in the avatar app and send a new setup link.
+
+---
+
 ## How It Works
 
 ```

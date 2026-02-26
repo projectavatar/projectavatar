@@ -2,12 +2,16 @@
 
 The avatar app is the visual side of Project Avatar — a 3D anime-style character that reacts in real-time to your AI agent's state.
 
+**The browser app is the primary product.** Go to [avatar.projectavatar.io](https://avatar.projectavatar.io) — no install, works immediately, OBS Browser Source ready.
+
+The desktop app (Tauri) is optional and adds exactly two things: always-on-top window and system tray. If you don't need those, use the browser app.
+
 It comes in two forms from the same codebase:
 
-- **Desktop app** (Tauri) — native window, always-on-top, system tray, transparent background
-- **Browser app** — no install, OBS Browser Source ready, `avatar.projectavatar.io`
+- **Browser app** — primary, `avatar.projectavatar.io`, zero install, OBS-ready
+- **Desktop app** (Tauri) — optional, native window, always-on-top, system tray
 
-The rendering core (`app/src/avatar/`) is pure TypeScript + Three.js — no Tauri dependencies — so it runs identically in both contexts.
+The rendering core (`web/src/avatar/`) is pure TypeScript + Three.js — no Tauri or browser-specific dependencies — so it runs identically in both contexts.
 
 ---
 

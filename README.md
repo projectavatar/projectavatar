@@ -2,9 +2,9 @@
 
 **Give your AI agent a face.**
 
-Project Avatar is a desktop app that renders a 3D anime-style avatar that reacts in real-time to what your AI agent is doing. When the agent is thinking, the avatar thinks. When it's coding, the avatar types. When it's confused, you'll see it on her face.
+Project Avatar is a web app that renders a 3D anime-style avatar reacting in real-time to what your AI agent is doing. When the agent is thinking, the avatar thinks. When it's coding, the avatar types. When it's confused, you'll see it on her face.
 
-It works with **any** AI agent — OpenClaw, ChatGPT, Claude, your custom LLM pipeline — without modifying the agent platform. A small prompt addition teaches the agent to emit invisible signal tags. Those tags drive the avatar. The user never sees them.
+It works with **any** AI agent — OpenClaw, ChatGPT, Claude, your custom LLM pipeline — without modifying the agent platform. One URL sent to your agent installs the skill automatically. Those tags drive the avatar. The user never sees them.
 
 Your agent finally has a body.
 
@@ -14,8 +14,8 @@ Your agent finally has a body.
 
 ```
 ┌─────────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│     AI Agent         │     │   Relay Server    │     │    Avatar App       │
-│  (any platform)      │     │  (Cloudflare DO)  │     │  (Tauri + Three.js) │
+│     AI Agent         │     │   Relay Server    │     │    Avatar           │
+│  (any platform)      │     │  (Cloudflare DO)  │     │  (browser / app)    │
 │                      │     │                   │     │                     │
 │  Agent responds...   │     │                   │     │   ┌───────────┐     │
 │  emits hidden tag:   │────▶│  POST /push/:tok  │     │   │  3D VRM   │     │
@@ -27,95 +27,69 @@ Your agent finally has a body.
 └─────────────────────┘     └──────────────────┘     └─────────────────────┘
 ```
 
-**The signal flows like this:**
-
-1. A skill/prompt addition teaches the agent to emit `[avatar:{"emotion":"focused","action":"coding"}]` tags in its output
-2. An output filter intercepts these tags, strips them from the visible response, and POSTs them to the relay server
-3. The relay server (a Cloudflare Worker with Durable Objects) fans out the event via WebSocket
-4. The avatar app receives the event and transitions the 3D avatar — expression, animation, props — in real-time
+1. A skill teaches the agent to emit `[avatar:{"emotion":"focused","action":"coding"}]` tags in its output
+2. An output filter strips those tags from the visible response and POSTs them to the relay
+3. The relay (Cloudflare Workers + Durable Objects) fans out the event via WebSocket
+4. The avatar reacts — expression, animation, props — in real-time
 
 The user sees clean text. The avatar sees everything.
 
 ---
 
-## Quick Start (Browser — no install required)
+## Quick Start
 
-**The fastest way to get started:**
+**No install required.** The browser app is the primary experience.
 
-1. Go to `https://avatar.projectavatar.io`
-2. Enter your relay token (or generate one on the page)
-3. Choose your VRM model
-4. Bookmark it, or add it as an OBS Browser Source for streaming
-5. Done
+### 1. Open the Avatar
 
-The browser version is the full experience — same renderer, same models, same everything. The desktop app adds always-on-top and system tray on top of that.
+Go to **[avatar.projectavatar.io](https://avatar.projectavatar.io)**
 
----
+A token is generated automatically on first visit and saved to your browser. Choose your VRM model. You're ready.
 
-## Quick Start (Desktop App)
+### 2. Install the Skill — One URL, That's It
 
-**You need:** The avatar desktop app + an agent that supports custom system prompts.
-
-### 1. Install the Avatar App
-
-Download the latest release for your platform:
-
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon) | `avatar-app-x.x.x-aarch64.dmg` |
-| macOS (Intel) | `avatar-app-x.x.x-x64.dmg` |
-| Windows | `avatar-app-x.x.x-x64-setup.exe` |
-| Linux (AppImage) | `avatar-app-x.x.x-x86_64.AppImage` |
-
-### 2. Generate a Token
-
-Open the app → Settings → Generate Token. This creates a unique channel on the relay server. Copy the token.
-
-### 3. Add the Skill to Your Agent
-
-Add the Project Avatar skill to your agent's system prompt. The exact text is in [`docs/SKILL.md`](docs/SKILL.md), but the gist:
+The avatar app gives you a personal setup link:
 
 ```
-You have a visual avatar. At the START of every response, emit a signal tag:
-[avatar:{"emotion":"<emotion>","action":"<action>"}]
-
-This tag is invisible to the user. It drives your avatar's expression and animation.
+https://projectavatar.io/skill/install?token=YOUR_TOKEN
 ```
 
-### 4. Configure the Output Filter
+Go to your AI agent and say:
 
-The output filter runs alongside your agent. It intercepts `[avatar:{...}]` tags, strips them from the response, and forwards them to the relay.
+> "Install this as a skill: https://projectavatar.io/skill/install?token=YOUR_TOKEN"
 
-For **OpenClaw**: Install the `avatar` skill — it handles everything automatically.
+The agent fetches the URL, gets a pre-configured SKILL.md with your token already inside, and installs it. No manual config, no copy-pasting tokens, no setup files.
 
-For **other agents**: Use the provided Node.js or Python filter. See [`docs/SKILL.md`](docs/SKILL.md) for setup.
-
-### 5. Done
+### 3. Done
 
 Start chatting with your agent. Watch the avatar react.
 
 ---
 
+## Quick Start (OBS Browser Source)
+
+Add your avatar directly to a stream:
+
+1. In OBS → Add Browser Source
+2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN`
+3. Width: 400, Height: 600
+4. Done — the avatar renders with a transparent background, composites directly into your scene
+
+---
+
 ## Quick Start (Self-Hosting the Relay)
 
-The default relay is hosted at `relay.projectavatar.io`. If you want to run your own:
+The default relay runs at `relay.projectavatar.io`. To run your own:
 
 ```bash
-# Clone the repo
-git clone https://github.com/linh-n/project-avatar.git
-cd project-avatar/relay
-
-# Install dependencies
+git clone https://github.com/ragr3t/projectavatar.git
+cd projectavatar/relay
 npm install
-
-# Configure (copy and edit)
 cp wrangler.example.toml wrangler.toml
-
-# Deploy to Cloudflare Workers
 npx wrangler deploy
 ```
 
-You need a Cloudflare account with Workers and Durable Objects enabled. See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
+See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 ---
 
@@ -123,12 +97,13 @@ You need a Cloudflare account with Workers and Durable Objects enabled. See [`do
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
-| Desktop App | [Tauri](https://tauri.app/) (Rust + WebView) | Native performance, tiny bundle (~8MB), cross-platform |
-| Browser App | React + Vite, static deploy | Zero install, OBS Browser Source ready, same codebase as desktop |
-| 3D Rendering | [Three.js](https://threejs.org/) + [@pixiv/three-vrm](https://github.com/pixiv/three-vrm) | Industry standard WebGL + first-class VRM support |
-| Avatar Format | [VRM](https://vrm.dev/) | Open standard, massive ecosystem, VRoid Hub compatible |
-| Relay Server | [Cloudflare Workers](https://workers.cloudflare.com/) + [Durable Objects](https://developers.cloudflare.com/durable-objects/) | Edge-deployed, WebSocket native, zero cold starts |
-| Skill Layer | Plain text prompt + regex output filter | Agent-agnostic, no SDK required, works everywhere |
+| Web App | React + Vite, Cloudflare Pages | Primary experience — zero install, works everywhere |
+| Desktop App | Tauri (Rust + WebView) | Optional — adds always-on-top and system tray |
+| 3D Rendering | Three.js + @pixiv/three-vrm | Industry standard WebGL + first-class VRM support |
+| Avatar Format | VRM | Open standard, huge ecosystem, VRoid Hub compatible |
+| Relay Server | Cloudflare Workers + Durable Objects | Edge-deployed, WebSocket native, zero cold starts |
+| Skill Install | Dynamic markdown endpoint | Agent fetches URL, installs skill with token pre-baked |
+| Skill Layer | Prompt template + regex output filter | Agent-agnostic, no SDK required, works everywhere |
 
 ---
 
@@ -137,37 +112,37 @@ You need a Cloudflare account with Workers and Durable Objects enabled. See [`do
 - **7 emotions** — idle, thinking, focused, excited, confused, satisfied, concerned
 - **7 actions** — responding, searching, coding, reading, waiting, error, celebrating
 - **6 reactive props** — keyboard, magnifying glass, coffee cup, book, phone, scroll
-- **3-5 bundled VRM models** — with support for importing your own from VRoid Hub or anywhere
-- **Intensity levels** — low, medium, high — affecting animation energy and expression strength
-- **Always-on-top mode** — pin the avatar as a desktop companion
-- **Transparent background** — the avatar floats on your desktop, no window chrome
+- **3-5 bundled VRM models** — import your own from VRoid Hub or anywhere
+- **Intensity levels** — low, medium, high — affects animation energy and expression strength
+- **One-URL skill install** — agent installs its own skill by fetching a link
+- **OBS Browser Source** — works out of the box, transparent background
+- **Cross-machine** — agent on a server, avatar on your laptop, works over the internet
 
 ---
 
 ## Roadmap
 
 ### v1 (MVP — 4 weeks)
+- [x] Browser app at `avatar.projectavatar.io` (primary, no install)
+- [x] One-URL skill install (`/skill/install?token=...`)
 - [x] Core avatar rendering with VRM support
 - [x] Expression system (emotion → blend shapes)
 - [x] Animation system (action → animation clips)
 - [x] Prop system (reactive objects)
 - [x] Relay server (Cloudflare Workers + DO)
-- [x] Agent skill (prompt template + output filter)
-- [x] Settings UI (token, model selection, positioning)
-- [x] Browser app at `avatar.projectavatar.io` (no install required)
 - [x] OBS Browser Source support out of the box
+- [x] Desktop app (Tauri) — optional, always-on-top + tray
 
 ### v1.1
 - [ ] Voice lip-sync (connect to TTS output)
 - [ ] Custom animation import
 - [ ] Multi-agent support (multiple avatars)
-- [ ] OBS virtual camera integration
+- [ ] Token dashboard (usage, rotation, expiry)
 
 ### v2
 - [ ] Live2D support (alternative to VRM)
 - [ ] Physics-based secondary motion (hair, clothes)
 - [ ] IK-based prop interaction
-- [ ] Plugin system for custom behaviors
 - [ ] Mobile companion app (iOS/Android)
 
 ### v3 (dreaming)
@@ -181,29 +156,28 @@ You need a Cloudflare account with Workers and Durable Objects enabled. See [`do
 
 ```
 project-avatar/
-├── app/                    # Tauri desktop application
-│   ├── src-tauri/          # Rust backend (window, tray, IPC)
-│   └── src/                # React/TypeScript frontend
-│       ├── components/     # UI components
-│       ├── avatar/         # Three.js + VRM rendering (shared with web)
-│       ├── state/          # Zustand state management
-│       └── ws/             # WebSocket client
-├── web/                    # Browser app (static deploy)
-│   ├── src/                # Thin wrapper — imports avatar/ renderer from app
+├── web/                    # Browser app — PRIMARY (Cloudflare Pages)
+│   ├── src/
+│   │   ├── main.tsx        # React entry
+│   │   ├── App.tsx         # Token setup → avatar view
+│   │   ├── avatar/         # Three.js + VRM renderer (shared with desktop)
+│   │   ├── ws/             # WebSocket client
+│   │   └── state/          # Zustand store
 │   ├── index.html
 │   └── vite.config.ts
+├── app/                    # Desktop app — OPTIONAL (Tauri)
+│   ├── src-tauri/          # Rust shell (window, tray, IPC)
+│   └── src/                # Wraps web/ renderer, adds native features
 ├── relay/                  # Cloudflare Workers relay server
 │   ├── src/
-│   │   ├── index.ts        # Worker entry point + routing
+│   │   ├── index.ts        # Worker entry + routing + /skill/install endpoint
 │   │   └── channel.ts      # Durable Object (WebSocket pub/sub hub)
 │   └── wrangler.toml
-├── skill/                  # Agent skill definitions
-│   ├── openclaw/           # OpenClaw skill package
+├── skill/                  # Agent skill layer
 │   ├── prompt.md           # Universal prompt template
-│   └── filters/            # Output filter implementations
-│       ├── node/
-│       └── python/
-└── docs/                   # Documentation
+│   ├── openclaw/           # OpenClaw skill package
+│   └── filters/            # Output filter (Node.js + Python)
+└── docs/
     ├── SCHEMA.md
     ├── RELAY.md
     ├── SKILL.md
@@ -214,7 +188,7 @@ project-avatar/
 
 ## Support
 
-Run into an issue? Contact us at [projectavatar.io](https://projectavatar.io).
+[projectavatar.io](https://projectavatar.io)
 
 ---
 

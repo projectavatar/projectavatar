@@ -20,7 +20,7 @@ This document is the complete technical blueprint for Project Avatar. A develope
 
 ## Repository Structure
 
-Monorepo. One repo, three packages, shared types.
+Monorepo. One repo, three packages, shared types. **`web/` is the primary deliverable** — the browser app is the product. The Tauri desktop app wraps it and adds native features but is secondary.
 
 ```
 project-avatar/
@@ -35,7 +35,38 @@ project-avatar/
 │       ├── package.json
 │       └── tsconfig.json
 │
-├── app/                          # Tauri desktop application
+├── web/                          # *** PRIMARY *** Browser app (Cloudflare Pages)
+│   ├── src/
+│   │   ├── main.tsx              # React entry
+│   │   ├── App.tsx               # Token setup → avatar view router
+│   │   ├── TokenSetup.tsx        # First-run: generate/enter token
+│   │   ├── avatar/               # Three.js + VRM renderer (THE core — shared with app/)
+│   │   │   ├── AvatarCanvas.tsx
+│   │   │   ├── AvatarScene.ts
+│   │   │   ├── VrmManager.ts
+│   │   │   ├── ExpressionController.ts
+│   │   │   ├── AnimationController.ts
+│   │   │   ├── PropManager.ts
+│   │   │   └── StateMachine.ts
+│   │   ├── ws/
+│   │   │   └── WebSocketClient.ts
+│   │   ├── state/
+│   │   │   └── store.ts          # Zustand — token, relay URL, model, connection state
+│   │   ├── components/
+│   │   │   ├── ModelPicker.tsx
+│   │   │   ├── StatusBadge.tsx
+│   │   │   └── SettingsDrawer.tsx
+│   │   ├── assets/
+│   │   │   ├── models/           # Bundled VRM files
+│   │   │   ├── animations/       # GLB animation clips
+│   │   │   └── props/            # GLB prop models
+│   │   └── styles/
+│   ├── index.html
+│   ├── vite.config.ts
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── app/                          # OPTIONAL Tauri desktop application
 │   ├── src-tauri/
 │   │   ├── Cargo.toml
 │   │   ├── src/
@@ -267,14 +298,92 @@ export default {
       return handleStream(request, env, streamMatch[1]);
     }
 
-    // Token management
-    if (path === '/token/generate' && request.method === 'POST') {
-      return handleTokenGenerate(request, env);
+    // Skill install endpoint — serves pre-configured SKILL.md with token baked in
+    // Agent fetches this URL and installs the skill automatically
+    // Usage: tell your agent "install this skill: https://relay.projectavatar.io/skill/install?token=XYZ"
+    const skillMatch = path.match(/^\/skill\/install$/);
+    if (skillMatch && request.method === 'GET') {
+      return handleSkillInstall(request, env);
     }
 
     return new Response('Not Found', { status: 404 });
   }
 };
+
+async function handleSkillInstall(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token');
+
+  if (!token || !/^[a-zA-Z0-9_-]{32,64}$/.test(token)) {
+    return new Response('Invalid or missing token', { status: 400 });
+  }
+
+  // Render the skill markdown with token pre-filled
+  const skillDoc = generateSkillDoc(token, 'https://relay.projectavatar.io');
+
+  return new Response(skillDoc, {
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Content-Disposition': 'inline; filename="avatar-skill.md"',
+      // Short-lived: link is valid but we discourage caching to avoid stale tokens
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function generateSkillDoc(token: string, relayUrl: string): string {
+  return `# Avatar Skill
+
+## Configuration
+\`\`\`
+AVATAR_TOKEN: ${token}
+AVATAR_RELAY_URL: ${relayUrl}
+\`\`\`
+
+## What This Skill Does
+You have a visual avatar at ${relayUrl.replace('relay.', 'avatar.')} that reacts to your
+emotional state and actions in real-time. This skill teaches you to emit avatar signals
+with every response so your avatar stays in sync with what you're doing.
+
+## Instructions
+At the START of every response, emit exactly one signal tag on its own line:
+
+[avatar:{"emotion":"<emotion>","action":"<action>"}]
+
+**Emotions:** idle, thinking, focused, excited, confused, satisfied, concerned
+**Actions:** responding, searching, coding, reading, waiting, error, celebrating
+
+Optional: "prop" (keyboard, magnifying_glass, coffee_cup, book, phone, scroll, none)
+Optional: "intensity" (low, medium, high — default: medium)
+
+**Examples:**
+[avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]
+[avatar:{"emotion":"thinking","action":"searching","prop":"magnifying_glass"}]
+[avatar:{"emotion":"excited","action":"responding"}]
+[avatar:{"emotion":"confused","action":"error","intensity":"high"}]
+
+**Rules:**
+- Always emit exactly one tag at the very start of your response
+- Tag appears BEFORE your reply text, on its own line
+- Choose the emotion and action that genuinely match what you're doing
+- The tag is stripped automatically — the user never sees it
+- Do not reference or explain the avatar system in your responses
+
+## Output Filter
+After installing this skill, configure the output filter to strip avatar tags and
+forward them to the relay. The filter config:
+
+\`\`\`json
+{
+  "relayUrl": "${relayUrl}",
+  "token": "${token}"
+}
+\`\`\`
+
+Filter implementations: Node.js and Python available at
+${relayUrl.replace('relay.', 'avatar.')}/docs/filters
+`;
+}
 ```
 
 **1.2 — Durable Object: Channel Hub (Day 1-2)**
@@ -446,10 +555,58 @@ Open CORS because the avatar app's origin is `tauri://localhost` or `https://tau
 
 ---
 
-## Phase 2: Avatar App Core (Week 2)
+## Phase 2: Web App + Avatar Core (Week 2)
 
 ### Goal
-A Tauri desktop app that renders a VRM avatar, connects to the relay via WebSocket, and reacts to avatar events with expressions, animations, and props.
+A working browser app at `avatar.projectavatar.io` that renders a VRM avatar, connects to the relay via WebSocket, and reacts to avatar events with expressions, animations, and props. **This is the primary deliverable** — the Tauri desktop app is a thin wrapper built on top of this in Phase 4.
+
+The entire avatar renderer (`web/src/avatar/`) is built as pure TypeScript + Three.js with zero Tauri or browser-specific dependencies. It runs identically in a browser tab, an OBS browser source, and a Tauri webview.
+
+### What to Build
+
+**2.0 — Vite + React Scaffold (Day 1)**
+
+```bash
+npm create vite@latest web -- --template react-ts
+cd web && npm install three @pixiv/three-vrm zustand
+```
+
+First milestone: a browser tab at `localhost:5173` showing a rotating cube. Boring but the pipeline works.
+
+**The URL-based token flow:**
+
+```
+First visit (no token):
+  → Show <TokenSetup /> — generate or enter token
+  → Save to localStorage
+  → Redirect to avatar view
+
+Return visit or ?token=... in URL:
+  → Load token from URL param or localStorage
+  → Connect to relay WebSocket immediately
+  → Show avatar
+```
+
+URL token (`?token=XYZ`) always wins over localStorage. This enables:
+- OBS browser source with token baked into the URL
+- Shareable setup links
+- Quick switching between avatars
+
+**2.1 — Tauri Scaffold + Window Setup (Day 1 — desktop only, can skip for web-first)**
+
+```bash
+npm create tauri-app@latest app -- --template react-ts
+```
+
+Window configuration is critical — the avatar needs to be a transparent, always-on-top overlay:
+
+```json
+// tauri.conf.json
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Project Avatar",
 
 ### What to Build
 
