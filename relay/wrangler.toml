@@ -9,11 +9,11 @@ class_name = "Channel"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["Channel"]
+new_sqlite_classes = ["Channel"]
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "placeholder_replace_with_real_kv_id"
+id = "0015334731bc4df2bf1d68c0811d2097"
 
 [vars]
 RELAY_VERSION = "1.0.0"
