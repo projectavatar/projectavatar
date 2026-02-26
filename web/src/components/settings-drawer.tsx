@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useStore } from '../state/store.ts';
 import { isValidToken } from '@project-avatar/shared';
 
@@ -91,9 +91,62 @@ const selectStyle: React.CSSProperties = {
   appearance: 'auto' as const,
 };
 
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(value).then(
+      () => { setCopied(true); setTimeout(() => setCopied(false), 1500); },
+      () => {},
+    );
+  }, [value]);
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        ...btnStyle,
+        background: copied ? 'rgba(34,197,94,0.15)' : 'transparent',
+        border: '1px solid var(--color-border)',
+        color: copied ? 'var(--color-success)' : 'var(--color-text-muted)',
+        fontSize: '0.75rem',
+        padding: '6px 10px',
+        flexShrink: 0,
+      }}
+    >
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
+
+function UrlField({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={sectionStyle}>
+      <label style={labelStyle}>{label}</label>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{
+          flex: 1,
+          padding: '7px 10px',
+          fontSize: 12,
+          fontFamily: 'var(--font-mono)',
+          background: 'var(--color-bg)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 6,
+          color: 'var(--color-text-muted)',
+          wordBreak: 'break-all',
+          lineHeight: 1.4,
+          userSelect: 'all',
+        }}>
+          {value}
+        </div>
+        <CopyButton value={value} />
+      </div>
+    </div>
+  );
+}
+
 export function SettingsDrawer() {
   const {
     token,
+    modelId,
     relayUrl,
     theme,
     settingsOpen,
@@ -107,6 +160,13 @@ export function SettingsDrawer() {
   const [tokenInput, setTokenInput] = useState(token ?? '');
   const [relayInput, setRelayInput] = useState(relayUrl);
   const [error, setError] = useState('');
+
+  const avatarUrl = token && modelId
+    ? `${window.location.origin}/?token=${token}&model=${modelId}`
+    : null;
+  const skillUrl = token
+    ? `${relayUrl}/skill/install?token=${token}${modelId ? `&model=${modelId}` : ''}`
+    : null;
 
   if (!settingsOpen) return null;
 
@@ -144,6 +204,12 @@ export function SettingsDrawer() {
             ×
           </button>
         </div>
+
+        {/* Skill install URL — most important, show first */}
+        {skillUrl && <UrlField label="Skill Install URL" value={skillUrl} />}
+        {avatarUrl && <UrlField label="Avatar URL" value={avatarUrl} />}
+
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.25rem' }} />
 
         {/* Token */}
         <div style={sectionStyle}>
