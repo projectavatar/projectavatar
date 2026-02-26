@@ -521,7 +521,7 @@ Open CORS because the avatar app's origin is `tauri://localhost` or `https://tau
 ## Phase 2: Web App + Avatar Core (Week 2)
 
 ### Goal
-A working browser app at `avatar.projectavatar.io` that renders a VRM avatar, connects to the relay via WebSocket, and reacts to avatar events with expressions, animations, and props. **This is the primary deliverable** — the Tauri desktop app is a thin wrapper built on top of this in Phase 4.
+A working browser app at `app.projectavatar.io` that renders a VRM avatar, connects to the relay via WebSocket, and reacts to avatar events with expressions, animations, and props. **This is the primary deliverable** — the Tauri desktop app is a thin wrapper built on top of this in Phase 4.
 
 The entire avatar renderer (`web/src/avatar/`) is built as pure TypeScript + Three.js with zero Tauri or browser-specific dependencies. It runs identically in a browser tab, an OBS browser source, and a Tauri webview.
 
@@ -1017,7 +1017,13 @@ export class AvatarWebSocketClient {
 
 ### Acceptance Criteria
 
-- [ ] Tauri app launches with transparent window, always-on-top
+- [ ] Browser app loads at `localhost:5173`
+- [ ] First visit: token auto-generated, model picker shown
+- [ ] Model picker → avatar renders idle in background, skill URL overlay shown
+- [ ] Avatar URL format: `?token=TOKEN&model=MODEL_ID` — both params in URL
+- [ ] Skill install URL includes `&model=MODEL_ID` — baked into skill doc
+- [ ] URL stays in sync via `history.replaceState` on token/model change
+- [ ] Return visit (token + model in URL/localStorage): skip wizard, go straight to avatar
 - [ ] VRM model loads and renders with proper lighting
 - [ ] Expression controller smoothly blends between emotions
 - [ ] Animation controller crossfades between action clips
@@ -1026,7 +1032,7 @@ export class AvatarWebSocketClient {
 - [ ] WebSocket client connects to relay and receives events
 - [ ] Avatar reacts to events within 200ms of receipt
 - [ ] Idle timeout returns avatar to default state after 30s
-- [ ] Settings panel: token input, relay URL, model picker
+- [ ] URL-based token + model (`?token=XYZ&model=maid-v1`) works for OBS browser source
 
 ---
 
@@ -1388,7 +1394,7 @@ The browser app is a thin wrapper around the shared `app/src/avatar/` renderer. 
 
 **What it adds over the desktop app:**
 - Token input UI on first load (no Tauri Settings panel available)
-- URL-based token: `avatar.projectavatar.io/?token=abc123` — paste the URL, it connects automatically
+- URL-based token: `app.projectavatar.io/?token=abc123` — paste the URL, it connects automatically
 - Transparent / dark background toggle (for OBS browser source vs regular tab)
 - No always-on-top, no system tray — it's a tab
 
@@ -1403,7 +1409,7 @@ web/src/App.tsx
 ```
 
 **OBS Browser Source setup:**
-- User adds `avatar.projectavatar.io/?token=<token>` as a browser source
+- User adds `app.projectavatar.io/?token=<token>` as a browser source
 - Set width/height to match avatar window size (e.g. 400×600)
 - Enable "Shutdown source when not visible" to save resources
 - Transparent background: the page has `background: transparent`, OBS renders it with alpha
@@ -1411,7 +1417,7 @@ web/src/App.tsx
 **Deployment:**
 - Cloudflare Pages (automatic deploy from `web/` on push to `master`)
 - Zero config, free tier, CDN-distributed globally
-- Custom domain: `avatar.projectavatar.io`
+- Custom domain: `app.projectavatar.io`
 
 ```toml
 # wrangler.toml for Cloudflare Pages
@@ -1457,7 +1463,7 @@ GitHub Actions workflow:
 - [ ] Custom VRM import works (desktop: file picker; browser: `<input type="file">`)
 - [ ] System tray with show/hide, model switch, quit
 - [ ] Eye blink and micro-animations give idle avatar life
-- [ ] Browser app live at `avatar.projectavatar.io`
+- [ ] Browser app live at `app.projectavatar.io`
 - [ ] URL-based token (`?token=...`) works for OBS Browser Source
 - [ ] Background tab throttling mitigation in place
 - [ ] Builds successfully for macOS, Windows, Linux

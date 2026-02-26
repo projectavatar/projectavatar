@@ -42,7 +42,7 @@ The user sees clean text. The avatar sees everything.
 
 ### 1. Open the Avatar
 
-Go to **[avatar.projectavatar.io](https://avatar.projectavatar.io)**
+Go to **[app.projectavatar.io](https://app.projectavatar.io)**
 
 A token is generated automatically on first visit and saved to your browser. Choose your VRM model. You're ready.
 
@@ -71,7 +71,7 @@ Start chatting with your agent. Watch the avatar react.
 Add your avatar directly to a stream:
 
 1. In OBS → Add Browser Source
-2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN`
+2. URL: `https://app.projectavatar.io/?token=YOUR_TOKEN`
 3. Width: 400, Height: 600
 4. Done — the avatar renders with a transparent background, composites directly into your scene
 
@@ -125,7 +125,7 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 ### v1 (MVP — 4 weeks)
 - [x] **Relay server** — deployed at `relay.projectavatar.io` (Cloudflare Workers + DO)
 - [x] **One-URL skill install** — `GET /skill/install?token=...` serves pre-configured SKILL.md
-- [ ] Browser app at `avatar.projectavatar.io` (primary, no install)
+- [ ] Browser app at `app.projectavatar.io` (primary, no install)
 - [ ] Core avatar rendering with VRM support
 - [ ] Expression system (emotion → blend shapes)
 - [ ] Animation system (action → animation clips)

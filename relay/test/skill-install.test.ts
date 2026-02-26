@@ -5,11 +5,11 @@ import { EMOTIONS, ACTIONS } from '../../packages/shared/src/schema.js';
 const VALID_TOKEN = 'a'.repeat(48);
 const BASE_URL = 'https://relay.projectavatar.io';
 
-function makeRequest(token?: string, baseUrl = BASE_URL): Request {
-  const url = token
-    ? `${baseUrl}/skill/install?token=${token}`
-    : `${baseUrl}/skill/install`;
-  return new Request(url);
+function makeRequest(token?: string, baseUrl = BASE_URL, model?: string): Request {
+  const url = new URL(`${baseUrl}/skill/install`);
+  if (token) url.searchParams.set('token', token);
+  if (model) url.searchParams.set('model', model);
+  return new Request(url.toString());
 }
 
 describe('handleSkillInstall', () => {
@@ -117,20 +117,20 @@ describe('handleSkillInstall', () => {
   it('derives avatar URL from relay subdomain', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://relay.projectavatar.io'));
     const text = await res.text();
-    expect(text).toContain('avatar.projectavatar.io');
+    expect(text).toContain('app.projectavatar.io');
     expect(text).not.toContain('relay.projectavatar.io/?token='); // relay URL, not avatar URL for the app link
   });
 
   it('falls back to production avatar URL for localhost', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'http://localhost:8787'));
     const text = await res.text();
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
   });
 
   it('falls back to production avatar URL for non-relay subdomain', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://workers.dev'));
     const text = await res.text();
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
   });
 
   it('does not double-replace "relay" appearing elsewhere in the URL', async () => {
@@ -138,6 +138,38 @@ describe('handleSkillInstall', () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://project-relay.example.com'));
     const text = await res.text();
     // Should fall back to production, not mangle the hostname
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
+  });
+
+  // ─── ?model= parameter ──────────────────────────────────────────────────
+
+  it('includes model in avatar URL when model param is provided', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, BASE_URL, 'maid-v1'));
+    const text = await res.text();
+    expect(text).toContain(`model=maid-v1`);
+    expect(text).toContain(`token=${VALID_TOKEN}&model=maid-v1`);
+  });
+
+  it('omits model from avatar URL when model param is not provided', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN));
+    const text = await res.text();
+    expect(text).not.toContain('model=');
+  });
+
+  it('includes the "Your Avatar URL" section', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, BASE_URL, 'placeholder'));
+    const text = await res.text();
+    expect(text).toContain('## Your Avatar URL');
+    expect(text).toContain('app.projectavatar.io');
+  });
+
+  it('uses full avatar URL with model in verification section', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, BASE_URL, 'placeholder'));
+    const text = await res.text();
+    // The verification section should use the same URL as "Your Avatar URL"
+    const avatarUrl = `https://app.projectavatar.io/?token=${VALID_TOKEN}&model=placeholder`;
+    // Count occurrences — should appear multiple times (Avatar URL section + verification + body text)
+    const occurrences = text.split(avatarUrl).length - 1;
+    expect(occurrences).toBeGreaterThanOrEqual(2);
   });
 });
