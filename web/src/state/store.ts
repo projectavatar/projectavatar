@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { DEFAULTS, generateToken } from '@project-avatar/shared';
 import type { Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
 import manifest from '../assets/models/manifest.json';
+import type { ModelEntry } from '../types.ts';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -10,15 +11,6 @@ export interface AvatarState {
   action: Action;
   prop: Prop;
   intensity: Intensity;
-}
-
-interface ModelEntry {
-  id: string;
-  name: string;
-  description: string;
-  url: string | null;
-  thumbnail: string | null;
-  license: string;
 }
 
 export interface AppState {
@@ -81,7 +73,7 @@ function updateUrlParams(params: Record<string, string | null>) {
   }
 }
 
-function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'setupComplete'>> {
+function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
@@ -92,14 +84,13 @@ function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'mo
       modelId: typeof parsed['modelId'] === 'string' ? parsed['modelId'] : undefined,
       modelUrl: typeof parsed['modelUrl'] === 'string' ? parsed['modelUrl'] : undefined,
       theme: parsed['theme'] === 'transparent' ? 'transparent' : undefined,
-      setupComplete: typeof parsed['setupComplete'] === 'boolean' ? parsed['setupComplete'] : undefined,
     };
   } catch {
     return {};
   }
 }
 
-function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'setupComplete'>) {
+function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       token: state.token,
@@ -107,7 +98,6 @@ function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | '
       modelId: state.modelId,
       modelUrl: state.modelUrl,
       theme: state.theme,
-      setupComplete: state.setupComplete,
     }));
   } catch {
     // localStorage may be unavailable (e.g. OBS browser source privacy settings)
@@ -153,7 +143,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   settingsOpen: false,
   theme: persisted.theme ?? 'dark',
-  setupComplete: persisted.setupComplete ?? false,
+  setupComplete: false,
 
   setToken: (token) => {
     set({ token });
@@ -198,7 +188,6 @@ export const useStore = create<AppState>((set, get) => ({
 
   setSetupComplete: (complete) => {
     set({ setupComplete: complete });
-    persistState(get());
   },
 
   generateAndSetToken: () => {

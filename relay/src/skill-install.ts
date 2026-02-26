@@ -65,6 +65,10 @@ function deriveAvatarBase(relayUrl: URL): string {
 
   // Non-subdomain environments (localhost, IPs, custom domains)
   // Fall back to the canonical production app URL
+  //
+  // Intentional: local dev and non-relay-subdomain environments always
+  // embed the production avatar URL in skill docs. The skill doc is
+  // agent-facing and should always point to production.
   return 'https://app.projectavatar.io';
 }
 

@@ -1,20 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from './state/store.ts';
 import { isValidToken } from '@project-avatar/shared';
-import { AvatarCanvas } from './avatar/AvatarCanvas.tsx';
+import { AvatarCanvas } from './avatar/avatar-canvas.tsx';
 import manifest from './assets/models/manifest.json';
 import type { ConnectionState } from './state/store.ts';
+import type { ModelEntry } from './types.ts';
 
 type WizardStep = 'pick-model' | 'setup';
-
-interface ModelEntry {
-  id: string;
-  name: string;
-  description: string;
-  url: string | null;
-  thumbnail: string | null;
-  license: string;
-}
 
 const models = (manifest as unknown as { models: ModelEntry[] }).models;
 
@@ -257,6 +249,19 @@ const connectedBtn: React.CSSProperties = {
   marginTop: '0.5rem',
 };
 
+const skipBtn: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 16px',
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  borderRadius: 8,
+  border: 'none',
+  cursor: 'pointer',
+  background: 'transparent',
+  color: 'var(--color-text-muted)',
+  marginTop: '0.5rem',
+};
+
 const statusRow: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -324,10 +329,16 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    navigator.clipboard.writeText(value).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {
+        // Clipboard write failed — show error state briefly
+        setCopied(false);
+      }
+    );
   }, [value]);
 
   return (
@@ -396,6 +407,7 @@ function TokenModal({ onClose }: { onClose: () => void }) {
 
 function ModelPickerStep({ onSelect }: { onSelect: (id: string) => void }) {
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
     <div style={pickerPage}>
@@ -408,16 +420,14 @@ function ModelPickerStep({ onSelect }: { onSelect: (id: string) => void }) {
         {models.map((model) => (
           <div
             key={model.id}
-            style={cardStyle}
+            style={{
+              ...cardStyle,
+              borderColor: hoveredId === model.id ? 'var(--color-accent)' : 'var(--color-border)',
+              transform: hoveredId === model.id ? 'translateY(-2px)' : 'translateY(0)',
+            }}
             onClick={() => onSelect(model.id)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-accent)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-border)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
+            onMouseEnter={() => setHoveredId(model.id)}
+            onMouseLeave={() => setHoveredId(null)}
           >
             {model.thumbnail ? (
               <img
@@ -484,6 +494,10 @@ function SetupStep() {
               Connected! Let's go →
             </button>
           ) : null}
+
+          <button style={skipBtn} onClick={handleFinish}>
+            Skip for now
+          </button>
         </div>
       </div>
     </div>
@@ -498,9 +512,11 @@ export function SetupWizard() {
   const generateAndSetToken = useStore((s) => s.generateAndSetToken);
   const setModelId = useStore((s) => s.setModelId);
 
-  // Auto-generate token if not present
+  // Auto-generate token if not present (ref guard prevents StrictMode double-fire)
+  const generated = useRef(false);
   useEffect(() => {
-    if (!token) {
+    if (!token && !generated.current) {
+      generated.current = true;
       generateAndSetToken();
     }
   }, [token, generateAndSetToken]);

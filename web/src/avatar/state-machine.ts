@@ -1,9 +1,9 @@
 import { DEFAULTS } from '@project-avatar/shared';
 import type { AvatarEvent, Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
-import type { ExpressionController } from './ExpressionController.ts';
-import type { AnimationController } from './AnimationController.ts';
-import type { BlinkController } from './BlinkController.ts';
-import type { PropManager } from './PropManager.ts';
+import type { ExpressionController } from './expression-controller.ts';
+import type { AnimationController } from './animation-controller.ts';
+import type { BlinkController } from './blink-controller.ts';
+import type { PropManager } from './prop-manager.ts';
 
 /**
  * Avatar state machine coordinating all subsystems.

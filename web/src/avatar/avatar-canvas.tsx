@@ -1,13 +1,13 @@
 import { useRef, useEffect } from 'react';
 import { useStore } from '../state/store.ts';
-import { WebSocketClient } from '../ws/WebSocketClient.ts';
-import { AvatarScene } from './AvatarScene.ts';
-import { VrmManager } from './VrmManager.ts';
-import { ExpressionController } from './ExpressionController.ts';
-import { AnimationController } from './AnimationController.ts';
-import { BlinkController } from './BlinkController.ts';
-import { PropManager } from './PropManager.ts';
-import { StateMachine } from './StateMachine.ts';
+import { WebSocketClient } from '../ws/web-socket-client.ts';
+import { AvatarScene } from './avatar-scene.ts';
+import { VrmManager } from './vrm-manager.ts';
+import { ExpressionController } from './expression-controller.ts';
+import { AnimationController } from './animation-controller.ts';
+import { BlinkController } from './blink-controller.ts';
+import { PropManager } from './prop-manager.ts';
+import { StateMachine } from './state-machine.ts';
 import type { AvatarEvent } from '@project-avatar/shared';
 
 const canvasStyle: React.CSSProperties = {

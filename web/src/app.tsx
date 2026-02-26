@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { useStore } from './state/store.ts';
-import { SetupWizard } from './SetupWizard.tsx';
-import { AvatarCanvas } from './avatar/AvatarCanvas.tsx';
-import { StatusBadge } from './components/StatusBadge.tsx';
-import { SettingsDrawer } from './components/SettingsDrawer.tsx';
+import { SetupWizard } from './setup-wizard.tsx';
+import { AvatarCanvas } from './avatar/avatar-canvas.tsx';
+import { StatusBadge } from './components/status-badge.tsx';
+import { SettingsDrawer } from './components/settings-drawer.tsx';
 
 const settingsBtnStyle: React.CSSProperties = {
   position: 'fixed',
@@ -34,16 +35,15 @@ export function App() {
   const token = useStore((s) => s.token);
   const modelId = useStore((s) => s.modelId);
   const theme = useStore((s) => s.theme);
-  const setupComplete = useStore((s) => s.setupComplete);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
 
   // Apply theme to body
-  if (typeof document !== 'undefined') {
+  useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
-  }
+  }, [theme]);
 
-  // Onboarding complete = has token + modelId + setup complete
-  const needsOnboarding = !token || !modelId || !setupComplete;
+  // Onboarding: show wizard when missing token or model
+  const needsOnboarding = !token || !modelId;
 
   if (needsOnboarding) {
     return <SetupWizard />;
