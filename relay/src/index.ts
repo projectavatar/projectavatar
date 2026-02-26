@@ -1,6 +1,7 @@
 import { isValidToken, tokenToChannelName } from './auth.js';
 import { checkRateLimit } from './rate-limit.js';
 import { CORS_HEADERS } from './channel.js';
+import { handleSkillInstall } from './skill-install.js';
 import type { Env } from './types.js';
 
 export { Channel } from './channel.js';
@@ -65,6 +66,11 @@ export default {
       }
 
       return routeToChannel(env, token, '/stream', request);
+    }
+
+    // ── Skill install: GET /skill/install?token=... ─────────────────────────
+    if (path === '/skill/install' && request.method === 'GET') {
+      return handleSkillInstall(request);
     }
 
     return new Response('Not Found', { status: 404, headers: CORS_HEADERS });
