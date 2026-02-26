@@ -66,55 +66,18 @@ project-avatar/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── app/                          # OPTIONAL Tauri desktop application
+├── app/                          # OPTIONAL Tauri desktop application (Phase 4 only)
 │   ├── src-tauri/
 │   │   ├── Cargo.toml
 │   │   ├── src/
-│   │   │   ├── main.rs           # Tauri entry, window config
-│   │   │   ├── commands.rs       # IPC commands (token mgmt, settings)
+│   │   │   ├── main.rs           # Tauri entry, window config (transparent, always-on-top)
+│   │   │   ├── commands.rs       # IPC commands (file picker, tray)
 │   │   │   └── tray.rs           # System tray integration
 │   │   ├── icons/
 │   │   └── tauri.conf.json
 │   ├── src/
-│   │   ├── main.tsx              # React entry (Tauri)
-│   │   ├── App.tsx               # Root component, router
-│   │   ├── avatar/               # *** SHARED with web/ — pure TS/Three.js, no Tauri deps ***
-│   │   │   ├── AvatarCanvas.tsx  # Three.js canvas wrapper
-│   │   │   ├── AvatarScene.ts    # Scene setup, camera, lighting
-│   │   │   ├── VrmManager.ts     # VRM loading, model switching
-│   │   │   ├── ExpressionController.ts  # Emotion → blend shape mapping
-│   │   │   ├── AnimationController.ts   # Action → animation clip playback
-│   │   │   ├── PropManager.ts    # Prop spawning and attachment
-│   │   │   └── StateMachine.ts   # Avatar state transitions
-│   │   ├── ws/
-│   │   │   ├── WebSocketClient.ts    # Connection, reconnection, parsing
-│   │   │   └── EventEmitter.ts       # Internal event bus
-│   │   ├── state/
-│   │   │   ├── store.ts          # Zustand store
-│   │   │   └── settings.ts       # Persisted settings (token, relay URL, model)
-│   │   ├── components/
-│   │   │   ├── SettingsPanel.tsx  # Settings UI
-│   │   │   ├── ModelPicker.tsx   # VRM model selection
-│   │   │   ├── StatusBadge.tsx   # Connection status indicator
-│   │   │   └── TitleBar.tsx      # Custom title bar (draggable)
-│   │   ├── assets/
-│   │   │   ├── models/           # Bundled VRM files
-│   │   │   ├── animations/       # GLB animation clips
-│   │   │   └── props/            # GLB prop models
-│   │   └── styles/
-│   │       └── global.css
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── web/                          # Browser app (Cloudflare Pages / any static host)
-│   ├── src/
-│   │   ├── main.tsx              # React entry (browser)
-│   │   ├── App.tsx               # Token input → avatar view
-│   │   ├── TokenSetup.tsx        # First-run: enter/generate token
-│   │   └── styles/
-│   │       └── global.css
-│   ├── index.html
-│   ├── vite.config.ts            # Path alias → app/src/avatar (shared renderer)
+│   │   └── main.tsx              # Thin entry — renders web/src/App.tsx via path alias
+│   ├── vite.config.ts            # Path alias: @avatar → ../web/src (no duplicate code)
 │   ├── package.json
 │   └── tsconfig.json
 │
