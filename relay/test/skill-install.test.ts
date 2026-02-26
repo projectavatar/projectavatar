@@ -117,20 +117,20 @@ describe('handleSkillInstall', () => {
   it('derives avatar URL from relay subdomain', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://relay.projectavatar.io'));
     const text = await res.text();
-    expect(text).toContain('avatar.projectavatar.io');
+    expect(text).toContain('app.projectavatar.io');
     expect(text).not.toContain('relay.projectavatar.io/?token='); // relay URL, not avatar URL for the app link
   });
 
   it('falls back to production avatar URL for localhost', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'http://localhost:8787'));
     const text = await res.text();
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
   });
 
   it('falls back to production avatar URL for non-relay subdomain', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://workers.dev'));
     const text = await res.text();
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
   });
 
   it('does not double-replace "relay" appearing elsewhere in the URL', async () => {
@@ -138,7 +138,7 @@ describe('handleSkillInstall', () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://project-relay.example.com'));
     const text = await res.text();
     // Should fall back to production, not mangle the hostname
-    expect(text).toContain('https://avatar.projectavatar.io');
+    expect(text).toContain('https://app.projectavatar.io');
   });
 
   // ─── ?model= parameter ──────────────────────────────────────────────────
@@ -160,14 +160,14 @@ describe('handleSkillInstall', () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, BASE_URL, 'placeholder'));
     const text = await res.text();
     expect(text).toContain('## Your Avatar URL');
-    expect(text).toContain('avatar.projectavatar.io');
+    expect(text).toContain('app.projectavatar.io');
   });
 
   it('uses full avatar URL with model in verification section', async () => {
     const res = await handleSkillInstall(makeRequest(VALID_TOKEN, BASE_URL, 'placeholder'));
     const text = await res.text();
     // The verification section should use the same URL as "Your Avatar URL"
-    const avatarUrl = `https://avatar.projectavatar.io/?token=${VALID_TOKEN}&model=placeholder`;
+    const avatarUrl = `https://app.projectavatar.io/?token=${VALID_TOKEN}&model=placeholder`;
     // Count occurrences — should appear multiple times (Avatar URL section + verification + body text)
     const occurrences = text.split(avatarUrl).length - 1;
     expect(occurrences).toBeGreaterThanOrEqual(2);

@@ -2,13 +2,13 @@
 
 The avatar app is the visual side of Project Avatar — a 3D anime-style character that reacts in real-time to your AI agent's state.
 
-**The browser app is the primary product.** Go to [avatar.projectavatar.io](https://avatar.projectavatar.io) — no install, works immediately, OBS Browser Source ready.
+**The browser app is the primary product.** Go to [app.projectavatar.io](https://app.projectavatar.io) — no install, works immediately, OBS Browser Source ready.
 
 The desktop app (Tauri) is optional and adds exactly two things: always-on-top window and system tray. If you don't need those, use the browser app.
 
 It comes in two forms from the same codebase:
 
-- **Browser app** — primary, `avatar.projectavatar.io`, zero install, OBS-ready
+- **Browser app** — primary, `app.projectavatar.io`, zero install, OBS-ready
 - **Desktop app** (Tauri) — optional, native window, always-on-top, system tray
 
 The rendering core (`web/src/avatar/`) is pure TypeScript + Three.js — no Tauri or browser-specific dependencies — so it runs identically in both contexts.
@@ -387,7 +387,7 @@ Tokens are generated **silently on first visit**, before the user even sees the 
 
 ## Browser App Specifics
 
-The browser app at `avatar.projectavatar.io` is the primary product. Differences from the desktop app:
+The browser app at `app.projectavatar.io` is the primary product. Differences from the desktop app:
 
 ### Onboarding Flow
 
@@ -413,7 +413,7 @@ New users go through a two-step wizard (`SetupWizard.tsx`):
 Both token and model are persisted in the URL:
 
 ```
-https://avatar.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID
+https://app.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID
 ```
 
 **Why URL params?**
@@ -436,7 +436,7 @@ This bakes the full avatar URL (with model) into the skill doc. If the user lose
 ### OBS Browser Source Setup
 
 1. In OBS, add a Browser Source
-2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID`
+2. URL: `https://app.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID`
    (copy this directly from the Setup Screen — it's the Avatar URL shown there)
 3. Width: 400, Height: 600 (or your preferred size)
 4. Check "Shutdown source when not visible" to save resources
@@ -493,4 +493,4 @@ cd web && npm run build
 
 Auto-deployed from `web/` directory on push to `master` via Cloudflare Pages GitHub integration.
 
-Custom domain: `avatar.projectavatar.io`
+Custom domain: `app.projectavatar.io`

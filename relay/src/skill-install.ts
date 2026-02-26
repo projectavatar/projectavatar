@@ -47,7 +47,7 @@ export async function handleSkillInstall(request: Request): Promise<Response> {
 /**
  * Derives the avatar app base URL from the relay URL.
  *
- * Convention: relay lives at relay.<domain>, avatar at avatar.<domain>.
+ * Convention: relay lives at relay.<domain>, app lives at app.<domain>.
  * Uses a regex anchored to the start of the hostname to avoid misreplacements
  * if "relay" appears elsewhere in the URL.
  *
@@ -59,13 +59,13 @@ function deriveAvatarBase(relayUrl: URL): string {
 
   // Matches "relay." only at the start of the hostname
   if (/^relay\./.test(hostname)) {
-    const avatarHostname = hostname.replace(/^relay\./, 'avatar.');
+    const avatarHostname = hostname.replace(/^relay\./, 'app.');
     return `${relayUrl.protocol}//${avatarHostname}`;
   }
 
   // Non-subdomain environments (localhost, IPs, custom domains)
-  // Fall back to the canonical production avatar URL
-  return 'https://avatar.projectavatar.io';
+  // Fall back to the canonical production app URL
+  return 'https://app.projectavatar.io';
 }
 
 function generateSkillDoc(token: string, relayUrl: string, avatarBase: string, model: string | null): string {

@@ -13,7 +13,7 @@ Both are agent-agnostic. This works with OpenClaw, ChatGPT, Claude API, raw Olla
 
 The easiest way to install the skill on any agent. No manual config, no copy-pasting tokens.
 
-**Step 1:** Open [avatar.projectavatar.io](https://avatar.projectavatar.io) — your token is generated automatically.
+**Step 1:** Open [app.projectavatar.io](https://app.projectavatar.io) — your token is generated automatically.
 
 **Step 2:** Click "Get Setup Link". You get a URL like:
 ```
