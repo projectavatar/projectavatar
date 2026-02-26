@@ -214,33 +214,56 @@ async def push_event(relay_url: str, token: str, event: dict) -> None:
 
 ## OpenClaw Integration
 
-For OpenClaw, install the skill package:
+### Current: Skill Package
 
-```bash
-# In your OpenClaw workspace
-cp -r /path/to/projectavatar/skill/openclaw ~/.openclaw/workspace/skills/avatar
+The `skill/openclaw/` directory is a ready-to-install OpenClaw skill package:
+
+```
+skill/openclaw/
+├── SKILL.md        # Auto-generated from packages/shared/src/skill-template.ts
+│                   # Regenerate via: npm run gen:skill
+├── filter.ts       # OpenClaw output filter hook — exports onOutput(text, ctx)
+└── config.json     # { relayUrl, token, enabled, bufferLimit }
 ```
 
-Then add to your OpenClaw config or SOUL.md system prompt:
+Install by copying to your OpenClaw workspace skills directory:
+
+```bash
+cp -r skill/openclaw ~/.openclaw/workspace/skills/avatar
+```
+
+Then edit `~/.openclaw/workspace/skills/avatar/config.json` and set your token:
 
 ```json
 {
-  "skills": {
-    "avatar": {
-      "enabled": true,
-      "env": {
-        "AVATAR_RELAY_URL": "https://relay.projectavatar.io",
-        "AVATAR_TOKEN": "your-token-here"
-      }
-    }
-  }
+  "relayUrl": "https://relay.projectavatar.io",
+  "token": "your-token-here",
+  "enabled": true,
+  "bufferLimit": 200
 }
 ```
 
 The OpenClaw skill handles:
 - Injecting the prompt template into the agent's system context
-- Intercepting responses via OpenClaw's output middleware hook
-- Stripping tags and pushing to relay automatically
+- Intercepting responses via the `onOutput` hook in `filter.ts`
+- Stripping tags and pushing to relay automatically (fire-and-forget)
+
+**Note:** `SKILL.md` is auto-generated — do not edit it directly. Edit `packages/shared/src/skill-template.ts` and run `npm run gen:skill`.
+
+---
+
+### Coming Next: OpenClaw Plugin
+
+An upcoming `@projectavatar/openclaw` plugin will replace this manual setup for OpenClaw users:
+
+```bash
+openclaw plugins install @projectavatar/openclaw
+openclaw secrets set AVATAR_TOKEN <your-token>
+```
+
+The plugin hooks directly into the agent lifecycle via `before_tool_call` and `after_tool_call` events, giving the avatar real-time reactivity to tool usage — not just response output. No skill install needed, no output filter, no token config file.
+
+See [IMPLEMENTATION.md — Phase 4](../IMPLEMENTATION.md#phase-4-openclaw-plugin-v11) for the full design.
 
 ---
 

@@ -34,6 +34,8 @@ Your agent finally has a body.
 
 The user sees clean text. The avatar sees everything.
 
+**Coming next: OpenClaw Plugin** — for OpenClaw users, an upcoming plugin (`@projectavatar/openclaw`) hooks directly into the agent lifecycle via `before_tool_call` and `after_tool_call` events. The avatar reacts the moment the agent *starts* a tool call — not after the response is complete. The skill remains the universal cross-platform path.
+
 ---
 
 ## Quick Start
@@ -122,26 +124,39 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 ## Roadmap
 
-### v1 (MVP — 4 weeks)
-- [x] **Relay server** — deployed at `relay.projectavatar.io` (Cloudflare Workers + DO)
+### v1.0 (MVP) ✅
+- [x] **Relay server** — deployed at `relay.projectavatar.io` (Cloudflare Workers + Durable Objects)
 - [x] **One-URL skill install** — `GET /skill/install?token=...` serves pre-configured SKILL.md
-- [ ] Browser app at `app.projectavatar.io` (primary, no install)
-- [ ] Core avatar rendering with VRM support
-- [ ] Expression system (emotion → blend shapes)
-- [ ] Animation system (action → animation clips)
-- [ ] Prop system (reactive objects)
-- [ ] OBS Browser Source support out of the box
-- [ ] Desktop app (Tauri) — optional, always-on-top + tray
+- [x] **Browser app** at `app.projectavatar.io` — primary experience, zero install
+- [x] **Core avatar rendering** — Three.js + @pixiv/three-vrm
+- [x] **Expression system** — 7 emotions → VRM blend shapes, exponential decay lerp
+- [x] **Animation system** — 7 actions → animation clips, crossfade transitions
+- [x] **Prop system** — 6 reactive objects, hand bone attachment
+- [x] **Blink controller** — random blink, idle micro-animations
+- [x] **State machine** — coordinates expressions, animations, props, idle timeout
+- [x] **Skill layer** — universal prompt template + output filters (Node.js, Python, OpenClaw)
+- [x] **Streaming support** — 200-char buffer for tag extraction in token streams
+- [x] **OBS Browser Source** — transparent background, URL-based token
+- [x] **Shared schema** — `@project-avatar/shared` with types, validation, skill template generation
 
-### v1.1
+### v1.1 (Next: OpenClaw Plugin)
+- [ ] **`@projectavatar/openclaw` plugin** — deep lifecycle integration via OpenClaw plugin API
+  - `before_tool_call` / `after_tool_call` hooks — avatar reacts the instant a tool call starts
+  - `before_prompt_build` — automatic skill injection, no manual install needed
+  - Optional `avatar` agent tool for explicit LLM-driven state control
+  - Plugin-internal state machine with debouncing and priority
+- [ ] **Token dashboard** — usage stats, rotation, expiry
+
+### v1.2 (Polish)
+- [ ] Tauri desktop app — always-on-top, system tray (optional)
+- [ ] Bundled VRM models (manifest exists, models TBD)
 - [ ] Voice lip-sync (connect to TTS output)
 - [ ] Custom animation import
-- [ ] Multi-agent support (multiple avatars)
-- [ ] Token dashboard (usage, rotation, expiry)
 
 ### v2
 - [ ] Live2D support (alternative to VRM)
 - [ ] Physics-based secondary motion (hair, clothes)
+- [ ] Multi-agent support (multiple avatars)
 - [ ] IK-based prop interaction
 - [ ] Mobile companion app (iOS/Android)
 
@@ -156,32 +171,42 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 ```
 project-avatar/
-├── web/                    # Browser app — PRIMARY (Cloudflare Pages)
-│   ├── src/
-│   │   ├── main.tsx        # React entry
-│   │   ├── App.tsx         # Token setup → avatar view
-│   │   ├── avatar/         # Three.js + VRM renderer (shared with desktop)
-│   │   ├── ws/             # WebSocket client
-│   │   └── state/          # Zustand store
-│   ├── index.html
-│   └── vite.config.ts
-├── app/                    # Desktop app — OPTIONAL (Tauri)
-│   ├── src-tauri/          # Rust shell (window, tray, IPC)
-│   └── src/                # Wraps web/ renderer, adds native features
-├── relay/                  # Cloudflare Workers relay server
-│   ├── src/
-│   │   ├── index.ts        # Worker entry + routing + /skill/install endpoint
-│   │   └── channel.ts      # Durable Object (WebSocket pub/sub hub)
-│   └── wrangler.toml
+├── packages/
+│   ├── shared/             # Shared types, schema, constants, skill template
+│   │   └── src/
+│   │       ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
+│   │       ├── constants.ts# Protocol version, defaults, rate limits, token utils
+│   │       └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
+│   └── openclaw-plugin/    # [v1.1] @projectavatar/openclaw — OpenClaw plugin
+├── web/                    # Browser app — PRIMARY (Cloudflare Pages → app.projectavatar.io)
+│   └── src/
+│       ├── avatar/         # Three.js + VRM renderer
+│       │   ├── avatar-scene.ts, vrm-manager.ts, expression-controller.ts
+│       │   ├── animation-controller.ts, blink-controller.ts
+│       │   ├── prop-manager.ts, state-machine.ts
+│       ├── ws/             # WebSocket client (exponential backoff reconnect)
+│       ├── state/          # Zustand store
+│       ├── components/     # model-picker, settings-drawer, status-badge
+│       └── setup-wizard.tsx
+├── relay/                  # Cloudflare Workers relay server (→ relay.projectavatar.io)
+│   └── src/
+│       ├── index.ts        # Worker entry + routing
+│       ├── channel.ts      # Durable Object (WebSocket hibernation + fan-out)
+│       ├── skill-install.ts# GET /skill/install?token=... endpoint
+│       ├── auth.ts, rate-limit.ts, types.ts
 ├── skill/                  # Agent skill layer
 │   ├── prompt.md           # Universal prompt template
 │   ├── openclaw/           # OpenClaw skill package
-│   └── filters/            # Output filter (Node.js + Python)
+│   │   ├── SKILL.md        # Auto-generated via scripts/gen-skill-md.ts
+│   │   ├── filter.ts       # OpenClaw output filter hook (onOutput export)
+│   │   └── config.json     # {relayUrl, token, enabled, bufferLimit}
+│   └── filters/
+│       ├── node/           # Node.js filter + streaming filter + CLI
+│       └── python/         # Python parity
+├── scripts/
+│   └── gen-skill-md.ts     # Regenerates skill/openclaw/SKILL.md from template
 └── docs/
-    ├── SCHEMA.md
-    ├── RELAY.md
-    ├── SKILL.md
-    └── AVATAR_APP.md
+    ├── SCHEMA.md, RELAY.md, SKILL.md, AVATAR_APP.md
 ```
 
 ---

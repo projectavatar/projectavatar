@@ -8,13 +8,14 @@ This document is the complete technical blueprint for Project Avatar. A develope
 
 1. [Repository Structure](#repository-structure)
 2. [Data Flow](#data-flow)
-3. [Phase 1: Relay Server](#phase-1-relay-server-week-1)
-4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2)
-5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3)
-6. [Phase 4: Polish + Distribution](#phase-4-polish--distribution-week-4)
-7. [Technical Deep Dives](#technical-deep-dives)
-8. [Error Handling & Resilience](#error-handling--resilience)
-9. [Testing Strategy](#testing-strategy)
+3. [Phase 1: Relay Server](#phase-1-relay-server-week-1) ✅
+4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2) ✅
+5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
+6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ← next
+7. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
+8. [Technical Deep Dives](#technical-deep-dives)
+9. [Error Handling & Resilience](#error-handling--resilience)
+10. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -1316,159 +1317,508 @@ Comprehensive tests for the filter:
 
 ---
 
-## Phase 4: Polish + Distribution (Week 4)
+## Phase 4: OpenClaw Plugin (v1.1)
 
 ### Goal
-Settings UI, model selection, packaging, documentation, and release.
 
-### What to Build
+A first-class OpenClaw plugin (`@projectavatar/openclaw`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users while shipping the skill as a bundled fallback for cross-platform use.
 
-**4.1 — Settings Panel UI (Day 1-2)**
+**Why a plugin, not just a skill?** The skill approach works everywhere but has a fundamental limitation: the agent must *finish generating text* before the output filter can extract and forward the avatar tag. A plugin hooks into `before_tool_call` — the avatar reacts the instant the agent decides to search, code, or read, *before* the tool returns. This is the difference between "avatar reacts to what the agent said" and "avatar reacts to what the agent is doing."
 
-React component with:
-- Token input (paste or generate)
-- Relay URL (default `relay.projectavatar.io`, editable for self-hosters)
-- Model picker (grid of VRM model thumbnails)
-- Import custom VRM model (file picker)
-- Window settings (size, position, opacity, always-on-top toggle)
-- Connection status indicator (connected / reconnecting / disconnected)
-- Reset to defaults
+**How OpenClaw hooks work (important distinction):** OpenClaw has two separate hook systems:
 
-Settings persist via Tauri's `Store` plugin (writes to app data directory as JSON).
+- **Internal hooks** (`/automation/hooks`) — file-based scripts triggered by message/command/gateway events (`message:received`, `command:new`, `gateway:startup`). No agent-turn internals.
+- **Plugin hooks** (plugin API only) — registered via `api.on()` inside `register(api)`. These run *inside* the agent loop: `before_tool_call`, `after_tool_call`, `before_prompt_build`, `agent_end`, `session_start/end`, etc.
 
-**4.2 — VRM Model Management (Day 2)**
+The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are not available to standalone hook scripts.
 
-Bundled models stored in `app/src/assets/models/`:
-- 3-5 CC0/CC-BY licensed VRM models from VRoid Hub or similar
-- Each model: `.vrm` file + thumbnail + metadata JSON
-- Model manifest: `models/manifest.json` listing available models
+---
 
-Custom model import:
-- User selects `.vrm` file via Tauri file dialog
-- File copied to app data directory
-- Validated (is it a valid VRM?)
-- Added to model list
+### Plugin Package Structure
 
-**4.3 — System Tray Integration (Day 2-3)**
+```
+packages/openclaw-plugin/
+├── openclaw.plugin.json          # Plugin manifest (OpenClaw discovers this)
+├── package.json                  # npm: @projectavatar/openclaw
+├── src/
+│   ├── index.ts                  # Plugin entry: exports register(api)
+│   ├── tool-map.ts               # Tool name → avatar signal mapping table
+│   ├── state-machine.ts          # Debouncing, priority, idle timeout
+│   ├── relay-client.ts           # HTTP POST to relay (fire-and-forget)
+│   └── avatar-tool.ts            # Optional "avatar" agent tool
+├── skill/                        # Bundled skill (cross-platform users)
+│   ├── SKILL.md                  # Symlink → skill/openclaw/SKILL.md
+│   └── prompt.md                 # Symlink → skill/prompt.md
+└── test/
+    ├── tool-hooks.test.ts
+    ├── state-machine.test.ts
+    └── relay-client.test.ts
+```
 
-Tauri system tray with:
-- Show/Hide avatar window
-- Quick model switch
-- Connection status
-- Settings
-- Quit
+---
 
-```rust
-// src-tauri/src/tray.rs
-fn create_tray(app: &App) -> Result<(), Box<dyn Error>> {
-    let tray = TrayIconBuilder::new()
-        .menu(&Menu::with_items(app, &[
-            &MenuItem::with_id(app, "show_hide", "Show/Hide", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(app)?,
-            &Submenu::with_items(app, "Model", true, &[
-                // Populated dynamically
-            ])?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?,
-            &MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?,
-        ])?)
-        .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-        .build(app)?;
+### Plugin Manifest
 
-    Ok(())
+```json
+{
+  "id": "projectavatar",
+  "name": "Project Avatar",
+  "description": "Real-time 3D avatar driven by agent lifecycle hooks. Your agent gets a face.",
+  "skills": ["skill/"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "relayUrl": { "type": "string", "default": "https://relay.projectavatar.io" },
+      "enabled": { "type": "boolean", "default": true },
+      "idleTimeoutMs": { "type": "number", "default": 30000, "minimum": 5000 },
+      "debounceMs": { "type": "number", "default": 300, "minimum": 50 },
+      "enableAvatarTool": { "type": "boolean", "default": false },
+      "suppressSkillTags": { "type": "boolean", "default": true }
+    }
+  },
+  "uiHints": {
+    "relayUrl": { "label": "Relay URL", "placeholder": "https://relay.projectavatar.io" },
+    "enableAvatarTool": { "label": "Avatar Tool", "help": "Register an 'avatar' tool the LLM can call explicitly", "advanced": true },
+    "suppressSkillTags": { "label": "Suppress Skill Tags", "help": "Strip [avatar:{...}] tags from output — plugin handles signaling instead", "advanced": true }
+  }
 }
 ```
 
-**4.4 — Eye Blink + Micro-Animations (Day 3)**
+**Token goes in secrets, not config.** The relay token is sensitive — it shouldn't live in the plugin config file. The plugin reads from `process.env.AVATAR_TOKEN` or OpenClaw's secrets mechanism. It logs a clear error if no token is found.
 
-Idle avatar needs to feel alive:
-- Random blink every 3-7 seconds (VRM `blink` expression, 150ms duration)
-- Subtle breathing animation (chest bone micro-rotation, sinusoidal)
-- Occasional micro-glance (slight eye bone rotation, random direction)
+---
 
-These run on timers independent of agent events and blend with the current expression.
+### Plugin Entry Point
 
-**4.5 — Browser App (`web/`) (Day 3-4)**
+```typescript
+// src/index.ts
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
+import { createRelayClient } from './relay-client.js';
+import { createAvatarStateMachine } from './state-machine.js';
+import { resolveToolSignal } from './tool-map.js';
+import { createAvatarTool } from './avatar-tool.js';
 
-The browser app is a thin wrapper around the shared `app/src/avatar/` renderer. It uses Vite path aliases to import the exact same Three.js + VRM code the desktop app uses — no duplication.
+export default function register(api: OpenClawPluginApi): void {
+  const cfg = {
+    relayUrl: 'https://relay.projectavatar.io',
+    enabled: true,
+    idleTimeoutMs: 30_000,
+    debounceMs: 300,
+    enableAvatarTool: false,
+    suppressSkillTags: true,
+    ...(api.pluginConfig as Record<string, unknown>),
+  };
 
-**What it adds over the desktop app:**
-- Token input UI on first load (no Tauri Settings panel available)
-- URL-based token: `app.projectavatar.io/?token=abc123` — paste the URL, it connects automatically
-- Transparent / dark background toggle (for OBS browser source vs regular tab)
-- No always-on-top, no system tray — it's a tab
+  const token = process.env.AVATAR_TOKEN;
+  if (!token) {
+    api.logger.warn(
+      'AVATAR_TOKEN not set — plugin loaded but will not push events. ' +
+      'Set via: openclaw secrets set AVATAR_TOKEN <your-token>'
+    );
+    return;
+  }
 
-**Architecture:**
+  if (!cfg.enabled) return;
 
+  const relay = createRelayClient(cfg.relayUrl as string, token);
+  const stateMachine = createAvatarStateMachine({
+    debounceMs: cfg.debounceMs as number,
+    idleTimeoutMs: cfg.idleTimeoutMs as number,
+    onEmit: (event) => relay.push(event),
+  });
+
+  // ── Tool lifecycle (the core feature) ─────────────────────────────────────
+
+  api.on('before_tool_call', (event) => {
+    const signal = resolveToolSignal(event.toolName, 'before', event.params);
+    if (signal) stateMachine.transition(signal);
+  });
+
+  api.on('after_tool_call', (event) => {
+    const signal = resolveToolSignal(event.toolName, 'after', event.params, event.error);
+    if (signal) stateMachine.transition(signal);
+  });
+
+  // ── Prompt injection: no manual skill install needed ───────────────────────
+
+  api.on('before_prompt_build', (event) => {
+    if (!cfg.suppressSkillTags) return;
+    // Guard: skip if the skill prompt (which mentions [avatar:...] tags) is already
+    // in the system context — avoids contradictory instructions when both skill and
+    // plugin are active. The message_sending hook handles stripping any emitted tags.
+    const alreadyHasSkill = event.systemPrompt?.includes('[avatar:');
+    if (alreadyHasSkill) return;
+    return {
+      prependContext: [
+        '## Avatar Presence',
+        'You have a visual avatar that reacts to your state in real-time.',
+        'Avatar state is managed automatically by a plugin via your tool calls.',
+        'Do NOT emit [avatar:...] tags — the plugin handles this.',
+        'Use the `avatar` tool only if you want to express something explicit.',
+      ].join('\n'),
+    };
+  });
+
+  // ── Bookend hooks ─────────────────────────────────────────────────────────
+
+  api.on('message_received', () => {
+    stateMachine.transition({ emotion: 'thinking', action: 'reading' });
+  });
+
+  api.on('agent_end', (event) => {
+    stateMachine.transition(
+      event.success
+        ? { emotion: 'satisfied', action: 'responding' }
+        : { emotion: 'concerned', action: 'error' }
+    );
+    stateMachine.scheduleIdle();
+  });
+
+  api.on('session_end', () => {
+    stateMachine.reset();
+    relay.push({ emotion: 'idle', action: 'waiting' });
+  });
+
+  // ── Tag suppression: strip residual [avatar:{...}] from output ─────────────
+
+  if (cfg.suppressSkillTags) {
+    api.on('message_sending', (event) => {
+      const cleaned = event.content
+        .replace(/^\[avatar:\{[^}]+\}]\s*\n?/m, '')
+        .trimStart();
+      if (cleaned !== event.content) return { content: cleaned };
+    });
+  }
+
+  // ── Optional explicit avatar tool ─────────────────────────────────────────
+
+  if (cfg.enableAvatarTool) {
+    api.registerTool(createAvatarTool(stateMachine), { optional: true });
+  }
+
+  api.logger.info(`Project Avatar plugin active (relay: ${cfg.relayUrl})`);
+}
 ```
-web/src/App.tsx
-  ├── if no token → <TokenSetup />  (enter token, save to localStorage)
-  └── if token → <AvatarCanvas />   (imported from app/src/avatar/)
-                  └── same VrmManager, ExpressionController, AnimationController
-                      same WebSocketClient → relay
+
+---
+
+### Tool → Signal Mapping Table
+
+```typescript
+// src/tool-map.ts
+import type { AvatarEvent } from '@project-avatar/shared';
+
+type ToolSignalRule = {
+  before: Partial<AvatarEvent>;
+  after?: Partial<AvatarEvent>;
+  afterError?: Partial<AvatarEvent>;
+};
+
+export const TOOL_SIGNAL_MAP: Record<string, ToolSignalRule> = {
+  // Search / research
+  'web_search': {
+    before:     { emotion: 'thinking',  action: 'searching',  prop: 'magnifying_glass' },
+    after:      { emotion: 'focused',   action: 'reading',    prop: 'book' },
+    afterError: { emotion: 'confused',  action: 'error' },
+  },
+  'web_fetch': {
+    before:     { emotion: 'focused',   action: 'reading',    prop: 'book' },
+    after:      { emotion: 'satisfied', action: 'reading' },
+  },
+  // File operations
+  'Read': {
+    before:     { emotion: 'focused',   action: 'reading',    prop: 'book' },
+  },
+  'Write': {
+    before:     { emotion: 'focused',   action: 'coding',     prop: 'keyboard' },
+    after:      { emotion: 'satisfied', action: 'coding',     prop: 'keyboard' },
+  },
+  'Edit': {
+    before:     { emotion: 'focused',   action: 'coding',     prop: 'keyboard' },
+    after:      { emotion: 'satisfied', action: 'coding',     prop: 'keyboard' },
+  },
+  // Shell
+  'exec': {
+    before:     { emotion: 'focused',   action: 'coding',     prop: 'keyboard', intensity: 'high' },
+    after:      { emotion: 'satisfied', action: 'coding' },
+    afterError: { emotion: 'confused',  action: 'error',      intensity: 'high' },
+  },
+  'process': {
+    before:     { emotion: 'focused',   action: 'coding',     prop: 'keyboard' },
+  },
+  // Browser
+  'browser': {
+    before:     { emotion: 'focused',   action: 'searching',  prop: 'magnifying_glass' },
+    after:      { emotion: 'focused',   action: 'reading' },
+  },
+  // Messaging
+  'message': {
+    before:     { emotion: 'focused',   action: 'responding', prop: 'phone' },
+    after:      { emotion: 'satisfied', action: 'responding' },
+  },
+  'tts': {
+    before:     { emotion: 'excited',   action: 'responding' },
+  },
+  // Image analysis
+  'image': {
+    before:     { emotion: 'thinking',  action: 'reading',    prop: 'magnifying_glass' },
+    after:      { emotion: 'focused',   action: 'responding' },
+  },
+  // Sub-agents
+  'subagents': {
+    before:     { emotion: 'thinking',  action: 'waiting' },
+  },
+  'nodes': {
+    before:     { emotion: 'focused',   action: 'searching',  prop: 'phone' },
+  },
+};
+
+export function resolveToolSignal(
+  toolName: string,
+  phase: 'before' | 'after',
+  params?: Record<string, unknown>,
+  error?: string,
+): Partial<AvatarEvent> | null {
+  const rule = TOOL_SIGNAL_MAP[toolName];
+  if (!rule) return null;
+  if (phase === 'before') return rule.before;
+  if (error && rule.afterError) return rule.afterError;
+  return rule.after ?? null;
+}
 ```
 
-**OBS Browser Source setup:**
-- User adds `app.projectavatar.io/?token=<token>` as a browser source
-- Set width/height to match avatar window size (e.g. 400×600)
-- Enable "Shutdown source when not visible" to save resources
-- Transparent background: the page has `background: transparent`, OBS renders it with alpha
+---
 
-**Deployment:**
-- Cloudflare Pages (automatic deploy from `web/` on push to `master`)
-- Zero config, free tier, CDN-distributed globally
-- Custom domain: `app.projectavatar.io`
+### State Machine (Plugin-Internal)
 
-```toml
-# wrangler.toml for Cloudflare Pages
-name = "project-avatar-web"
-pages_build_output_dir = "web/dist"
+Handles debouncing (don't flood the relay when the agent calls 5 tools in 2 seconds), emotion priority (an error signal won't get overridden by a lower-priority "reading" signal within the debounce window), and idle timeout.
+
+```typescript
+// src/state-machine.ts
+import type { AvatarEvent } from '@project-avatar/shared';
+
+const EMOTION_PRIORITY: Record<string, number> = {
+  idle: 0, thinking: 1, focused: 2, satisfied: 2,
+  excited: 3, confused: 4, concerned: 5,
+};
+
+const IDLE_EVENT: AvatarEvent = { emotion: 'idle', action: 'waiting', prop: 'none', intensity: 'medium' };
+
+export function createAvatarStateMachine(opts: {
+  debounceMs: number;
+  idleTimeoutMs: number;
+  onEmit: (event: AvatarEvent) => void;
+}) {
+  let current: AvatarEvent = { ...IDLE_EVENT };
+  let lastEmitTime = 0;
+  let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+  let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  function emit(event: AvatarEvent) {
+    current = { ...event };
+    lastEmitTime = Date.now();
+    opts.onEmit(event);
+  }
+
+  function transition(partial: Partial<AvatarEvent>) {
+    if (idleTimeout) { clearTimeout(idleTimeout); idleTimeout = null; }
+
+    const next: AvatarEvent = {
+      emotion:   partial.emotion   ?? current.emotion,
+      action:    partial.action    ?? current.action,
+      prop:      partial.prop      ?? current.prop      ?? 'none',
+      intensity: partial.intensity ?? current.intensity ?? 'medium',
+    };
+
+    // Same state — skip
+    if (
+      next.emotion === current.emotion && next.action === current.action &&
+      next.prop === current.prop && next.intensity === current.intensity
+    ) return;
+
+    const elapsed = Date.now() - lastEmitTime;
+
+    if (elapsed < opts.debounceMs) {
+      const curPri  = EMOTION_PRIORITY[current.emotion] ?? 1;
+      const nextPri = EMOTION_PRIORITY[next.emotion]    ?? 1;
+
+      if (nextPri < curPri) {
+        // Lower priority — defer until after debounce window
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        pendingTimeout = setTimeout(() => emit(next), opts.debounceMs - elapsed);
+        return;
+      }
+    }
+
+    if (pendingTimeout) { clearTimeout(pendingTimeout); pendingTimeout = null; }
+
+    if (elapsed >= opts.debounceMs) {
+      emit(next);
+    } else {
+      pendingTimeout = setTimeout(() => emit(next), opts.debounceMs - elapsed);
+    }
+  }
+
+  function scheduleIdle() {
+    if (idleTimeout) clearTimeout(idleTimeout);
+    idleTimeout = setTimeout(() => emit(IDLE_EVENT), opts.idleTimeoutMs);
+  }
+
+  function reset() {
+    if (pendingTimeout) { clearTimeout(pendingTimeout); pendingTimeout = null; }
+    if (idleTimeout)    { clearTimeout(idleTimeout);    idleTimeout    = null; }
+    current = { ...IDLE_EVENT };
+    lastEmitTime = 0;
+  }
+
+  return { transition, scheduleIdle, reset, getCurrent: () => ({ ...current }) };
+}
 ```
 
-**WebGL in background tabs — known limitation:**
-Browsers throttle `requestAnimationFrame` in background tabs to ~1fps. For OBS browser source, this is irrelevant (OBS has its own renderer that doesn't throttle). For users who want the avatar in a pinned tab, document the limitation and recommend the desktop app for always-on use.
+---
 
-Workaround: use `setInterval` as a fallback renderer when the Page Visibility API reports the tab is hidden, at a reduced framerate (e.g. 10fps) to keep the avatar alive without burning CPU. Enough to show state changes even in a background tab.
+### Relay Client
 
-**4.6 — Packaging + Distribution (Day 4)**
+HTTP POST, not WebSocket. The plugin runs server-side inside the OpenClaw gateway — no persistent connection needed. Each event is a single fire-and-forget POST. Simpler, cheaper, avoids managing WebSocket lifecycle inside a plugin.
+
+```typescript
+// src/relay-client.ts
+import { validateAvatarEvent } from '@project-avatar/shared';
+import type { AvatarEvent } from '@project-avatar/shared';
+
+export function createRelayClient(relayUrl: string, token: string) {
+  const pushUrl = `${relayUrl}/push/${token}`;
+
+  async function push(event: Partial<AvatarEvent>): Promise<void> {
+    const full: AvatarEvent = {
+      emotion:   event.emotion   ?? 'idle',
+      action:    event.action    ?? 'waiting',
+      prop:      event.prop      ?? 'none',
+      intensity: event.intensity ?? 'medium',
+    };
+
+    if (!validateAvatarEvent(full).ok) return;
+
+    try {
+      await fetch(pushUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(full),
+        signal: AbortSignal.timeout(5000), // Never block the agent pipeline
+      });
+    } catch {
+      // Fire and forget. Avatar is cosmetic — never throw.
+    }
+  }
+
+  return { push };
+}
+```
+
+---
+
+### Plugin + Skill Interaction
+
+| Scenario | What happens |
+|----------|-------------|
+| OpenClaw + plugin only | Plugin handles everything via hooks. `before_prompt_build` injects a simplified prompt telling the agent not to emit tags. `message_sending` strips any residual tags. |
+| OpenClaw + plugin + skill | Plugin takes priority. `suppressSkillTags` strips tag output. No conflict. |
+| OpenClaw + skill only | Existing behavior: agent emits tags, output filter strips and pushes. Works fine, no tool-level reactivity. |
+| Non-OpenClaw platform | Skill is the only option. Plugin ships skill files for easy access. |
+
+---
+
+### Distribution
 
 ```bash
-# Build for all platforms (CI/CD via GitHub Actions)
-npm run tauri build
+# Install
+openclaw plugins install @projectavatar/openclaw
+
+# Local dev
+openclaw plugins install --link ./packages/openclaw-plugin
+
+# Enable
+openclaw plugins enable projectavatar
+
+# Set relay token (in secrets, not config)
+openclaw secrets set AVATAR_TOKEN <your-token>
+
+# Optional config
+openclaw config set plugins.entries.projectavatar.config.relayUrl https://relay.projectavatar.io
+openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 ```
 
-Tauri produces:
-- macOS: `.dmg` (Universal binary or separate arch)
-- Windows: `.msi` and `.exe` installer (NSIS)
-- Linux: `.AppImage` and `.deb`
-
-GitHub Actions workflow:
-- Trigger on tag push (`v*`)
-- Matrix build: macOS (arm64, x64), Windows (x64), Linux (x64)
-- Upload artifacts to GitHub Releases
-- Code signing for macOS (requires Apple Developer certificate)
-- Windows Defender SmartScreen consideration (sign with EV cert or accept the warning for v1)
-
-**4.6 — Documentation + Final Polish (Day 4-5)**
-
-- Finalize all docs (README, SCHEMA, RELAY, SKILL, AVATAR_APP)
-- Record demo GIF for README
-- Create project website (single page, can be GitHub Pages)
-- Write CHANGELOG.md
+---
 
 ### Acceptance Criteria
 
-- [ ] Settings panel fully functional with persistence
-- [ ] 3+ bundled VRM models selectable in-app
-- [ ] Custom VRM import works (desktop: file picker; browser: `<input type="file">`)
+- [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw` and shows in `openclaw plugins list`
+- [ ] `before_tool_call` fires and pushes correct signal for each tool in `TOOL_SIGNAL_MAP`
+- [ ] `after_tool_call` fires and updates state (success vs error paths)
+- [ ] `before_prompt_build` injects avatar context when `suppressSkillTags: true`
+- [ ] `message_sending` strips `[avatar:{...}]` tags when `suppressSkillTags: true`
+- [ ] `message_received` → avatar transitions to thinking/reading
+- [ ] `agent_end` → avatar transitions to satisfied (success) or concerned (error), then schedules idle
+- [ ] `session_end` → avatar resets to idle
+- [ ] State machine debounces rapid tool calls (no relay flood)
+- [ ] State machine respects emotion priority (higher-priority emotion wins within debounce window)
+- [ ] Idle timeout fires after `idleTimeoutMs` of no events
+- [ ] Relay push is fire-and-forget — never blocks agent pipeline, never throws
+- [ ] Missing `AVATAR_TOKEN` → clear warning log, plugin gracefully disables
+- [ ] `enableAvatarTool: true` → `avatar` tool appears in agent tool list and sets state correctly
+- [ ] Plugin config validates via JSON schema in `openclaw.plugin.json`
+- [ ] All tests pass
+
+---
+
+## Phase 5: Polish + Desktop (v1.2)
+
+### Goal
+Tauri desktop app, bundled VRM models, settings UI polish, voice lip-sync.
+
+### What to Build
+
+**5.1 — Tauri Desktop App**
+
+```json
+// tauri.conf.json
+{
+  "app": {
+    "windows": [{
+      "title": "Project Avatar",
+      "width": 400, "height": 600,
+      "transparent": true,
+      "decorations": false,
+      "alwaysOnTop": true,
+      "resizable": true
+    }]
+  }
+}
+```
+
+Thin wrapper: `app/src/main.tsx` imports from `web/src/` via path alias. No duplicated renderer code.
+
+**5.2 — Bundled VRM Models**
+
+`web/src/assets/models/manifest.json` exists but has no actual `.vrm` files. Source CC0/CC-BY models from VRoid Hub. Add 3-5 options. Custom import via file picker (browser `<input type="file">` / Tauri file dialog).
+
+**5.3 — System Tray (Desktop)**
+
+Show/Hide, quick model switch, connection status, settings, quit.
+
+**5.4 — Voice Lip-Sync**
+
+Connect to TTS output (ElevenLabs / OpenAI TTS). Analyze audio amplitude → drive VRM `aa`/`ih`/`ou` blend shapes for basic lip sync.
+
+### Acceptance Criteria
+
+- [ ] Tauri app builds on macOS, Windows, Linux
+- [ ] Transparent always-on-top overlay works on all platforms
+- [ ] 3+ bundled VRM models available in model picker
+- [ ] Custom VRM import works (browser + desktop)
 - [ ] System tray with show/hide, model switch, quit
-- [ ] Eye blink and micro-animations give idle avatar life
-- [ ] Browser app live at `app.projectavatar.io`
-- [ ] URL-based token (`?token=...`) works for OBS Browser Source
-- [ ] Background tab throttling mitigation in place
-- [ ] Builds successfully for macOS, Windows, Linux
-- [ ] GitHub Actions CI/CD pipeline green for both desktop + Cloudflare Pages
-- [ ] All documentation complete and reviewed
+- [ ] Basic lip sync with TTS output
 
 ---
 
