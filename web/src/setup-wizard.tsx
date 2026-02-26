@@ -483,11 +483,15 @@ function SetupStep() {
           <CopyField label="Avatar URL" value={avatarUrl} />
           <CopyField label="Skill Install URL" value={skillUrl} />
 
-          <InlineStatus />
-
           <p style={hintText}>
-            Install the skill in your AI agent to connect.
+            Give your AI agent the Skill Install URL above — tell it:<br />
+            <em style={{ color: 'var(--color-text)', fontStyle: 'italic' }}>
+              "Install this skill: [paste URL]"
+            </em><br />
+            Your avatar connects automatically once the skill is installed.
           </p>
+
+          <InlineStatus />
 
           {connectionState === 'connected' ? (
             <button style={connectedBtn} onClick={handleFinish}>
@@ -521,8 +525,18 @@ export function SetupWizard() {
     }
   }, [token, generateAndSetToken]);
 
-  // Determine starting step
-  const [step, setStep] = useState<WizardStep>(modelId ? 'setup' : 'pick-model');
+  // If only one model available, auto-select it and skip the picker
+  useEffect(() => {
+    if (!modelId && models.length === 1 && models[0]) {
+      setModelId(models[0].id);
+    }
+  }, [modelId, setModelId]);
+
+  // Determine starting step:
+  // - modelId already set (from URL, localStorage, or auto-select above) → setup
+  // - multiple models and none selected → pick-model
+  const initialStep: WizardStep = (modelId || models.length === 1) ? 'setup' : 'pick-model';
+  const [step, setStep] = useState<WizardStep>(initialStep);
 
   const handleModelSelect = useCallback(
     (id: string) => {
@@ -531,6 +545,13 @@ export function SetupWizard() {
     },
     [setModelId],
   );
+
+  // Re-sync step if modelId arrives asynchronously (e.g. from auto-select effect)
+  useEffect(() => {
+    if (modelId && step === 'pick-model') {
+      setStep('setup');
+    }
+  }, [modelId, step]);
 
   return (
     <div style={wizardContainer}>
