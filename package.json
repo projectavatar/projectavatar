@@ -1,0 +1,16 @@
+{
+  "name": "project-avatar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "relay"
+  ],
+  "scripts": {
+    "relay:dev": "cd relay && npm run dev",
+    "relay:deploy": "cd relay && npm run deploy",
+    "relay:test": "cd relay && npm run test",
+    "test": "npm run relay:test"
+  }
+}
