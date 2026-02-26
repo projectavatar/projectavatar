@@ -18,6 +18,7 @@
     "test": "npm run relay:test && npm run skill:test"
   },
   "devDependencies": {
+    "@types/node": "^25.3.2",
     "tsx": "^4.21.0"
   }
 }
