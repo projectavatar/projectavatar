@@ -86,7 +86,7 @@ npm install @project-avatar/filter
 import { filterResponse } from '@project-avatar/filter';
 
 const config = {
-  relayUrl: 'https://relay.projectavatar.dev',
+  relayUrl: 'https://relay.projectavatar.io',
   token: 'your-token-here',
   enabled: true,
 };
@@ -205,7 +205,7 @@ Then add to your OpenClaw config or SOUL.md system prompt:
     "avatar": {
       "enabled": true,
       "env": {
-        "AVATAR_RELAY_URL": "https://relay.projectavatar.dev",
+        "AVATAR_RELAY_URL": "https://relay.projectavatar.io",
         "AVATAR_TOKEN": "your-token-here"
       }
     }
@@ -224,7 +224,7 @@ The OpenClaw skill handles:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AVATAR_RELAY_URL` | Relay server base URL | `https://relay.projectavatar.dev` |
+| `AVATAR_RELAY_URL` | Relay server base URL | `https://relay.projectavatar.io` |
 | `AVATAR_TOKEN` | Your relay token (required) | — |
 | `AVATAR_ENABLED` | Enable/disable avatar signaling | `true` |
 | `AVATAR_BUFFER_LIMIT` | Max chars to buffer for tag detection in streams | `200` |
@@ -247,7 +247,7 @@ Run the filter against a test string:
 node -e "
 const { filterResponse } = require('@project-avatar/filter');
 const raw = '[avatar:{\"emotion\":\"focused\",\"action\":\"coding\"}]\nHere is your answer.';
-filterResponse(raw, { relayUrl: 'https://relay.projectavatar.dev', token: 'test', enabled: false })
+filterResponse(raw, { relayUrl: 'https://relay.projectavatar.io', token: 'test', enabled: false })
   .then(clean => console.log('Clean:', clean));
 "
 ```
@@ -259,7 +259,7 @@ Expected output: `Clean: Here is your answer.`
 With the avatar app open and connected:
 
 ```bash
-curl -X POST https://relay.projectavatar.dev/push/YOUR_TOKEN \
+curl -X POST https://relay.projectavatar.io/push/YOUR_TOKEN \
   -H "Content-Type: application/json" \
   -d '{"emotion":"excited","action":"celebrating"}'
 ```
@@ -281,7 +281,7 @@ Check in order:
 2. Is the relay URL correct in the filter config?
 3. Is the token the same in both the filter config and the avatar app?
 4. Run the curl test above to verify the relay is reachable.
-5. Check the relay health: `GET https://relay.projectavatar.dev/health`
+5. Check the relay health: `GET https://relay.projectavatar.io/health`
 
 **The agent sometimes skips the tag.**
 

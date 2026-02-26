@@ -442,7 +442,7 @@ Open CORS because the avatar app's origin is `tauri://localhost` or `https://tau
 - [ ] New WebSocket connections receive the last known event (replay)
 - [ ] Rate limiting blocks excessive requests with 429 status
 - [ ] `GET /health` returns 200 with version info
-- [ ] Deployed and accessible at `relay.projectavatar.dev`
+- [ ] Deployed and accessible at `relay.projectavatar.io`
 
 ---
 
@@ -1201,7 +1201,7 @@ Settings UI, model selection, packaging, documentation, and release.
 
 React component with:
 - Token input (paste or generate)
-- Relay URL (default `relay.projectavatar.dev`, editable for self-hosters)
+- Relay URL (default `relay.projectavatar.io`, editable for self-hosters)
 - Model picker (grid of VRM model thumbnails)
 - Import custom VRM model (file picker)
 - Window settings (size, position, opacity, always-on-top toggle)
@@ -1268,7 +1268,7 @@ The browser app is a thin wrapper around the shared `app/src/avatar/` renderer. 
 
 **What it adds over the desktop app:**
 - Token input UI on first load (no Tauri Settings panel available)
-- URL-based token: `avatar.projectavatar.dev/?token=abc123` — paste the URL, it connects automatically
+- URL-based token: `avatar.projectavatar.io/?token=abc123` — paste the URL, it connects automatically
 - Transparent / dark background toggle (for OBS browser source vs regular tab)
 - No always-on-top, no system tray — it's a tab
 
@@ -1283,7 +1283,7 @@ web/src/App.tsx
 ```
 
 **OBS Browser Source setup:**
-- User adds `avatar.projectavatar.dev/?token=<token>` as a browser source
+- User adds `avatar.projectavatar.io/?token=<token>` as a browser source
 - Set width/height to match avatar window size (e.g. 400×600)
 - Enable "Shutdown source when not visible" to save resources
 - Transparent background: the page has `background: transparent`, OBS renders it with alpha
@@ -1291,7 +1291,7 @@ web/src/App.tsx
 **Deployment:**
 - Cloudflare Pages (automatic deploy from `web/` on push to `master`)
 - Zero config, free tier, CDN-distributed globally
-- Custom domain: `avatar.projectavatar.dev`
+- Custom domain: `avatar.projectavatar.io`
 
 ```toml
 # wrangler.toml for Cloudflare Pages
@@ -1329,7 +1329,6 @@ GitHub Actions workflow:
 - Record demo GIF for README
 - Create project website (single page, can be GitHub Pages)
 - Write CHANGELOG.md
-- License file (MIT)
 
 ### Acceptance Criteria
 
@@ -1338,7 +1337,7 @@ GitHub Actions workflow:
 - [ ] Custom VRM import works (desktop: file picker; browser: `<input type="file">`)
 - [ ] System tray with show/hide, model switch, quit
 - [ ] Eye blink and micro-animations give idle avatar life
-- [ ] Browser app live at `avatar.projectavatar.dev`
+- [ ] Browser app live at `avatar.projectavatar.io`
 - [ ] URL-based token (`?token=...`) works for OBS Browser Source
 - [ ] Background tab throttling mitigation in place
 - [ ] Builds successfully for macOS, Windows, Linux

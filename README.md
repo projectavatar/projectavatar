@@ -42,7 +42,7 @@ The user sees clean text. The avatar sees everything.
 
 **The fastest way to get started:**
 
-1. Go to `https://avatar.projectavatar.dev`
+1. Go to `https://avatar.projectavatar.io`
 2. Enter your relay token (or generate one on the page)
 3. Choose your VRM model
 4. Bookmark it, or add it as an OBS Browser Source for streaming
@@ -98,7 +98,7 @@ Start chatting with your agent. Watch the avatar react.
 
 ## Quick Start (Self-Hosting the Relay)
 
-The default relay is hosted at `relay.projectavatar.dev`. If you want to run your own:
+The default relay is hosted at `relay.projectavatar.io`. If you want to run your own:
 
 ```bash
 # Clone the repo
@@ -154,7 +154,7 @@ You need a Cloudflare account with Workers and Durable Objects enabled. See [`do
 - [x] Relay server (Cloudflare Workers + DO)
 - [x] Agent skill (prompt template + output filter)
 - [x] Settings UI (token, model selection, positioning)
-- [x] Browser app at `avatar.projectavatar.dev` (no install required)
+- [x] Browser app at `avatar.projectavatar.io` (no install required)
 - [x] OBS Browser Source support out of the box
 
 ### v1.1
@@ -212,53 +212,9 @@ project-avatar/
 
 ---
 
-## Contributing
+## Support
 
-Project Avatar is open source and contributions are welcome.
-
-### Development Setup
-
-```bash
-# Clone
-git clone https://github.com/linh-n/project-avatar.git
-cd project-avatar
-
-# App development
-cd app
-npm install
-npm run tauri dev
-
-# Relay development
-cd relay
-npm install
-npx wrangler dev
-
-# Skill development
-cd skill
-npm install
-npm test
-```
-
-### Guidelines
-
-- **TypeScript everywhere** (except Tauri's Rust shell)
-- **Opinions welcome** — if you think a technical decision is wrong, open an issue and make your case
-- **Tests required** for relay and skill packages
-- **VRM models** — only include models with CC0/CC-BY licenses
-
-### Reporting Issues
-
-Open an issue. Include:
-- Your platform (OS, version)
-- Your agent setup (which AI, which platform)
-- Steps to reproduce
-- What you expected vs what happened
-
----
-
-## License
-
-MIT — do whatever you want with it.
+Run into an issue? Contact us at [projectavatar.io](https://projectavatar.io).
 
 ---
 
@@ -268,4 +224,4 @@ AI agents are invisible. They're text on a screen. But humans are visual creatur
 
 It's the difference between talking to a terminal and talking to someone.
 
-*— Built by [Linh](https://github.com/linh-n) and [Maid](https://github.com/linh-n/maid) 🧹*
+*— Built by ragr3t and Maid*

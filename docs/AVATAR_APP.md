@@ -5,7 +5,7 @@ The avatar app is the visual side of Project Avatar — a 3D anime-style charact
 It comes in two forms from the same codebase:
 
 - **Desktop app** (Tauri) — native window, always-on-top, system tray, transparent background
-- **Browser app** — no install, OBS Browser Source ready, `avatar.projectavatar.dev`
+- **Browser app** — no install, OBS Browser Source ready, `avatar.projectavatar.io`
 
 The rendering core (`app/src/avatar/`) is pure TypeScript + Three.js — no Tauri dependencies — so it runs identically in both contexts.
 
@@ -318,7 +318,7 @@ The avatar app connects to the relay via WebSocket and maintains the connection 
 ### Connection
 
 ```typescript
-const ws = new WebSocket(`wss://relay.projectavatar.dev/stream/${token}`);
+const ws = new WebSocket(`wss://relay.projectavatar.io/stream/${token}`);
 ```
 
 ### Reconnection
@@ -358,7 +358,7 @@ Settings are persisted via Tauri's `Store` plugin (desktop) or `localStorage` (b
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `token` | string | — | Relay token (required) |
-| `relayUrl` | string | `https://relay.projectavatar.dev` | Relay base URL |
+| `relayUrl` | string | `https://relay.projectavatar.io` | Relay base URL |
 | `modelId` | string | first bundled model | Selected VRM model |
 | `customModelPath` | string | — | Path to user-imported VRM |
 | `alwaysOnTop` | boolean | `true` | Desktop only |
@@ -383,7 +383,7 @@ The token is shown once on generation and stored in settings. It cannot be recov
 
 ## Browser App Specifics
 
-The browser app at `avatar.projectavatar.dev` shares the `app/src/avatar/` renderer. Differences:
+The browser app at `avatar.projectavatar.io` shares the `app/src/avatar/` renderer. Differences:
 
 ### Token Input
 
@@ -392,12 +392,12 @@ On first visit (no token in localStorage), `TokenSetup.tsx` is shown:
 - Click "Generate new token" to create one
 - Token saved to localStorage, won't be asked again
 
-URL-based token: `avatar.projectavatar.dev/?token=abc123` skips the setup screen entirely. Useful for OBS browser source — paste the URL and it connects.
+URL-based token: `avatar.projectavatar.io/?token=abc123` skips the setup screen entirely. Useful for OBS browser source — paste the URL and it connects.
 
 ### OBS Browser Source Setup
 
 1. In OBS, add a Browser Source
-2. URL: `https://avatar.projectavatar.dev/?token=YOUR_TOKEN`
+2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN`
 3. Width: 400, Height: 600 (or your preferred size)
 4. Check "Shutdown source when not visible" to save resources
 5. The page renders with `background: transparent` — OBS composites the avatar over your stream
@@ -453,4 +453,4 @@ cd web && npm run build
 
 Auto-deployed from `web/` directory on push to `master` via Cloudflare Pages GitHub integration.
 
-Custom domain: `avatar.projectavatar.dev`
+Custom domain: `avatar.projectavatar.io`

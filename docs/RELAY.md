@@ -221,13 +221,13 @@ async function getChannel(env: Env, token: string): Promise<DurableObjectStub> {
 
 ## Self-Hosting
 
-You can run your own relay instead of using `relay.projectavatar.dev`. You need a Cloudflare account with Workers and Durable Objects enabled (both available on the free tier).
+You can run your own relay instead of using `relay.projectavatar.io`. You need a Cloudflare account with Workers and Durable Objects enabled (both available on the free tier).
 
 ### Deploy
 
 ```bash
 # Clone
-git clone https://github.com/linh-n/projectavatar.git
+git clone https://github.com/ragr3t/projectavatar.git
 cd projectavatar/relay
 
 # Install dependencies
@@ -263,7 +263,7 @@ RELAY_VERSION = "1.0.0"
 
 ### Configure the Avatar App
 
-In Settings → Relay URL, change from `https://relay.projectavatar.dev` to your Worker URL (e.g., `https://project-avatar-relay.your-subdomain.workers.dev`).
+In Settings → Relay URL, change from `https://relay.projectavatar.io` to your Worker URL (e.g., `https://project-avatar-relay.your-subdomain.workers.dev`).
 
 For the output filter, update `AVATAR_RELAY_URL` in your filter config.
 

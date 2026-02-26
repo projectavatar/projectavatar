@@ -90,7 +90,7 @@ The relay wraps it in an envelope for WebSocket delivery:
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://projectavatar.dev/schema/avatar-event.v1.json",
+  "$id": "https://projectavatar.io/schema/avatar-event.v1.json",
   "title": "AvatarEvent",
   "description": "An avatar signal event describing the agent's current emotional state and action.",
   "type": "object",
