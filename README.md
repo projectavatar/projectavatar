@@ -123,15 +123,15 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 ## Roadmap
 
 ### v1 (MVP — 4 weeks)
-- [x] Browser app at `avatar.projectavatar.io` (primary, no install)
-- [x] One-URL skill install (`/skill/install?token=...`)
-- [x] Core avatar rendering with VRM support
-- [x] Expression system (emotion → blend shapes)
-- [x] Animation system (action → animation clips)
-- [x] Prop system (reactive objects)
-- [x] Relay server (Cloudflare Workers + DO)
-- [x] OBS Browser Source support out of the box
-- [x] Desktop app (Tauri) — optional, always-on-top + tray
+- [x] **Relay server** — deployed at `relay.projectavatar.io` (Cloudflare Workers + DO)
+- [x] **One-URL skill install** — `GET /skill/install?token=...` serves pre-configured SKILL.md
+- [ ] Browser app at `avatar.projectavatar.io` (primary, no install)
+- [ ] Core avatar rendering with VRM support
+- [ ] Expression system (emotion → blend shapes)
+- [ ] Animation system (action → animation clips)
+- [ ] Prop system (reactive objects)
+- [ ] OBS Browser Source support out of the box
+- [ ] Desktop app (Tauri) — optional, always-on-top + tray
 
 ### v1.1
 - [ ] Voice lip-sync (connect to TTS output)
