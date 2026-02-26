@@ -51,31 +51,37 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
 
   const e = event as Record<string, unknown>;
 
-  if (!e.emotion || !EMOTIONS.includes(e.emotion as Emotion)) {
+  // Use explicit type checks rather than truthiness — avoids false negatives
+  // for falsy-but-valid values and gives clearer "required" vs "invalid" errors
+  if (typeof e.emotion !== 'string' || !EMOTIONS.includes(e.emotion as Emotion)) {
     return {
       ok: false,
-      error: `Invalid emotion: ${e.emotion}. Must be one of: ${EMOTIONS.join(', ')}`,
+      error: e.emotion === undefined
+        ? `'emotion' is required. Must be one of: ${EMOTIONS.join(', ')}`
+        : `Invalid emotion: ${String(e.emotion)}. Must be one of: ${EMOTIONS.join(', ')}`,
     };
   }
 
-  if (!e.action || !ACTIONS.includes(e.action as Action)) {
+  if (typeof e.action !== 'string' || !ACTIONS.includes(e.action as Action)) {
     return {
       ok: false,
-      error: `Invalid action: ${e.action}. Must be one of: ${ACTIONS.join(', ')}`,
+      error: e.action === undefined
+        ? `'action' is required. Must be one of: ${ACTIONS.join(', ')}`
+        : `Invalid action: ${String(e.action)}. Must be one of: ${ACTIONS.join(', ')}`,
     };
   }
 
-  if (e.prop !== undefined && !PROPS.includes(e.prop as Prop)) {
+  if (e.prop !== undefined && (typeof e.prop !== 'string' || !PROPS.includes(e.prop as Prop))) {
     return {
       ok: false,
-      error: `Invalid prop: ${e.prop}. Must be one of: ${PROPS.join(', ')}`,
+      error: `Invalid prop: ${String(e.prop)}. Must be one of: ${PROPS.join(', ')}`,
     };
   }
 
-  if (e.intensity !== undefined && !INTENSITIES.includes(e.intensity as Intensity)) {
+  if (e.intensity !== undefined && (typeof e.intensity !== 'string' || !INTENSITIES.includes(e.intensity as Intensity))) {
     return {
       ok: false,
-      error: `Invalid intensity: ${e.intensity}. Must be one of: ${INTENSITIES.join(', ')}`,
+      error: `Invalid intensity: ${String(e.intensity)}. Must be one of: ${INTENSITIES.join(', ')}`,
     };
   }
 

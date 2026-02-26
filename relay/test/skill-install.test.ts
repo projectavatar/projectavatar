@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { handleSkillInstall } from '../src/skill-install.js';
+import { EMOTIONS, ACTIONS } from '../../packages/shared/src/schema.js';
 
 const VALID_TOKEN = 'a'.repeat(48);
 const BASE_URL = 'https://relay.projectavatar.io';
 
-function makeRequest(token?: string): Request {
+function makeRequest(token?: string, baseUrl = BASE_URL): Request {
   const url = token
-    ? `${BASE_URL}/skill/install?token=${token}`
-    : `${BASE_URL}/skill/install`;
+    ? `${baseUrl}/skill/install?token=${token}`
+    : `${baseUrl}/skill/install`;
   return new Request(url);
 }
 
@@ -71,8 +72,6 @@ describe('handleSkillInstall', () => {
     expect(text).toContain('[avatar:');
     expect(text).toContain('emotion');
     expect(text).toContain('action');
-    expect(text).toContain('idle');
-    expect(text).toContain('responding');
   });
 
   it('returns CORS headers', async () => {
@@ -93,5 +92,52 @@ describe('handleSkillInstall', () => {
   it('rejects token at 65 chars', async () => {
     const res = await handleSkillInstall(makeRequest('f'.repeat(65)));
     expect(res.status).toBe(400);
+  });
+
+  // ─── Schema-derived content ──────────────────────────────────────────────
+
+  it('lists all emotions from schema (stays in sync automatically)', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN));
+    const text = await res.text();
+    for (const emotion of EMOTIONS) {
+      expect(text).toContain(emotion);
+    }
+  });
+
+  it('lists all actions from schema (stays in sync automatically)', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN));
+    const text = await res.text();
+    for (const action of ACTIONS) {
+      expect(text).toContain(action);
+    }
+  });
+
+  // ─── avatarBase derivation ───────────────────────────────────────────────
+
+  it('derives avatar URL from relay subdomain', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://relay.projectavatar.io'));
+    const text = await res.text();
+    expect(text).toContain('avatar.projectavatar.io');
+    expect(text).not.toContain('relay.projectavatar.io/?token='); // relay URL, not avatar URL for the app link
+  });
+
+  it('falls back to production avatar URL for localhost', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'http://localhost:8787'));
+    const text = await res.text();
+    expect(text).toContain('https://avatar.projectavatar.io');
+  });
+
+  it('falls back to production avatar URL for non-relay subdomain', async () => {
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://workers.dev'));
+    const text = await res.text();
+    expect(text).toContain('https://avatar.projectavatar.io');
+  });
+
+  it('does not double-replace "relay" appearing elsewhere in the URL', async () => {
+    // e.g. project-relay.example.com should NOT become project-avatar.example.com
+    const res = await handleSkillInstall(makeRequest(VALID_TOKEN, 'https://project-relay.example.com'));
+    const text = await res.text();
+    // Should fall back to production, not mangle the hostname
+    expect(text).toContain('https://avatar.projectavatar.io');
   });
 });

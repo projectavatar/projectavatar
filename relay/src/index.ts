@@ -1,6 +1,6 @@
 import { isValidToken, tokenToChannelName } from './auth.js';
 import { checkRateLimit } from './rate-limit.js';
-import { CORS_HEADERS } from './channel.js';
+import { CORS_HEADERS } from '../../packages/shared/src/constants.js';
 import { handleSkillInstall } from './skill-install.js';
 import type { Env } from './types.js';
 
@@ -51,7 +51,7 @@ export default {
 
     // ── Stream endpoint: GET /stream/:token (WebSocket) ─────────────────────
     const streamMatch = path.match(/^\/stream\/([^/]+)$/);
-    if (streamMatch) {
+    if (streamMatch && request.method === 'GET') {
       const token = streamMatch[1];
 
       if (!isValidToken(token)) {

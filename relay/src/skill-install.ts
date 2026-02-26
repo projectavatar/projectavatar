@@ -1,5 +1,5 @@
-import { isValidToken } from '../../packages/shared/src/constants.js';
-import { CORS_HEADERS } from './channel.js';
+import { isValidToken, CORS_HEADERS } from '../../packages/shared/src/constants.js';
+import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from '../../packages/shared/src/schema.js';
 
 /**
  * GET /skill/install?token=:token
@@ -15,7 +15,7 @@ export async function handleSkillInstall(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
   const relayBase = `${url.protocol}//${url.host}`;
-  const avatarBase = relayBase.replace('relay.', 'avatar.');
+  const avatarBase = deriveAvatarBase(url);
 
   if (!token || !isValidToken(token)) {
     return new Response(
@@ -40,7 +40,37 @@ export async function handleSkillInstall(request: Request): Promise<Response> {
   });
 }
 
+/**
+ * Derives the avatar app base URL from the relay URL.
+ *
+ * Convention: relay lives at relay.<domain>, avatar at avatar.<domain>.
+ * Uses a regex anchored to the start of the hostname to avoid misreplacements
+ * if "relay" appears elsewhere in the URL.
+ *
+ * Falls back to a known production URL for non-subdomain or local environments
+ * (localhost, IP addresses) where the convention doesn't apply.
+ */
+function deriveAvatarBase(relayUrl: URL): string {
+  const hostname = relayUrl.hostname;
+
+  // Matches "relay." only at the start of the hostname
+  if (/^relay\./.test(hostname)) {
+    const avatarHostname = hostname.replace(/^relay\./, 'avatar.');
+    return `${relayUrl.protocol}//${avatarHostname}`;
+  }
+
+  // Non-subdomain environments (localhost, IPs, custom domains)
+  // Fall back to the canonical production avatar URL
+  return 'https://avatar.projectavatar.io';
+}
+
 function generateSkillDoc(token: string, relayUrl: string, avatarUrl: string): string {
+  // Interpolate enum values directly from schema — stays in sync automatically
+  const emotions = EMOTIONS.join(', ');
+  const actions = ACTIONS.join(', ');
+  const props = PROPS.filter(p => p !== 'none').join(', ');
+  const intensities = INTENSITIES.join(', ');
+
   return `# Avatar Skill
 
 ## Configuration
@@ -63,13 +93,13 @@ your reply text:
 [avatar:{"emotion":"<emotion>","action":"<action>"}]
 \`\`\`
 
-**Available emotions:** idle, thinking, focused, excited, confused, satisfied, concerned
+**Available emotions:** ${emotions}
 
-**Available actions:** responding, searching, coding, reading, waiting, error, celebrating
+**Available actions:** ${actions}
 
 **Optional fields:**
-- \`"prop"\`: keyboard | magnifying_glass | coffee_cup | book | phone | scroll | none
-- \`"intensity"\`: low | medium | high (default: medium)
+- \`"prop"\`: ${props}, none
+- \`"intensity"\`: ${intensities} (default: medium)
 
 **Examples:**
 \`\`\`

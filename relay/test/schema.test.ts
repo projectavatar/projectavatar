@@ -29,16 +29,28 @@ describe('validateAvatarEvent', () => {
     expect(validateAvatarEvent(42)).toMatchObject({ ok: false });
   });
 
-  it('rejects missing emotion', () => {
-    expect(validateAvatarEvent({ action: 'coding' })).toMatchObject({ ok: false });
+  it('rejects missing emotion with a "required" message', () => {
+    const r = validateAvatarEvent({ action: 'coding' });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/required/i);
   });
 
-  it('rejects missing action', () => {
-    expect(validateAvatarEvent({ emotion: 'focused' })).toMatchObject({ ok: false });
+  it('rejects missing action with a "required" message', () => {
+    const r = validateAvatarEvent({ emotion: 'focused' });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/required/i);
   });
 
-  it('rejects unknown emotion', () => {
-    expect(validateAvatarEvent({ emotion: 'angry', action: 'coding' })).toMatchObject({ ok: false });
+  it('rejects explicit undefined emotion with a "required" message', () => {
+    const r = validateAvatarEvent({ emotion: undefined, action: 'coding' });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/required/i);
+  });
+
+  it('rejects unknown emotion with an "invalid" message', () => {
+    const r = validateAvatarEvent({ emotion: 'angry', action: 'coding' });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/invalid emotion/i);
   });
 
   it('rejects unknown action', () => {
@@ -61,6 +73,17 @@ describe('validateAvatarEvent', () => {
     expect(
       validateAvatarEvent({ emotion: 'focused', action: 'coding', foo: 'bar' }),
     ).toMatchObject({ ok: false });
+  });
+
+  it('rejects non-string emotion (falsy value edge case)', () => {
+    expect(validateAvatarEvent({ emotion: 0, action: 'coding' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: false, action: 'coding' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: '', action: 'coding' })).toMatchObject({ ok: false });
+  });
+
+  it('rejects non-string action (falsy value edge case)', () => {
+    expect(validateAvatarEvent({ emotion: 'focused', action: 0 })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: 'focused', action: '' })).toMatchObject({ ok: false });
   });
 
   it('accepts all valid emotions', () => {

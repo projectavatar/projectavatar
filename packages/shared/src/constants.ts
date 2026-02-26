@@ -21,10 +21,36 @@ export function isValidToken(token: string): boolean {
   return TOKEN_REGEX.test(token);
 }
 
+/**
+ * Generates a cryptographically random 48-character token.
+ *
+ * The character set is exactly 64 characters (A-Z, a-z, 0-9, _, -)
+ * which makes it a power of 2. Each random byte maps cleanly to one
+ * character via `b % 64` with zero modulo bias — every character is
+ * equally likely. Do not change the charset length without reviewing
+ * this invariant.
+ *
+ * Entropy: 48 chars × 6 bits = 288 bits.
+ */
 export function generateToken(): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+  // Exactly 64 chars — power of 2 ensures zero modulo bias
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+  if (chars.length !== 64) {
+    throw new Error('generateToken: charset must be exactly 64 characters');
+  }
   const bytes = new Uint8Array(48);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+  return Array.from(bytes, (b) => chars[b % 64]).join('');
 }
+
+/**
+ * CORS headers shared across all relay endpoints.
+ * Frozen to prevent accidental mutation at runtime.
+ * Open CORS: the token is the auth boundary.
+ */
+export const CORS_HEADERS = Object.freeze({
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+} as const) as Record<string, string>;
