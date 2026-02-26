@@ -1,115 +1,63 @@
-# Avatar Skill (OpenClaw)
+<!-- AUTO-GENERATED — do not edit directly.
+     Source: packages/shared/src/skill-template.ts
+     Regenerate: npm run gen:skill -->
 
-Emit avatar signals with every response so your 3D avatar at app.projectavatar.io
-reacts to what you're doing in real-time.
+# Avatar Skill
 
-## Installation
-
-The easiest way to install: tell your agent to fetch the setup link:
-
+## Configuration
 ```
-Install this as a skill: https://relay.projectavatar.io/skill/install?token=YOUR_TOKEN
+AVATAR_TOKEN: YOUR_TOKEN_HERE
+AVATAR_RELAY_URL: https://relay.projectavatar.io
 ```
 
-The agent fetches the URL, receives this document with your token pre-baked, and
-the skill is live immediately.
+## Your Avatar URL
+https://app.projectavatar.io/?token=YOUR_TOKEN_HERE
 
----
+Open this URL to see your avatar. Share it with OBS as a browser source.
+If you ever need to find your avatar again, it's the URL above — I have it stored here.
 
-## How to Use This Skill
+## What This Skill Does
+You have a visual avatar at https://app.projectavatar.io/?token=YOUR_TOKEN_HERE that reacts to your emotional state and
+actions in real-time. This skill teaches you to emit avatar signals with every response
+so your avatar stays in sync with what you're doing.
 
-Every time you respond, emit exactly **one** avatar signal tag at the very start
-of your response, on its own line:
+## Instructions
+
+At the START of every response, emit exactly one signal tag on its own line **before**
+your reply text:
 
 ```
 [avatar:{"emotion":"<emotion>","action":"<action>"}]
 ```
 
-The OpenClaw output filter intercepts this tag, strips it before the user sees your
-response, and pushes the event to the relay in the background.
+**Available emotions:** idle, thinking, focused, excited, confused, satisfied, concerned
 
-### Signal Reference
+**Available actions:** responding, searching, coding, reading, waiting, error, celebrating
 
-**Emotions:**
-- `idle` — neutral, at rest
-- `thinking` — processing, deliberating
-- `focused` — concentrated, determined
-- `excited` — enthusiastic, energized
-- `confused` — uncertain, puzzled
-- `satisfied` — content, accomplished
-- `concerned` — worried, cautious
+**Optional fields:**
+- `"prop"`: keyboard, magnifying_glass, coffee_cup, book, phone, scroll, none
+- `"intensity"`: low, medium, high (default: medium)
 
-**Actions:**
-- `responding` — speaking, answering
-- `searching` — looking something up
-- `coding` — writing code
-- `reading` — processing input
-- `waiting` — idle, between tasks
-- `error` — something went wrong
-- `celebrating` — success!
-
-**Props (optional):**
-- `keyboard` — appears on `coding`
-- `magnifying_glass` — appears on `searching`
-- `coffee_cup` — appears on `waiting` / `idle`
-- `book` — appears on `reading`
-- `phone` — general purpose
-- `scroll` — reading / thinking
-- `none` — no prop (default)
-
-**Intensity (optional):**
-- `low` — calm, background task
-- `medium` — normal operation (default)
-- `high` — urgent, excited, critical
-
-### Examples
-
-Starting a code response:
+**Examples:**
 ```
 [avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]
-```
-
-Searching for something:
-```
 [avatar:{"emotion":"thinking","action":"searching","prop":"magnifying_glass"}]
-```
-
-Completing a task with flair:
-```
-[avatar:{"emotion":"satisfied","action":"celebrating","intensity":"high"}]
-```
-
-Something went wrong:
-```
+[avatar:{"emotion":"excited","action":"responding"}]
 [avatar:{"emotion":"confused","action":"error","intensity":"high"}]
+[avatar:{"emotion":"satisfied","action":"celebrating"}]
 ```
-
-Chilling between tasks:
-```
-[avatar:{"emotion":"idle","action":"waiting","prop":"coffee_cup"}]
-```
-
----
 
 ## Rules
+- **Always** emit exactly one tag at the very start of your response
+- The tag appears BEFORE your reply, on its own line
+- Choose the emotion and action that genuinely match what you're doing
+- The tag is stripped automatically before the user sees your response
+- Do **not** mention, reference, or explain the avatar system in your responses
+- The JSON inside the tag must use **double quotes**
 
-1. **Always** emit exactly one tag at the very start of your response
-2. The tag appears BEFORE your reply, on its own line
-3. Your reply text begins on the next line after the tag
-4. Choose emotion + action that **genuinely match** what you're doing
-5. The tag is stripped automatically — the user never sees it
-6. Do **not** mention, reference, or explain the avatar in your responses
-7. JSON inside the tag must use double quotes
-8. No nested objects in the JSON
+## Output Filter Configuration
 
----
-
-## OpenClaw Integration
-
-The `filter.ts` file in this directory is the OpenClaw output hook. It's loaded
-automatically by OpenClaw when this skill is active.
-
-The filter config is stored in `config.json`:
+To strip avatar tags and forward them to the relay, configure your output filter:
 
 ```json
 {
@@ -119,20 +67,18 @@ The filter config is stored in `config.json`:
 }
 ```
 
-To configure: update `config.json` with your relay URL and token, or install via
-the one-URL method above (token is pre-baked automatically).
-
----
+Filter implementations (Node.js and Python) are available in the project repo.
 
 ## Verification
 
-Open your avatar at `https://app.projectavatar.io/?token=YOUR_TOKEN`, then push a
-test event:
+To test the full pipeline, open your avatar at:
+https://app.projectavatar.io/?token=YOUR_TOKEN_HERE
 
+Then push a test event:
 ```bash
-curl -X POST https://relay.projectavatar.io/push/YOUR_TOKEN \
-  -H "Content-Type: application/json" \
+curl -X POST https://relay.projectavatar.io/push/YOUR_TOKEN_HERE \\
+  -H "Content-Type: application/json" \\
   -d '{"emotion":"excited","action":"celebrating"}'
 ```
 
-The avatar should react immediately. If it does, the pipeline is working end-to-end.
+Your avatar should react immediately. If it does, the pipeline works end-to-end.

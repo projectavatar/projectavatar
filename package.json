@@ -12,8 +12,12 @@
   "scripts": {
     "relay:dev": "cd relay && npm run dev",
     "relay:deploy": "cd relay && npm run deploy",
+    "gen:skill": "npx tsx scripts/gen-skill-md.ts",
     "relay:test": "cd relay && npm run test",
     "skill:test": "cd skill && npm run test",
     "test": "npm run relay:test && npm run skill:test"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
   }
 }
