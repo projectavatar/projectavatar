@@ -14,8 +14,8 @@ This document is the complete technical blueprint for Project Avatar. A develope
 6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ← next
 7. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
 8. [Technical Deep Dives](#technical-deep-dives)
-8. [Error Handling & Resilience](#error-handling--resilience)
-9. [Testing Strategy](#testing-strategy)
+9. [Error Handling & Resilience](#error-handling--resilience)
+10. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -1364,6 +1364,7 @@ packages/openclaw-plugin/
   "id": "projectavatar",
   "name": "Project Avatar",
   "description": "Real-time 3D avatar driven by agent lifecycle hooks. Your agent gets a face.",
+  "skills": ["skill/"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -1441,8 +1442,13 @@ export default function register(api: OpenClawPluginApi): void {
 
   // ── Prompt injection: no manual skill install needed ───────────────────────
 
-  api.on('before_prompt_build', (_event) => {
+  api.on('before_prompt_build', (event) => {
     if (!cfg.suppressSkillTags) return;
+    // Guard: skip if the skill prompt (which mentions [avatar:...] tags) is already
+    // in the system context — avoids contradictory instructions when both skill and
+    // plugin are active. The message_sending hook handles stripping any emitted tags.
+    const alreadyHasSkill = event.systemPrompt?.includes('[avatar:');
+    if (alreadyHasSkill) return;
     return {
       prependContext: [
         '## Avatar Presence',
@@ -1488,7 +1494,7 @@ export default function register(api: OpenClawPluginApi): void {
   // ── Optional explicit avatar tool ─────────────────────────────────────────
 
   if (cfg.enableAvatarTool) {
-    api.registerTool(createAvatarTool(stateMachine));
+    api.registerTool(createAvatarTool(stateMachine), { optional: true });
   }
 
   api.logger.info(`Project Avatar plugin active (relay: ${cfg.relayUrl})`);

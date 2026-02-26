@@ -172,11 +172,12 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 ```
 project-avatar/
 ├── packages/
-│   └── shared/             # Shared types, schema, constants, skill template
-│       └── src/
-│           ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
-│           ├── constants.ts# Protocol version, defaults, rate limits, token utils
-│           └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
+│   ├── shared/             # Shared types, schema, constants, skill template
+│   │   └── src/
+│   │       ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
+│   │       ├── constants.ts# Protocol version, defaults, rate limits, token utils
+│   │       └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
+│   └── openclaw-plugin/    # [v1.1] @projectavatar/openclaw — OpenClaw plugin
 ├── web/                    # Browser app — PRIMARY (Cloudflare Pages → app.projectavatar.io)
 │   └── src/
 │       ├── avatar/         # Three.js + VRM renderer
