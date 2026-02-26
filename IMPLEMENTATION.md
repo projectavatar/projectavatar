@@ -1017,7 +1017,13 @@ export class AvatarWebSocketClient {
 
 ### Acceptance Criteria
 
-- [ ] Tauri app launches with transparent window, always-on-top
+- [ ] Browser app loads at `localhost:5173`
+- [ ] First visit: token auto-generated, model picker shown
+- [ ] Model picker → avatar renders idle in background, skill URL overlay shown
+- [ ] Avatar URL format: `?token=TOKEN&model=MODEL_ID` — both params in URL
+- [ ] Skill install URL includes `&model=MODEL_ID` — baked into skill doc
+- [ ] URL stays in sync via `history.replaceState` on token/model change
+- [ ] Return visit (token + model in URL/localStorage): skip wizard, go straight to avatar
 - [ ] VRM model loads and renders with proper lighting
 - [ ] Expression controller smoothly blends between emotions
 - [ ] Animation controller crossfades between action clips
@@ -1026,7 +1032,7 @@ export class AvatarWebSocketClient {
 - [ ] WebSocket client connects to relay and receives events
 - [ ] Avatar reacts to events within 200ms of receipt
 - [ ] Idle timeout returns avatar to default state after 30s
-- [ ] Settings panel: token input, relay URL, model picker
+- [ ] URL-based token + model (`?token=XYZ&model=maid-v1`) works for OBS browser source
 
 ---
 

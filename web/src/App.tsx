@@ -1,5 +1,5 @@
 import { useStore } from './state/store.ts';
-import { TokenSetup } from './TokenSetup.tsx';
+import { SetupWizard } from './SetupWizard.tsx';
 import { AvatarCanvas } from './avatar/AvatarCanvas.tsx';
 import { StatusBadge } from './components/StatusBadge.tsx';
 import { SettingsDrawer } from './components/SettingsDrawer.tsx';
@@ -32,7 +32,9 @@ const avatarContainerStyle: React.CSSProperties = {
 
 export function App() {
   const token = useStore((s) => s.token);
+  const modelId = useStore((s) => s.modelId);
   const theme = useStore((s) => s.theme);
+  const setupComplete = useStore((s) => s.setupComplete);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
 
   // Apply theme to body
@@ -40,12 +42,14 @@ export function App() {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }
 
-  // No token → show setup screen
-  if (!token) {
-    return <TokenSetup />;
+  // Onboarding complete = has token + modelId + setup complete
+  const needsOnboarding = !token || !modelId || !setupComplete;
+
+  if (needsOnboarding) {
+    return <SetupWizard />;
   }
 
-  // Token present → show avatar with controls
+  // Token + model present → show avatar with controls
   return (
     <div style={avatarContainerStyle}>
       <AvatarCanvas />

@@ -4,13 +4,13 @@ import manifestData from '../assets/models/manifest.json';
 interface ModelEntry {
   id: string;
   name: string;
-  url: string;
-  thumbnail?: string;
+  url: string | null;
+  thumbnail?: string | null;
   author?: string;
   license?: string;
 }
 
-const manifest = manifestData as { models: ModelEntry[] };
+const manifest = manifestData as unknown as { models: ModelEntry[] };
 
 const containerStyle: React.CSSProperties = {
   display: 'flex',
@@ -81,7 +81,7 @@ export function ModelPicker() {
           <div
             key={model.id}
             style={modelUrl === model.url ? activeCardStyle : cardStyle}
-            onClick={() => setModelUrl(model.url)}
+            onClick={() => setModelUrl(model.url ?? null)}
           >
             <div style={{ fontWeight: 500 }}>{model.name}</div>
             {model.author && (

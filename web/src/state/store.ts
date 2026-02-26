@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DEFAULTS, generateToken } from '@project-avatar/shared';
 import type { Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
+import manifest from '../assets/models/manifest.json';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
@@ -11,10 +12,20 @@ export interface AvatarState {
   intensity: Intensity;
 }
 
+interface ModelEntry {
+  id: string;
+  name: string;
+  description: string;
+  url: string | null;
+  thumbnail: string | null;
+  license: string;
+}
+
 export interface AppState {
   // Auth / config
   token: string | null;
   relayUrl: string;
+  modelId: string | null;
   modelUrl: string | null;
 
   // Connection
@@ -27,22 +38,50 @@ export interface AppState {
   // UI
   settingsOpen: boolean;
   theme: 'dark' | 'transparent';
+  setupComplete: boolean;
 
   // Actions
   setToken: (token: string | null) => void;
   setRelayUrl: (url: string) => void;
+  setModelId: (id: string | null) => void;
   setModelUrl: (url: string | null) => void;
   setConnectionState: (state: ConnectionState) => void;
   setReconnectAttempt: (attempt: number) => void;
   setAvatarState: (state: Partial<AvatarState>) => void;
   setSettingsOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'transparent') => void;
+  setSetupComplete: (complete: boolean) => void;
   generateAndSetToken: () => string;
 }
 
 const STORAGE_KEY = 'project-avatar-settings';
 
-function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelUrl' | 'theme'>> {
+/** Look up a model's URL from the manifest by ID */
+function resolveModelUrl(modelId: string | null): string | null {
+  if (!modelId) return null;
+  const models = (manifest as unknown as { models: ModelEntry[] }).models;
+  const entry = models.find((m) => m.id === modelId);
+  return entry?.url ?? null;
+}
+
+/** Update URL params via history.replaceState — no reload */
+function updateUrlParams(params: Record<string, string | null>) {
+  try {
+    const url = new URL(window.location.href);
+    for (const [key, value] of Object.entries(params)) {
+      if (value != null) {
+        url.searchParams.set(key, value);
+      } else {
+        url.searchParams.delete(key);
+      }
+    }
+    window.history.replaceState(null, '', url.toString());
+  } catch {
+    // SSR or restricted environment — silently ignore
+  }
+}
+
+function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'setupComplete'>> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
@@ -50,45 +89,57 @@ function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'mo
     return {
       token: typeof parsed['token'] === 'string' ? parsed['token'] : undefined,
       relayUrl: typeof parsed['relayUrl'] === 'string' ? parsed['relayUrl'] : undefined,
+      modelId: typeof parsed['modelId'] === 'string' ? parsed['modelId'] : undefined,
       modelUrl: typeof parsed['modelUrl'] === 'string' ? parsed['modelUrl'] : undefined,
       theme: parsed['theme'] === 'transparent' ? 'transparent' : undefined,
+      setupComplete: typeof parsed['setupComplete'] === 'boolean' ? parsed['setupComplete'] : undefined,
     };
   } catch {
     return {};
   }
 }
 
-function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelUrl' | 'theme'>) {
+function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'setupComplete'>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       token: state.token,
       relayUrl: state.relayUrl,
+      modelId: state.modelId,
       modelUrl: state.modelUrl,
       theme: state.theme,
+      setupComplete: state.setupComplete,
     }));
   } catch {
     // localStorage may be unavailable (e.g. OBS browser source privacy settings)
   }
 }
 
-// Check URL for token param (OBS browser source / share link)
-function getTokenFromUrl(): string | null {
+/** Read URL params on init */
+function getUrlParams(): { token: string | null; model: string | null } {
   try {
     const params = new URLSearchParams(window.location.search);
-    return params.get('token');
+    return {
+      token: params.get('token'),
+      model: params.get('model'),
+    };
   } catch {
-    return null;
+    return { token: null, model: null };
   }
 }
 
 const persisted = loadPersistedState();
-const urlToken = getTokenFromUrl();
+const urlParams = getUrlParams();
+
+// URL params win over localStorage
+const initialToken = urlParams.token ?? persisted.token ?? null;
+const initialModelId = urlParams.model ?? persisted.modelId ?? null;
+const initialModelUrl = resolveModelUrl(initialModelId) ?? persisted.modelUrl ?? null;
 
 export const useStore = create<AppState>((set, get) => ({
-  // URL token wins over localStorage
-  token: urlToken ?? persisted.token ?? null,
+  token: initialToken,
   relayUrl: persisted.relayUrl ?? DEFAULTS.relayUrl,
-  modelUrl: persisted.modelUrl ?? null,
+  modelId: initialModelId,
+  modelUrl: initialModelUrl,
 
   connectionState: 'disconnected',
   reconnectAttempt: 0,
@@ -102,20 +153,31 @@ export const useStore = create<AppState>((set, get) => ({
 
   settingsOpen: false,
   theme: persisted.theme ?? 'dark',
+  setupComplete: persisted.setupComplete ?? false,
 
   setToken: (token) => {
     set({ token });
-    persistState({ ...get(), token });
+    const state = get();
+    persistState(state);
+    updateUrlParams({ token });
   },
 
   setRelayUrl: (relayUrl) => {
     set({ relayUrl });
-    persistState({ ...get(), relayUrl });
+    persistState(get());
+  },
+
+  setModelId: (modelId) => {
+    const modelUrl = resolveModelUrl(modelId);
+    set({ modelId, modelUrl });
+    const state = get();
+    persistState(state);
+    updateUrlParams({ model: modelId });
   },
 
   setModelUrl: (modelUrl) => {
     set({ modelUrl });
-    persistState({ ...get(), modelUrl });
+    persistState(get());
   },
 
   setConnectionState: (connectionState) => set({ connectionState }),
@@ -131,13 +193,20 @@ export const useStore = create<AppState>((set, get) => ({
 
   setTheme: (theme) => {
     set({ theme });
-    persistState({ ...get(), theme });
+    persistState(get());
+  },
+
+  setSetupComplete: (complete) => {
+    set({ setupComplete: complete });
+    persistState(get());
   },
 
   generateAndSetToken: () => {
     const token = generateToken();
     set({ token });
-    persistState({ ...get(), token });
+    const state = get();
+    persistState(state);
+    updateUrlParams({ token });
     return token;
   },
 }));

@@ -2,11 +2,14 @@ import { isValidToken, CORS_HEADERS } from '../../packages/shared/src/constants.
 import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from '../../packages/shared/src/schema.js';
 
 /**
- * GET /skill/install?token=:token
+ * GET /skill/install?token=:token&model=:model
  *
  * Serves a pre-configured SKILL.md with the token baked in.
  * The user can tell their agent "install this skill: <URL>" and it
  * will receive ready-to-use instructions including the relay token.
+ *
+ * The optional `model` param is included in the avatar URL so the
+ * correct model loads automatically when the user opens the link.
  *
  * No auth required — the token itself is the secret. Anyone who
  * has the URL can install the skill for that channel.
@@ -14,6 +17,7 @@ import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from '../../packages/shared/src
 export async function handleSkillInstall(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
+  const model = url.searchParams.get('model');
   const relayBase = `${url.protocol}//${url.host}`;
   const avatarBase = deriveAvatarBase(url);
 
@@ -27,7 +31,7 @@ export async function handleSkillInstall(request: Request): Promise<Response> {
     );
   }
 
-  const skillDoc = generateSkillDoc(token, relayBase, avatarBase);
+  const skillDoc = generateSkillDoc(token, relayBase, avatarBase, model);
 
   return new Response(skillDoc, {
     headers: {
@@ -64,7 +68,12 @@ function deriveAvatarBase(relayUrl: URL): string {
   return 'https://avatar.projectavatar.io';
 }
 
-function generateSkillDoc(token: string, relayUrl: string, avatarUrl: string): string {
+function generateSkillDoc(token: string, relayUrl: string, avatarBase: string, model: string | null): string {
+  // Build avatar URL with optional model param
+  const avatarUrl = model
+    ? `${avatarBase}/?token=${token}&model=${model}`
+    : `${avatarBase}/?token=${token}`;
+
   // Interpolate enum values directly from schema — stays in sync automatically
   const emotions = EMOTIONS.join(', ');
   const actions = ACTIONS.join(', ');
@@ -78,6 +87,12 @@ function generateSkillDoc(token: string, relayUrl: string, avatarUrl: string): s
 AVATAR_TOKEN: ${token}
 AVATAR_RELAY_URL: ${relayUrl}
 \`\`\`
+
+## Your Avatar URL
+${avatarUrl}
+
+Open this URL to see your avatar. Share it with OBS as a browser source.
+If you ever need to find your avatar again, it's the URL above — I have it stored here.
 
 ## What This Skill Does
 You have a visual avatar at ${avatarUrl} that reacts to your emotional state and
@@ -135,7 +150,7 @@ Filter implementations (Node.js and Python) are available in the project repo.
 ## Verification
 
 To test the full pipeline, open your avatar at:
-${avatarUrl}/?token=${token}
+${avatarUrl}
 
 Then push a test event:
 \`\`\`bash

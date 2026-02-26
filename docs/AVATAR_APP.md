@@ -359,17 +359,17 @@ Settings are persisted via Tauri's `Store` plugin (desktop) or `localStorage` (b
 
 ### Available Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `token` | string | — | Relay token (required) |
-| `relayUrl` | string | `https://relay.projectavatar.io` | Relay base URL |
-| `modelId` | string | first bundled model | Selected VRM model |
-| `customModelPath` | string | — | Path to user-imported VRM |
-| `alwaysOnTop` | boolean | `true` | Desktop only |
-| `windowOpacity` | number | `1.0` | 0.0–1.0 |
-| `windowSize` | `{w, h}` | `{400, 600}` | Pixels |
-| `idleTimeoutMs` | number | `30000` | Ms before returning to idle |
-| `backgroundVisible` | boolean | `false` | Show window background (vs transparent) |
+| Setting | Type | Default | Persisted in | Description |
+|---------|------|---------|--------------|-------------|
+| `token` | string | — | URL + localStorage | Relay token (required) |
+| `modelId` | string | — | URL + localStorage | Selected VRM model ID |
+| `relayUrl` | string | `https://relay.projectavatar.io` | localStorage | Relay base URL |
+| `idleTimeoutMs` | number | `30000` | localStorage | Ms before returning to idle |
+| `theme` | `'dark'` \| `'transparent'` | `'dark'` | localStorage | Background mode |
+| `alwaysOnTop` | boolean | `true` | app settings | Desktop only |
+| `windowSize` | `{w, h}` | `{400, 600}` | app settings | Desktop only |
+
+**URL persistence:** `token` and `modelId` are written to the URL via `history.replaceState` whenever they change. This makes the URL always shareable and correct — copy it from the address bar at any time.
 
 ### Token Generation
 
@@ -381,27 +381,63 @@ function generateToken(): string {
 }
 ```
 
-The token is shown once on generation and stored in settings. It cannot be recovered after the settings file is deleted — generate a new one if needed (just update the filter config to match).
+Tokens are generated **silently on first visit**, before the user even sees the model picker. The token is stored in localStorage and written into the URL immediately — the user can see it in the address bar or copy it from the Setup Screen. If lost, generate a new one (update filter config to match).
 
 ---
 
 ## Browser App Specifics
 
-The browser app at `avatar.projectavatar.io` shares the `app/src/avatar/` renderer. Differences:
+The browser app at `avatar.projectavatar.io` is the primary product. Differences from the desktop app:
 
-### Token Input
+### Onboarding Flow
 
-On first visit (no token in localStorage), `TokenSetup.tsx` is shown:
-- Enter an existing token, or
-- Click "Generate new token" to create one
-- Token saved to localStorage, won't be asked again
+New users go through a two-step wizard (`SetupWizard.tsx`):
 
-URL-based token: `avatar.projectavatar.io/?token=abc123` skips the setup screen entirely. Useful for OBS browser source — paste the URL and it connects.
+**Step 1 — Model Picker (`ModelPickerStep`)**
+- Token is auto-generated silently in the background (user never sees this)
+- User picks their VRM model from a grid of thumbnails
+- "I already have a token" link at the bottom for returning users who want to swap tokens
+
+**Step 2 — Setup Screen (`SetupStep`)**
+- The chosen avatar renders immediately in the background, idling
+- A floating overlay shows:
+  - The full **Avatar URL** (with `?token=...&model=...`) — one-click copy
+  - The **Skill Install URL** for the relay — one-click copy
+  - Connection status badge ("Waiting for connection...")
+- When the first WebSocket event arrives (skill installed + filter running), the overlay auto-dismisses
+
+**Returning users** (token + model in localStorage or URL): skip the wizard entirely, go straight to the avatar.
+
+### URL-Based State
+
+Both token and model are persisted in the URL:
+
+```
+https://avatar.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID
+```
+
+**Why URL params?**
+- OBS browser sources don't have localStorage — URL is the only reliable persistence
+- Shareable: paste the URL anywhere and it connects with the right model
+- `model=MODEL_ID` uses a short stable identifier (e.g. `maid-v1`), not a path — the manifest maps IDs to files
+
+**Priority:** URL params always win over localStorage. localStorage is the fallback for users who just bookmark the base URL.
+
+The URL stays in sync — when the user picks a model or generates a token, `history.replaceState` updates the URL bar immediately. No reload.
+
+**Skill install URL** also includes the model param:
+
+```
+https://relay.projectavatar.io/skill/install?token=TOKEN&model=MODEL_ID
+```
+
+This bakes the full avatar URL (with model) into the skill doc. If the user loses their avatar URL, they can ask their AI agent to recall it from the installed skill.
 
 ### OBS Browser Source Setup
 
 1. In OBS, add a Browser Source
-2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN`
+2. URL: `https://avatar.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID`
+   (copy this directly from the Setup Screen — it's the Avatar URL shown there)
 3. Width: 400, Height: 600 (or your preferred size)
 4. Check "Shutdown source when not visible" to save resources
 5. The page renders with `background: transparent` — OBS composites the avatar over your stream
