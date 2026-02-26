@@ -21,7 +21,12 @@ export async function checkRateLimit(
   const limit = kind === 'push' ? RATE_LIMITS.pushPerMinute : RATE_LIMITS.streamConnectionsPerMinute;
 
   try {
-    // Get current count
+    // Known limitation: KV get-then-put is not atomic. Under high concurrency,
+    // two requests in the same window can both read count=N, both pass the check,
+    // and both write N+1. This means the actual limit may be slightly exceeded.
+    // Acceptable for this use case — the rate limiter is a soft guard against
+    // accidental abuse, not a hard security boundary. For strict enforcement,
+    // move counting to a Durable Object with transactional storage.
     const raw = await env.RATE_LIMIT_KV.get(key);
     const count = raw ? parseInt(raw, 10) : 0;
 

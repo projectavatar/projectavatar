@@ -3,9 +3,6 @@ import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS } from '../../packages/shar
 import type { AvatarEvent } from '../../packages/shared/src/schema.js';
 import type { Env, WebSocketMessage } from './types.js';
 
-// Re-export so existing imports from './channel.js' still work
-export { CORS_HEADERS } from '../../packages/shared/src/constants.js';
-
 const LAST_EVENT_KEY = 'lastEvent';
 
 /**
@@ -65,7 +62,9 @@ export class Channel implements DurableObject {
       return jsonResponse({ error: 'Failed to read request body' }, 400);
     }
 
-    if (text.length > RATE_LIMITS.maxPayloadBytes) {
+    // Use byte length, not UTF-16 code unit length, to match the maxPayloadBytes semantic.
+    // Practically identical for ASCII JSON, but correct for any Unicode input.
+    if (new TextEncoder().encode(text).length > RATE_LIMITS.maxPayloadBytes) {
       return jsonResponse({ error: 'Payload too large' }, 413);
     }
 
