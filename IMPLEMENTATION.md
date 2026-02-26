@@ -9,7 +9,7 @@ This document is the complete technical blueprint for Project Avatar. A develope
 1. [Repository Structure](#repository-structure)
 2. [Data Flow](#data-flow)
 3. [Phase 1: Relay Server](#phase-1-relay-server-week-1)
-4. [Phase 2: Avatar App Core](#phase-2-avatar-app-core-week-2)
+4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2)
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3)
 6. [Phase 4: Polish + Distribution](#phase-4-polish--distribution-week-4)
 7. [Technical Deep Dives](#technical-deep-dives)
