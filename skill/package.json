@@ -1,0 +1,16 @@
+{
+  "name": "@project-avatar/skill",
+  "version": "1.0.0",
+  "description": "Agent skill layer for Project Avatar — prompt template and output filters",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

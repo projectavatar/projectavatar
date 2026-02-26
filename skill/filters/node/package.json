@@ -1,0 +1,26 @@
+{
+  "name": "@project-avatar/filter-node",
+  "version": "1.0.0",
+  "description": "Node.js output filter for Project Avatar — strips avatar tags and pushes events to the relay",
+  "type": "module",
+  "main": "./filter.ts",
+  "exports": {
+    ".": "./filter.ts",
+    "./streaming": "./streaming-filter.ts",
+    "./cli": "./cli.ts"
+  },
+  "bin": {
+    "avatar-filter": "./cli.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "avatar",
+    "ai",
+    "output-filter",
+    "streaming"
+  ],
+  "license": "MIT"
+}

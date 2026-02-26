@@ -6,12 +6,14 @@
   "workspaces": [
     "packages/*",
     "relay",
-    "web"
+    "web",
+    "skill"
   ],
   "scripts": {
     "relay:dev": "cd relay && npm run dev",
     "relay:deploy": "cd relay && npm run deploy",
     "relay:test": "cd relay && npm run test",
-    "test": "npm run relay:test"
+    "skill:test": "cd skill && npm run test",
+    "test": "npm run relay:test && npm run skill:test"
   }
 }
