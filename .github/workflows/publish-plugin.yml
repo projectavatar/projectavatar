@@ -49,8 +49,11 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          # registry-url intentionally omitted — it writes NODE_AUTH_TOKEN into
-          # .npmrc which blocks npm's native OIDC token exchange
+          registry-url: 'https://registry.npmjs.org'
+
+      # Node 22 ships with npm 10.x; OIDC trusted publishing requires npm >= 11.5.1
+      - name: Update npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -60,8 +63,8 @@ jobs:
       #      that bumps package.json versions + updates CHANGELOG.md
       #   2. Version PR is merged → publishes to npm and creates a GitHub release
       #
-      # npm OIDC trusted publishing is fully automatic — id-token: write +
-      # no NODE_AUTH_TOKEN interference = npm handles the OIDC exchange itself.
+      # npm OIDC is handled natively by npm 11.5+ — no NODE_AUTH_TOKEN needed.
+      # setup-node writes a dummy token to .npmrc but npm tries OIDC first.
       - name: Create Version PR or Publish
         id: changesets
         uses: changesets/action@v1.7.0
@@ -71,5 +74,3 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NODE_AUTH_TOKEN intentionally absent — npm detects OIDC and exchanges
-          # the GitHub id_token for a short-lived npm access token automatically
