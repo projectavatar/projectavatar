@@ -30,30 +30,62 @@ const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focus
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
 
 /**
+ * Derive session priority from an OpenClaw sessionKey.
+ *
+ * OpenClaw sessionKey format:
+ *   agent:<agentId>:<rest>
+ *
+ * Where <rest> for common session types:
+ *   - Main/channel:   discord:guild-XXX:channel-YYY  → depth 0
+ *   - Sub-agent:      subagent:<uuid>                 → depth 1
+ *   - Nested:         subagent:<uuid>:subagent:<uuid> → depth 2
+ *   - Cron:           cron:...                        → depth 1 (treated as background)
+ *
+ * Priority = number of ':subagent:' segments in the key (the subagent depth).
+ * Main sessions = 0, sub-agents = 1, nested sub-agents = 2, etc.
+ * Cron sessions start with 'cron:' in the rest segment — treated as priority 1.
+ *
+ * Two concurrent main sessions (same depth 0) will both have priority 0.
+ * The relay breaks this tie via firstPushAt — first-mover holds the avatar.
+ */
+function deriveSessionPriority(sessionKey: string): number {
+  const lower = sessionKey.toLowerCase();
+
+  // Count ':subagent:' occurrences — each nesting level adds one
+  let depth = 0;
+  let pos   = 0;
+  const marker = ':subagent:';
+  while ((pos = lower.indexOf(marker, pos)) !== -1) {
+    depth++;
+    pos += marker.length;
+  }
+  if (depth > 0) return depth;
+
+  // Cron sessions: agent:main:cron:... — treat as background (priority 1)
+  // Parsed rest starts after "agent:<id>:"
+  const parts = lower.split(':');
+  const restStart = 2; // parts[0]='agent', parts[1]=agentId, parts[2+]=rest
+  const restFirst = parts[restStart] ?? '';
+  if (restFirst === 'cron') return 1;
+
+  // Everything else is a main/channel session — priority 0
+  return 0;
+}
+
+/**
  * Derive a SessionMeta from an OpenClaw hook context object.
  *
- * sessionKey format (from OpenClaw internals):
- *   - Main session:  "agent:main:<channel-type>:..."
- *   - Sub-agent:     "agent:main:subagent:<uuid>"
- *   - Cron/isolated: "agent:main:subagent:<uuid>" or similar
- *
- * Priority rules:
- *   - No sessionKey → no session metadata (legacy/single-session behavior)
- *   - sessionKey contains ":subagent:" → priority 1 (background)
- *   - All other session keys → priority 0 (main/interactive)
- *
- * The sessionKey is used as the sessionId directly — it's already opaque and
- * stable for the lifetime of a session.
+ * Returns undefined if the context lacks a sessionKey (old OpenClaw versions
+ * or unusual hook invocations) — the relay treats absent sessionId as a legacy
+ * single-session push that always fans out.
  */
 function deriveSessionMeta(ctx: Record<string, unknown>): SessionMeta | undefined {
   const sessionKey = typeof ctx['sessionKey'] === 'string' ? ctx['sessionKey'] : undefined;
   if (!sessionKey) return undefined;
 
-  // Sub-agents have ":subagent:" in their sessionKey
-  const isSubagent = sessionKey.includes(':subagent:');
   return {
     sessionId: sessionKey,
-    priority:  isSubagent ? 1 : 0,
+    priority:  deriveSessionPriority(sessionKey),
   };
 }
 
@@ -125,8 +157,7 @@ const plugin: OpenClawPluginDefinition = {
     /**
      * message_received — user sent a message, agent is about to start thinking.
      * Explicitly reset prop and intensity to neutral so we don't inherit stale
-     * state from the previous interaction (e.g. coffee_cup + high intensity
-     * carrying over from a previous excited/celebrating state).
+     * state from the previous interaction.
      */
     api.on('message_received', (_event, ctx) => {
       sm.transition(
@@ -137,11 +168,9 @@ const plugin: OpenClawPluginDefinition = {
 
     /**
      * before_tool_call — agent decided to call a tool.
-     * Falls back to a generic "focused/coding" signal for unrecognized tools
-     * so the avatar always reacts to tool activity.
+     * Falls back to a generic "focused/coding" signal for unrecognized tools.
      */
     api.on('before_tool_call', (event, ctx) => {
-      // Defensive: guard against unexpected event shapes from future API versions
       if (typeof event.toolName !== 'string') return;
       const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
       sm.transition(signal, deriveSessionMeta(ctx as Record<string, unknown>));
@@ -149,10 +178,8 @@ const plugin: OpenClawPluginDefinition = {
 
     /**
      * after_tool_call — tool finished (success or error).
-     * Falls back to a generic "focused/responding" signal for unrecognized tools.
      */
     api.on('after_tool_call', (event, ctx) => {
-      // Defensive: guard against unexpected event shapes from future API versions
       if (typeof event.toolName !== 'string') return;
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
       const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
@@ -177,13 +204,9 @@ const plugin: OpenClawPluginDefinition = {
     /**
      * session_end — conversation over. Reset to idle immediately.
      *
-     * reset() cancels all pending timers (debounce + idle), sets current = IDLE,
-     * and pushes IDLE to the relay. The relay client is stateless (no keep-alive,
-     * no retry queue) so no additional cleanup is needed.
-     *
-     * Passing session metadata on the idle push ensures the relay can clean up its
-     * session registry entry (it expires naturally after SESSION_EVICT_AFTER_MS,
-     * but the explicit idle push signals that this session is done).
+     * Passing session metadata on the idle push ensures the relay can attribute
+     * the final idle state to the correct session. The session entry expires
+     * naturally after SESSION_EVICT_AFTER_MS regardless.
      */
     api.on('session_end', (_event, ctx) => {
       sm.reset(deriveSessionMeta(ctx as Record<string, unknown>));

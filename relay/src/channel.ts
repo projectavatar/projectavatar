@@ -39,8 +39,46 @@ const SESSION_EVICT_AFTER_MS = 60_000;
  */
 interface SessionEntry {
   priority:    number;    // Lower = higher priority (0 = main session)
-  lastPushAt:  number;    // Unix ms of last push from this session
-  lastEvent:   AvatarEvent; // Last event from this session (for replay on handoff)
+  firstPushAt: number;    // Unix ms of the very first push — used as tiebreaker
+  lastPushAt:  number;    // Unix ms of most recent push
+  lastEvent:   AvatarEvent;
+}
+
+/**
+ * Arbitration result for a push.
+ *
+ * The winner is selected in two passes:
+ *   1. Find the minimum priority among all active sessions (those that pushed
+ *      within SESSION_ACTIVE_WINDOW_MS).
+ *   2. Among tied sessions (same minimum priority), pick the one with the
+ *      earliest firstPushAt — "first mover holds".
+ *
+ * This means two concurrent main sessions (both priority 0) don't fight:
+ * whichever started pushing first holds the avatar until it goes idle.
+ *
+ * Returns the sessionId of the winner, or null if no active sessions exist
+ * (should not happen in normal operation — the pushing session is always active).
+ */
+function resolveWinner(sessions: Map<string, SessionEntry>, now: number): string | null {
+  let winnerPriority  = Infinity;
+  let winnerFirstPush = Infinity;
+  let winnerId: string | null = null;
+
+  for (const [id, entry] of sessions) {
+    // Only consider sessions that pushed recently
+    if (now - entry.lastPushAt > SESSION_ACTIVE_WINDOW_MS) continue;
+
+    if (
+      entry.priority < winnerPriority ||
+      (entry.priority === winnerPriority && entry.firstPushAt < winnerFirstPush)
+    ) {
+      winnerPriority  = entry.priority;
+      winnerFirstPush = entry.firstPushAt;
+      winnerId        = id;
+    }
+  }
+
+  return winnerId;
 }
 
 /**
@@ -49,27 +87,44 @@ interface SessionEntry {
  * Responsibilities:
  * - Holds the set of connected WebSocket clients (via hibernation API)
  * - Receives pushed avatar events and fans them out to connected clients
- * - Arbitrates between multiple concurrent sessions — only the highest-priority
- *   active session's events are broadcast; lower-priority events are absorbed
+ * - Arbitrates between multiple concurrent sessions:
+ *     - Lower priority number wins (0 = main session, 1 = sub-agent, depth-based)
+ *     - On priority tie, the session that pushed FIRST holds until it goes idle
+ *     - Lower-priority or later-starting same-priority events are silently absorbed
  * - Persists the last known event, model, and lastAgentEventAt to DO storage
  * - Sends full channel state to new clients on WebSocket connect
  * - Handles `set_model` messages from clients and broadcasts `model_changed`
  * - Exposes GET /state for the plugin's share-link generation
  *
  * ## Multi-session arbitration
+ *
  * Sessions declare their priority in each push event (optional field).
- * The DO maintains an in-memory session registry keyed by sessionId.
+ * Priority is derived from the OpenClaw sessionKey — specifically the number
+ * of `:subagent:` segments (depth). Main sessions = 0, sub-agents = 1,
+ * nested sub-agents = 2, etc. Cron/isolated sessions are treated as sub-agents.
+ *
  * On each push:
  *   1. Register/update the pushing session's entry
- *   2. Prune stale session entries (> SESSION_EVICT_AFTER_MS since last push)
- *   3. Find the "active winner" — lowest priority number among sessions that
- *      pushed within SESSION_ACTIVE_WINDOW_MS
- *   4. Fan out the event only if the pushing session IS the active winner
- *   5. If the pushing session just became winner (higher-priority session went
- *      idle), replay this event — the avatar transitions naturally
+ *   2. Prune stale entries (> SESSION_EVICT_AFTER_MS, lazy GC on write)
+ *   3. Resolve the active winner (lowest priority; tie → earliest firstPushAt)
+ *   4. Fan out the event only if the pushing session IS the winner
+ *   5. Suppressed pushes return { ok: true, suppressed: true } — plugin sees 200,
+ *      doesn't retry, no error surface
  *
- * Legacy events (no sessionId) are treated as priority 0 and always fan out
- * immediately (same as pre-arbitration behavior for single-session setups).
+ * Legacy events (no sessionId) bypass arbitration entirely and always fan out.
+ * This preserves backward compat for skill-based agents and single-session setups.
+ *
+ * ## Why first-mover wins on ties
+ *
+ * Two concurrent "main" sessions (e.g. two Discord channel agents, or two OpenClaw
+ * instances sharing a token) would both have priority 0. Without a tiebreaker,
+ * they thrash last-writer-wins — the exact problem we're solving.
+ *
+ * "First mover holds" is predictable and stable: whichever session pushed first
+ * holds the avatar until it goes idle (SESSION_ACTIVE_WINDOW_MS of silence).
+ * Only then does the other session win. This is deterministic, requires no
+ * coordination between sessions, and degrades gracefully — the avatar shows one
+ * coherent story instead of flipping between two.
  *
  * ## Source of truth
  * The DO owns channel identity state: model selection and agent activity
@@ -88,6 +143,10 @@ interface SessionEntry {
  * All persistent state is stored in DO storage so it survives eviction.
  * The session registry is in-memory only and resets on hibernation — sessions
  * re-announce naturally on their next push, so this is safe.
+ * On wake: the first push from each session re-registers it. Because firstPushAt
+ * is set at registration time, a wake event effectively treats all sessions as
+ * "new" — the tiebreaker resets. Acceptable: wake is rare and sessions re-race
+ * naturally within the first few pushes.
  */
 export class Channel implements DurableObject {
   private state: DurableObjectState;
@@ -167,9 +226,9 @@ export class Channel implements DurableObject {
     // and single-session setups that don't set sessionId.
     //
     // For session-aware events:
-    //   1. Register/update the session entry
+    //   1. Register/update the session entry (preserving firstPushAt on updates)
     //   2. Prune stale entries (lazy GC — no timers)
-    //   3. Determine the active winner (lowest priority with recent push)
+    //   3. Resolve the active winner (lowest priority; tie → earliest firstPushAt)
     //   4. Only fan out if this session IS the winner
 
     let shouldFanOut = true;
@@ -178,11 +237,13 @@ export class Channel implements DurableObject {
       const sessionId = event.sessionId;
       const priority  = event.priority ?? 0;
 
-      // Update this session's entry
+      // Register or update — preserve firstPushAt so the tiebreaker is stable
+      const existing = this.sessions.get(sessionId);
       this.sessions.set(sessionId, {
         priority,
-        lastPushAt: now,
-        lastEvent:  event,
+        firstPushAt: existing?.firstPushAt ?? now,  // first push time never changes
+        lastPushAt:  now,
+        lastEvent:   event,
       });
 
       // Lazy prune: remove sessions silent for > SESSION_EVICT_AFTER_MS
@@ -192,22 +253,13 @@ export class Channel implements DurableObject {
         }
       }
 
-      // Find the active winner: lowest priority number among recently active sessions
-      let winnerPriority = Infinity;
-      for (const entry of this.sessions.values()) {
-        if (now - entry.lastPushAt <= SESSION_ACTIVE_WINDOW_MS) {
-          if (entry.priority < winnerPriority) {
-            winnerPriority = entry.priority;
-          }
-        }
-      }
-
-      // Fan out only if this session's priority matches the winner
-      shouldFanOut = priority === winnerPriority;
+      // Resolve the winner
+      const winnerId = resolveWinner(this.sessions, now);
+      shouldFanOut   = winnerId === sessionId;
     }
 
     if (!shouldFanOut) {
-      // Suppressed: a higher-priority session is currently active.
+      // Suppressed: a higher-priority or earlier-started same-priority session is active.
       // Return 200 so the plugin doesn't retry — this is intentional suppression.
       return jsonResponse({ ok: true, clients: 0, suppressed: true }, 200);
     }
