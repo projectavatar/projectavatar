@@ -64,6 +64,13 @@ export class ProceduralEngine {
   private restPoses = new Map<AnimBone, THREE.Euler>();
   private restPositions = new Map<AnimBone, THREE.Vector3>();
 
+  /**
+   * VRM version detection. Base pose & recipes are authored in VRM 0.x space
+   * (X and Z negated during Mixamo retarget). For VRM 1.0, we negate X and Z
+   * when applying offsets so the same values work on both versions.
+   */
+  private isVRM0: boolean;
+
   /** Global elapsed time (never resets). */
   private elapsed = 0;
 
@@ -97,6 +104,7 @@ export class ProceduralEngine {
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
+    this.isVRM0 = (vrm.meta as any)?.metaVersion === '0';
     this._captureBones();
   }
 
@@ -312,6 +320,11 @@ export class ProceduralEngine {
    * Applies as REST POSE + accumulated offsets.
    */
   private _writeBones(): void {
+    // VRM 0.x vs 1.0: base pose & recipes are authored in VRM 0.x space.
+    // For VRM 1.0, negate X and Z to convert coordinate systems.
+    const xSign = this.isVRM0 ? 1 : -1;
+    const zSign = this.isVRM0 ? 1 : -1;
+
     for (const [boneName, node] of this.boneNodes) {
       const rest = this.restPoses.get(boneName);
       const state = this.frameBuffer.get(boneName);
@@ -319,10 +332,14 @@ export class ProceduralEngine {
 
       if (rest) {
         // Rest pose (T-pose) + base standing pose + procedural offsets
+        // X and Z are flipped for VRM 1.0 models
+        const bx = (base?.x ?? 0) + (state?.rx ?? 0);
+        const by = (base?.y ?? 0) + (state?.ry ?? 0);
+        const bz = (base?.z ?? 0) + (state?.rz ?? 0);
         node.rotation.set(
-          rest.x + (base?.x ?? 0) + (state?.rx ?? 0),
-          rest.y + (base?.y ?? 0) + (state?.ry ?? 0),
-          rest.z + (base?.z ?? 0) + (state?.rz ?? 0),
+          rest.x + bx * xSign,
+          rest.y + by,
+          rest.z + bz * zSign,
         );
       }
 
@@ -330,9 +347,9 @@ export class ProceduralEngine {
         const restPos = this.restPositions.get(boneName);
         if (restPos) {
           node.position.set(
-            restPos.x + state.px,
+            restPos.x + state.px * xSign,
             restPos.y + state.py,
-            restPos.z + state.pz,
+            restPos.z + state.pz * zSign,
           );
         }
       }
