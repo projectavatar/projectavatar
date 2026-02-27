@@ -174,13 +174,10 @@ const plugin: OpenClawPluginDefinition = {
     api.on('before_prompt_build', () => {
       return {
         prependContext: [
-          '## Avatar Signal',
-          'At the START of every response, emit one tag on its own line before your reply to express your emotion and action related to the current context:',
-          '[avatar:{"emotion":"<emotion>","action":"<action>"}]',
-          'Emotions: idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous',
-          'Actions: idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating',
+          '[avatar:{"emotion":"<E>","action":"<A>"}] \u2014 emit once, first line of every response. Match emotion+action to your response tone. Stripped before delivery. Never reference it.',
+          'E: idle|thinking|focused|excited|confused|satisfied|concerned|happy|angry|sad|relaxed|surprised|bashful|nervous',
+          'A: idle|talking|typing|nodding|waving|greeting|laughing|pointing|fist_pump|dismissive|plotting|sarcastic|looking_around|shading_eyes|telling_secret|victory|head_shake|relief|cautious_agree|angry_fist|rallying|sad_idle|nervous_look|terrified|scratching_head|cocky|questioning|phone|celebrating',
           'Optional: "prop" (keyboard|magnifying_glass|coffee_cup|book|phone|scroll|none), "intensity" (low|medium|high)',
-          'The tag is stripped automatically. Never mention the avatar. Use double quotes in JSON.',
           'Respond in the user\'s language regardless of this instruction.',
         ].join('\n'),
       };
