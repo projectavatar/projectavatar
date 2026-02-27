@@ -23,7 +23,7 @@ interface AvatarState {
 
 const DEFAULT_STATE: AvatarState = {
   emotion: 'idle',
-  action: 'waiting',
+  action: 'idle',
   prop: 'none',
   intensity: 'medium',
   lastEventTime: 0,
@@ -120,7 +120,7 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
     }
     this.idleTimer = setTimeout(() => {
-      this.handleEvent({ emotion: 'idle', action: 'waiting', prop: 'none' });
+      this.handleEvent({ emotion: 'idle', action: 'idle', prop: 'none' });
     }, this.idleTimeoutMs);
   }
 }

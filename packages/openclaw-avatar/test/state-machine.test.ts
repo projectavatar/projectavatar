@@ -22,7 +22,7 @@ function makeMockRelay(): { relay: RelayClient; calls: RelayCall[] } {
     push: (signal: AvatarSignal, current?: AvatarEvent, session?: SessionMeta) => {
       const ev: AvatarEvent = {
         emotion:   signal.emotion   ?? current?.emotion   ?? 'idle',
-        action:    signal.action    ?? current?.action    ?? 'waiting',
+        action:    signal.action    ?? current?.action    ?? 'idle',
         prop:      signal.prop      ?? current?.prop      ?? 'none',
         intensity: signal.intensity ?? current?.intensity ?? 'medium',
       };
@@ -59,22 +59,22 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
 
     expect(events(calls)).toHaveLength(1);
     expect(calls[0].event.emotion).toBe('focused');
-    expect(calls[0].event.action).toBe('coding');
+    expect(calls[0].event.action).toBe('typing');
   });
 
   it('debounces rapid lower-priority transitions', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
     expect(events(calls)).toHaveLength(1);
 
     // thinking (priority 1) < focused (priority 2) — deferred
-    sm.transition({ emotion: 'thinking', action: 'reading' });
+    sm.transition({ emotion: 'thinking', action: 'looking_around' });
     expect(events(calls)).toHaveLength(1);
 
     vi.advanceTimersByTime(fastCfg.debounceMs + 10);
@@ -86,14 +86,14 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
     expect(events(calls)).toHaveLength(1);
 
-    sm.transition({ emotion: 'thinking', action: 'reading' });
+    sm.transition({ emotion: 'thinking', action: 'looking_around' });
     expect(events(calls)).toHaveLength(1);
 
     // confused = 4 > focused = 2 — emits immediately
-    sm.transition({ emotion: 'confused', action: 'error' });
+    sm.transition({ emotion: 'confused', action: 'head_shake' });
     expect(events(calls)).toHaveLength(2);
     expect(calls[1].event.emotion).toBe('confused');
   });
@@ -102,11 +102,11 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
-    sm.transition({ emotion: 'thinking', action: 'reading' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
+    sm.transition({ emotion: 'thinking', action: 'looking_around' });
     expect(events(calls)).toHaveLength(1);
 
-    sm.transition({ emotion: 'confused', action: 'error' });
+    sm.transition({ emotion: 'confused', action: 'head_shake' });
     expect(events(calls)).toHaveLength(2);
 
     vi.advanceTimersByTime(fastCfg.debounceMs + 50);
@@ -117,7 +117,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
     expect(events(calls)).toHaveLength(1);
 
     sm.transition({ emotion: 'thinking' }); // lower priority — deferred
@@ -128,16 +128,16 @@ describe('AvatarStateMachine', () => {
     vi.advanceTimersByTime(10);
     expect(events(calls)).toHaveLength(2);
     expect(calls[1].event.emotion).toBe('thinking');
-    expect(calls[1].event.action).toBe('coding'); // carried from current
+    expect(calls[1].event.action).toBe('typing'); // carried from current
   });
 
   it('does not emit duplicate events', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
     vi.advanceTimersByTime(fastCfg.debounceMs + 10);
-    sm.transition({ emotion: 'focused', action: 'coding' }); // same state
+    sm.transition({ emotion: 'focused', action: 'typing' }); // same state
     vi.advanceTimersByTime(fastCfg.debounceMs + 10);
 
     expect(events(calls)).toHaveLength(1);
@@ -195,7 +195,7 @@ describe('AvatarStateMachine', () => {
         currentAtPushTime = sm.getCurrent();
         const ev: AvatarEvent = {
           emotion:   signal.emotion   ?? current?.emotion   ?? 'idle',
-          action:    signal.action    ?? current?.action    ?? 'waiting',
+          action:    signal.action    ?? current?.action    ?? 'idle',
           prop:      signal.prop      ?? current?.prop      ?? 'none',
           intensity: signal.intensity ?? current?.intensity ?? 'medium',
         };
@@ -215,8 +215,8 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
-    sm.transition({ emotion: 'thinking', action: 'reading' }); // deferred
+    sm.transition({ emotion: 'focused', action: 'typing' });
+    sm.transition({ emotion: 'thinking', action: 'looking_around' }); // deferred
 
     sm.reset();
     expect(calls[calls.length - 1].event.emotion).toBe('idle');
@@ -231,7 +231,7 @@ describe('AvatarStateMachine', () => {
 
     expect(sm.getCurrent().emotion).toBe('idle');
 
-    sm.transition({ emotion: 'focused', action: 'coding' });
+    sm.transition({ emotion: 'focused', action: 'typing' });
     expect(sm.getCurrent().emotion).toBe('focused');
   });
 
@@ -239,12 +239,12 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding', prop: 'keyboard', intensity: 'high' });
+    sm.transition({ emotion: 'focused', action: 'typing', prop: 'keyboard', intensity: 'high' });
     vi.advanceTimersByTime(fastCfg.debounceMs + 10);
 
     sm.transition({ emotion: 'satisfied' });
     expect(calls[calls.length - 1].event.emotion).toBe('satisfied');
-    expect(calls[calls.length - 1].event.action).toBe('coding');
+    expect(calls[calls.length - 1].event.action).toBe('typing');
     expect(calls[calls.length - 1].event.prop).toBe('keyboard');
     expect(calls[calls.length - 1].event.intensity).toBe('high');
   });
@@ -255,7 +255,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' }, mainSession);
+    sm.transition({ emotion: 'focused', action: 'typing' }, mainSession);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toEqual(mainSession);
@@ -265,7 +265,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' }, mainSession);
+    sm.transition({ emotion: 'focused', action: 'typing' }, mainSession);
     sm.transition({ emotion: 'thinking' }, subAgentSession); // lower priority — deferred
 
     vi.advanceTimersByTime(fastCfg.debounceMs + 10);
@@ -305,7 +305,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'coding' }); // no session
+    sm.transition({ emotion: 'focused', action: 'typing' }); // no session
 
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toBeUndefined();

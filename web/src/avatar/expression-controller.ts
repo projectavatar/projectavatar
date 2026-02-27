@@ -38,6 +38,13 @@ const EMOTION_MAP: Record<Emotion, ExpressionTarget[]> = {
   confused:  [{ name: 'surprised', weight: 0.65 }, { name: 'neutral', weight: 0.2 }],
   satisfied: [{ name: 'happy', weight: 0.75 }, { name: 'relaxed', weight: 0.5 }],
   concerned: [{ name: 'sad', weight: 0.65 }, { name: 'neutral', weight: 0.15 }],
+  happy:     [{ name: 'happy', weight: 1.0 }],
+  angry:     [{ name: 'angry', weight: 1.0 }],
+  sad:       [{ name: 'sad', weight: 1.0 }],
+  relaxed:   [{ name: 'relaxed', weight: 1.0 }],
+  surprised: [{ name: 'surprised', weight: 1.0 }],
+  bashful:   [{ name: 'happy', weight: 0.4 }, { name: 'neutral', weight: 0.5 }],
+  nervous:   [{ name: 'neutral', weight: 0.3 }, { name: 'surprised', weight: 0.4 }],
 };
 
 /**
@@ -54,6 +61,13 @@ const HEAD_OFFSET: Record<Emotion, HeadOffset> = {
   confused:  { x:  0.02,  y:  0.00,  z:  0.07 }, // side tilt
   satisfied: { x:  0.02,  y:  0.00,  z: -0.02 }, // slight nod
   concerned: { x:  0.05,  y: -0.03,  z: -0.04 }, // head down + slight turn
+  happy:     { x: -0.03,  y:  0.00,  z:  0.00 }, // slight head up
+  angry:     { x:  0.06,  y:  0.00,  z:  0.00 }, // head down (menacing)
+  sad:       { x:  0.08,  y: -0.02,  z: -0.03 }, // head drooped
+  relaxed:   { x:  0.02,  y:  0.02,  z:  0.02 }, // slight tilt, easygoing
+  surprised: { x: -0.06,  y:  0.00,  z:  0.00 }, // head back
+  bashful:   { x:  0.04,  y:  0.05,  z:  0.05 }, // looking away, tilted
+  nervous:   { x:  0.02,  y: -0.03,  z: -0.02 }, // slight turn, uneasy
 };
 
 /** Separate intensity scales for blend shapes and head movement (different sensitivities). */
