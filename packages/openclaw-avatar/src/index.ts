@@ -175,7 +175,7 @@ const plugin: OpenClawPluginDefinition = {
       return {
         prependContext: [
           '## Avatar Signal',
-          'At the START of every response, emit one tag on its own line before your reply:',
+          'At the START of every response, emit one tag on its own line before your reply to express your emotion and action related to the current context:',
           '[avatar:{"emotion":"<emotion>","action":"<action>"}]',
           'Emotions: idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous',
           'Actions: idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating',
