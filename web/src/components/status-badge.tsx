@@ -47,6 +47,25 @@ const WS_LABELS: Record<ConnectionState, string> = {
   disconnected: 'Disconnected',
 };
 
+/**
+ * Agent presence is computed from `lastAgentEventAt` on each render rather than
+ * stored as state. This prevents the badge from showing a stale "active" indicator
+ * long after the agent has gone idle — stored state would never transition
+ * active→recent→away without a periodic timer.
+ *
+ * Trade-off: this re-computes on every render of StatusBadge. Given the component
+ * renders infrequently (only when store fields it subscribes to change), this is fine.
+ * If you need exact-time transitions (e.g. countdown), add a setInterval that
+ * calls forceUpdate every 30s. Not needed for v1.1.
+ */
+function computePresence(lastAgentEventAt: number | null): 'active' | 'recent' | 'away' {
+  if (!lastAgentEventAt) return 'away';
+  const age = Date.now() - lastAgentEventAt;
+  if (age < 60_000)  return 'active';
+  if (age < 300_000) return 'recent';
+  return 'away';
+}
+
 const PRESENCE_COLORS: Record<'active' | 'recent' | 'away', string> = {
   active: 'var(--color-success)',
   recent: 'var(--color-warning)',
@@ -74,7 +93,10 @@ function Dot({ color, glow }: { color: string; glow?: boolean }) {
 export function StatusBadge() {
   const connectionState  = useStore((s) => s.connectionState);
   const reconnectAttempt = useStore((s) => s.reconnectAttempt);
-  const agentPresence    = useStore((s) => s.agentPresence);
+  const lastAgentEventAt = useStore((s) => s.lastAgentEventAt);
+
+  // Computed on render — not stored state — so it never goes stale
+  const agentPresence = computePresence(lastAgentEventAt);
 
   const wsColor = WS_COLORS[connectionState];
   let wsLabel   = WS_LABELS[connectionState];
@@ -87,11 +109,10 @@ export function StatusBadge() {
 
   return (
     <div style={badgeStyle}>
-      {/* WebSocket connection status */}
       <Dot color={wsColor} glow={connectionState === 'connected'} />
       <span style={{ color: 'var(--color-text-muted)' }}>{wsLabel}</span>
 
-      {/* Divider — only show agent presence when connected */}
+      {/* Agent presence only meaningful when the relay is connected */}
       {connectionState === 'connected' && (
         <>
           <div style={dividerStyle} />

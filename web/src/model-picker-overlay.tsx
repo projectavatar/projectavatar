@@ -8,10 +8,16 @@ const models = (manifest as unknown as { models: ModelEntry[] }).models;
 /**
  * ModelPickerOverlay — shown after WebSocket connects when the DO has no model set.
  *
- * Sends `set_model` to the DO via WebSocket. The DO persists the choice and
- * broadcasts `model_changed` to all connected clients (including this one).
- * The store updates when `model_changed` arrives — this overlay disappears
- * when `modelId` becomes non-null in the store.
+ * On model select:
+ * 1. Sends `set_model` to the DO via WebSocket (via WsContext)
+ * 2. Shows the selected card as "pending" so the user gets immediate feedback
+ * 3. The overlay disappears when `model_changed` arrives from the DO and the
+ *    store's modelId becomes non-null (handled in app.tsx routing)
+ *
+ * If the WebSocket drops between sending and receiving the echo, the pending
+ * state prevents the UI from appearing stuck — a "Waiting for relay..." message
+ * is shown. The overlay will clear naturally once the WS reconnects and
+ * model_changed arrives.
  */
 
 const backdropStyle: React.CSSProperties = {
@@ -95,12 +101,28 @@ const cardDescStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
+const pendingPillStyle: React.CSSProperties = {
+  marginTop: '1.5rem',
+  padding: '8px 16px',
+  background: 'rgba(10,10,15,0.85)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 20,
+  fontSize: '0.85rem',
+  color: 'var(--color-text-muted)',
+  backdropFilter: 'blur(8px)',
+};
+
 export function ModelPickerOverlay() {
   const { sendSetModel } = useWsClient();
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId]   = useState<string | null>(null);
+  const [pendingId, setPendingId]   = useState<string | null>(null);
 
   const handleSelect = (id: string) => {
-    // Send to DO — store updates when model_changed echo arrives
+    if (pendingId) return; // already waiting for echo
+    setPendingId(id);
+    // Sends to DO — the overlay disappears when model_changed echo arrives and
+    // app.tsx sees modelId !== null. If WS is disconnected, sendSetModel warns
+    // in console; the pending state gives feedback that selection was registered.
     sendSetModel(id);
   };
 
@@ -113,36 +135,52 @@ export function ModelPickerOverlay() {
         </p>
 
         <div style={gridStyle}>
-          {models.map((model) => (
-            <div
-              key={model.id}
-              style={{
-                ...cardStyle,
-                borderColor: hoveredId === model.id ? 'var(--color-accent)' : 'var(--color-border)',
-                transform: hoveredId === model.id ? 'translateY(-2px)' : 'translateY(0)',
-              }}
-              onClick={() => handleSelect(model.id)}
-              onMouseEnter={() => setHoveredId(model.id)}
-              onMouseLeave={() => setHoveredId(null)}
-            >
-              {model.thumbnail ? (
-                <img
-                  src={model.thumbnail}
-                  alt={model.name}
-                  style={{ width: '100%', height: 140, objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={thumbnailFallbackStyle}>
-                  <span role="img" aria-label="avatar">🎭</span>
+          {models.map((model) => {
+            const isPending  = pendingId === model.id;
+            const isDisabled = pendingId !== null && !isPending;
+            return (
+              <div
+                key={model.id}
+                style={{
+                  ...cardStyle,
+                  borderColor: isPending
+                    ? 'var(--color-accent)'
+                    : hoveredId === model.id && !isDisabled
+                    ? 'var(--color-accent)'
+                    : 'var(--color-border)',
+                  transform: hoveredId === model.id && !isDisabled ? 'translateY(-2px)' : 'translateY(0)',
+                  opacity: isDisabled ? 0.4 : 1,
+                  cursor: isDisabled ? 'default' : 'pointer',
+                }}
+                onClick={() => !isDisabled && handleSelect(model.id)}
+                onMouseEnter={() => !isDisabled && setHoveredId(model.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                {model.thumbnail ? (
+                  <img
+                    src={model.thumbnail}
+                    alt={model.name}
+                    style={{ width: '100%', height: 140, objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={thumbnailFallbackStyle}>
+                    <span role="img" aria-label="avatar">🎭</span>
+                  </div>
+                )}
+                <div style={cardBodyStyle}>
+                  <div style={cardNameStyle}>{model.name}</div>
+                  <div style={cardDescStyle}>{isPending ? 'Applying...' : model.description}</div>
                 </div>
-              )}
-              <div style={cardBodyStyle}>
-                <div style={cardNameStyle}>{model.name}</div>
-                <div style={cardDescStyle}>{model.description}</div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {pendingId && (
+          <div style={pendingPillStyle}>
+            Waiting for relay... (if this takes too long, check your connection)
+          </div>
+        )}
       </div>
     </div>
   );

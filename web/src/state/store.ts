@@ -22,8 +22,10 @@ export interface AppState {
 
   // Channel state (from DO — source of truth)
   lastAgentEventAt: number | null;
-  /** Computed from lastAgentEventAt — updated live as avatar_events arrive */
-  agentPresence: 'active' | 'recent' | 'away';
+  // Note: agentPresence ('active'|'recent'|'away') is NOT stored here.
+  // It is computed on render in StatusBadge from lastAgentEventAt + Date.now().
+  // Storing it as state would cause it to go stale (e.g. showing 'active' forever
+  // after the agent goes idle) without a periodic recomputation timer.
 
   // Connection
   connectionState: ConnectionState;
@@ -56,7 +58,7 @@ export interface AppState {
    * Overwrites any locally cached model — DO always wins.
    */
   applyChannelState: (channelState: ChannelState & { lastEvent: AvatarEvent | null }) => void;
-  /** Record a live agent event — updates lastAgentEventAt + agentPresence without a full channel_state */
+  /** Record a live agent event — updates lastAgentEventAt (presence is computed on render) */
   recordAgentEvent: () => void;
 }
 
@@ -123,15 +125,6 @@ function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | '
   }
 }
 
-/** Compute agent presence from a lastAgentEventAt timestamp */
-function computePresence(ts: number | null): 'active' | 'recent' | 'away' {
-  if (!ts) return 'away';
-  const age = Date.now() - ts;
-  if (age < 60_000)  return 'active';
-  if (age < 300_000) return 'recent';
-  return 'away';
-}
-
 /** Read URL params on init — token only, model is owned by DO */
 function getUrlParams(): { token: string | null } {
   try {
@@ -161,7 +154,6 @@ export const useStore = create<AppState>((set, get) => ({
   modelUrl: initialModelUrl,
 
   lastAgentEventAt: null,
-  agentPresence: 'away',
 
   connectionState: 'disconnected',
   reconnectAttempt: 0,
@@ -237,14 +229,14 @@ export const useStore = create<AppState>((set, get) => ({
       modelId,
       modelUrl,
       lastAgentEventAt: channelState.lastAgentEventAt,
-      agentPresence:    computePresence(channelState.lastAgentEventAt),
     });
     // Update localStorage cache with the DO's model
     persistState(get());
   },
 
   recordAgentEvent: () => {
-    const now = Date.now();
-    set({ lastAgentEventAt: now, agentPresence: 'active' });
+    // Updates lastAgentEventAt only. agentPresence is computed on render in
+    // StatusBadge from lastAgentEventAt + Date.now() — not stored as state.
+    set({ lastAgentEventAt: Date.now() });
   },
 }));

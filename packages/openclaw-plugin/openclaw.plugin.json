@@ -12,6 +12,10 @@
         "type": "string",
         "default": "https://relay.projectavatar.io"
       },
+      "appUrl": {
+        "type": "string",
+        "default": "https://app.projectavatar.io"
+      },
       "enabled": {
         "type": "boolean",
         "default": true
@@ -43,6 +47,12 @@
     "relayUrl": {
       "label": "Relay URL",
       "placeholder": "https://relay.projectavatar.io"
+    },
+    "appUrl": {
+      "label": "App URL",
+      "placeholder": "https://app.projectavatar.io",
+      "help": "Only set this if self-hosting the avatar web app at a custom domain",
+      "advanced": true
     },
     "idleTimeoutMs": {
       "label": "Idle Timeout (ms)",

@@ -29,8 +29,18 @@ export interface AvatarEvent {
 /** A partial update — only the fields you want to change. */
 export type AvatarSignal = Partial<AvatarEvent>;
 
+/**
+ * Default app URL for share link generation.
+ * Override via `appUrl` config if self-hosting the web app at a custom domain.
+ */
+export const DEFAULT_APP_URL = 'https://app.projectavatar.io';
+
 export interface PluginConfig {
   relayUrl:         string;
+  /** Base URL for the avatar web app. Used for share link generation.
+   *  Only needed if self-hosting at a custom domain.
+   *  Default: https://app.projectavatar.io */
+  appUrl:           string;
   enabled:          boolean;
   idleTimeoutMs:    number;
   debounceMs:       number;
@@ -39,6 +49,7 @@ export interface PluginConfig {
 
 export const DEFAULT_CONFIG: PluginConfig = {
   relayUrl:         'https://relay.projectavatar.io',
+  appUrl:           DEFAULT_APP_URL,
   enabled:          true,
   idleTimeoutMs:    30_000,
   debounceMs:       300,
@@ -89,6 +100,19 @@ export function validatePluginConfig(
         sanitized.relayUrl = cfg.relayUrl.replace(/\/+$/, '');
       } catch {
         errors.push(`relayUrl must be a valid URL (got: ${cfg.relayUrl})`);
+      }
+    }
+  }
+
+  if ('appUrl' in cfg) {
+    if (typeof cfg.appUrl !== 'string') {
+      errors.push('appUrl must be a string');
+    } else {
+      try {
+        new URL(cfg.appUrl);
+        sanitized.appUrl = cfg.appUrl.replace(/\/+$/, '');
+      } catch {
+        errors.push(`appUrl must be a valid URL (got: ${cfg.appUrl})`);
       }
     }
   }

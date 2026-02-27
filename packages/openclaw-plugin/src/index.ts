@@ -168,18 +168,25 @@ const plugin: OpenClawPluginDefinition = {
           const sub = args[0] ?? 'link';
 
           if (sub === 'link') {
-            const appBase = cfg.relayUrl
-              .replace('relay.projectavatar.io', 'app.projectavatar.io')
-              .replace(/\/+$/, '');
+            // Use cfg.appUrl — configurable for self-hosted deployments.
+            // Do NOT derive app URL from relayUrl (different domains).
+            const appBase = cfg.appUrl.replace(/\/+$/, '');
             return `[Avatar] Share link:\n${appBase}/?token=${token}`;
           }
 
           if (sub === 'status') {
             try {
-              const res = await fetch(
-                `${cfg.relayUrl}/channel/${encodeURIComponent(token)}/state`,
-                { signal: AbortSignal.timeout(5_000) },
-              );
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 5_000);
+              let res: Response;
+              try {
+                res = await fetch(
+                  `${cfg.relayUrl}/channel/${encodeURIComponent(token)}/state`,
+                  { signal: controller.signal },
+                );
+              } finally {
+                clearTimeout(timeout);
+              }
               if (!res.ok) {
                 return `[Avatar] Relay returned HTTP ${res.status}`;
               }
@@ -195,14 +202,22 @@ const plugin: OpenClawPluginDefinition = {
                 `  Viewers:     ${clients}\n` +
                 `  Last event:  ${lastSeen}`
               );
-            } catch {
-              return '[Avatar] Could not reach relay — check AVATAR_RELAY_URL and network.';
+            } catch (err) {
+              const isAbort = err instanceof Error && err.name === 'AbortError';
+              return isAbort
+                ? '[Avatar] Relay timed out — check plugins.entries.projectavatar.config.relayUrl'
+                : '[Avatar] Could not reach relay — check plugins.entries.projectavatar.config.relayUrl and network.';
             }
           }
 
           return '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info';
         },
         { description: 'Project Avatar — get share link or channel status' },
+      );
+    } else {
+      api.logger.warn(
+        '[ProjectAvatar] api.registerCommand is not available — /avatar command not registered. ' +
+        'Update OpenClaw to enable slash commands.',
       );
     }
   },

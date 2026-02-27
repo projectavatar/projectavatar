@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from './state/store.ts';
 import { TokenSetup } from './token-setup.tsx';
 import { ModelPickerOverlay } from './model-picker-overlay.tsx';
-import { AvatarCanvas } from './avatar/avatar-canvas.tsx';
+import { AvatarCanvas, WsContext } from './avatar/avatar-canvas.tsx';
+import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
 
@@ -32,87 +33,123 @@ const avatarContainerStyle: React.CSSProperties = {
   position: 'relative',
 };
 
+const connectingStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  pointerEvents: 'none',
+  zIndex: 50,
+};
+
+const connectingPillStyle: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'rgba(10,10,15,0.85)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 20,
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  color: 'var(--color-text-muted)',
+  backdropFilter: 'blur(8px)',
+};
+
 /**
  * App routing logic:
  *
- * 1. No token → TokenSetup (generate or paste a token)
- * 2. Token, no model → AvatarCanvas (connects to DO) + ModelPickerOverlay on top
- *    The avatar canvas starts connecting immediately. The DO sends channel_state
- *    which either has a model (skip picker) or null (show picker).
- * 3. Token + model → full avatar experience
+ * 1. No token → TokenSetup
+ * 2. Token present → always mount AvatarCanvas (WS connects immediately)
+ *    a. No model + connecting  → canvas + "Connecting..." pill + StatusBadge
+ *    b. No model + connected   → canvas + ModelPickerOverlay
+ *    c. Model set              → full avatar experience
  *
- * The model picker is an OVERLAY — not a full-screen replacement. This means
- * the WebSocket connects as soon as we have a token, regardless of model state.
- * Multi-screen users who already have a model in the DO will never see the picker.
+ * WsContext.Provider lives here — above BOTH AvatarCanvas and ModelPickerOverlay —
+ * so siblings share the same sendSetModel reference. Do NOT move it inside
+ * AvatarCanvas or ModelPickerOverlay will get the default no-op.
  */
 export function App() {
-  const token          = useStore((s) => s.token);
-  const modelId        = useStore((s) => s.modelId);
-  const theme          = useStore((s) => s.theme);
+  const token           = useStore((s) => s.token);
+  const modelId         = useStore((s) => s.modelId);
+  const theme           = useStore((s) => s.theme);
   const connectionState = useStore((s) => s.connectionState);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+
+  // Holds the sendSetModel function provided by AvatarCanvas via onSendSetModel.
+  // Stored as a ref to avoid re-renders when the function changes; the context
+  // value is memoized and reads from the ref at call time.
+  const sendSetModelRef = useRef<((modelId: string | null) => void) | null>(null);
+  const [wsReady, setWsReady] = useState(false);
+
+  const handleSendSetModelReady = useCallback(
+    (fn: ((modelId: string | null) => void) | null) => {
+      sendSetModelRef.current = fn;
+      setWsReady(fn !== null);
+    },
+    [],
+  );
+
+  // Stable context value — sendSetModel delegates to the ref so the function
+  // identity stays constant across WS reconnects. useMemo ensures the object
+  // reference is stable and doesn't cause unnecessary re-renders in consumers.
+  const wsContextValue = useMemo<WsContextValue>(
+    () => ({
+      sendSetModel: (id) => {
+        if (!sendSetModelRef.current) {
+          console.warn('[WsContext] sendSetModel called but WS client is not ready');
+          return;
+        }
+        sendSetModelRef.current(id);
+      },
+    }),
+    // wsReady is listed so useMemo re-runs when the WS becomes ready/unready,
+    // but sendSetModel itself stays the same function reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [wsReady],
+  );
 
   // Apply theme to body
   useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }, [theme]);
 
-  // No token → show token setup screen
-  if (!token) {
-    return <TokenSetup />;
-  }
+  if (!token) return <TokenSetup />;
 
-  // Token present → always render the canvas (connects to DO)
-  // If model is null, show the picker as an overlay while canvas runs in background
-  const showPicker = !modelId && connectionState === 'connected';
+  const showPicker        = !modelId && connectionState === 'connected';
   const showPickerLoading = !modelId && connectionState !== 'connected';
 
   return (
-    <div style={avatarContainerStyle}>
-      {/* Canvas always mounts when we have a token — connects WS, starts Three.js */}
-      <AvatarCanvas />
+    <WsContext.Provider value={wsContextValue}>
+      <div style={avatarContainerStyle}>
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} />
 
-      {/* Model picker overlay — shown while connected + no model */}
-      {showPicker && <ModelPickerOverlay />}
+        {showPicker && <ModelPickerOverlay />}
 
-      {/* Subtle loading indicator while connecting + no model yet */}
-      {showPickerLoading && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          zIndex: 50,
-        }}>
-          <div style={{
-            padding: '8px 16px',
-            background: 'rgba(10,10,15,0.8)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 8,
-            fontSize: '0.85rem',
-            color: 'var(--color-text-muted)',
-          }}>
-            Connecting...
+        {showPickerLoading && (
+          <div style={connectingStyle}>
+            <div style={connectingPillStyle}>Connecting...</div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Status + settings — only shown when we have a model */}
-      {modelId && (
-        <>
-          <StatusBadge />
-          <button
-            style={settingsBtnStyle}
-            onClick={() => setSettingsOpen(true)}
-            title="Settings"
-          >
-            ⚙
-          </button>
-          <SettingsDrawer />
-        </>
-      )}
-    </div>
+        {/*
+          StatusBadge and settings button are always shown when we have a token
+          (even before model is selected) so the user can see connection state
+          and access settings if something goes wrong during onboarding.
+        */}
+        <StatusBadge />
+        {modelId && (
+          <>
+            <button
+              style={settingsBtnStyle}
+              onClick={() => setSettingsOpen(true)}
+              title="Settings"
+              aria-label="Open settings"
+            >
+              ⚙
+            </button>
+            <SettingsDrawer />
+          </>
+        )}
+      </div>
+    </WsContext.Provider>
   );
 }

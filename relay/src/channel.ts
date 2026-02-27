@@ -75,6 +75,10 @@ export class Channel implements DurableObject {
   // ─── Push Handler ──────────────────────────────────────────────────────────
 
   private async handlePush(request: Request): Promise<Response> {
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
     let text: string;
     try {
       text = await request.text();
@@ -155,13 +159,16 @@ export class Channel implements DurableObject {
     ]);
 
     // Send channel_state FIRST — client needs model before rendering avatar
+    // getWebSockets() includes the newly accepted socket — so connectedClients
+    // reflects the accurate post-connect count (including this client). This is
+    // intentional: the client sees itself counted among the viewers immediately.
     const channelStateMsg: ChannelStateMessage = {
       type:      'channel_state',
       version:   PROTOCOL_VERSION,
       data:      {
         model,
         lastAgentEventAt,
-        connectedClients: this.state.getWebSockets().length, // includes this new socket
+        connectedClients: this.state.getWebSockets().length,
         lastEvent,
       },
       timestamp: Date.now(),
@@ -194,26 +201,30 @@ export class Channel implements DurableObject {
   // ─── WebSocket Lifecycle (Hibernation API) ─────────────────────────────────
 
   webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): void {
-    if (typeof message !== 'string') return; // Binary not supported
+    if (typeof message !== 'string') return; // Binary frames not supported
 
     let msg: unknown;
     try {
       msg = JSON.parse(message);
     } catch {
-      return; // Malformed message — ignore silently
+      return; // Malformed JSON — ignore silently
     }
 
     const m = msg as Record<string, unknown>;
     if (m['type'] === 'set_model') {
       const model = m['model'] ?? null;
-      // Validate: must be a valid model ID string or explicit null
+      // Validate: must be a valid model ID string or explicit null (to clear model)
       if (model !== null && !isValidModelId(model)) return;
       void this.handleSetModel(model as string | null);
+    } else {
+      // Unknown message type — log at debug level for easier diagnostics
+      console.debug('[Channel] Unknown WebSocket message type:', m['type']);
     }
   }
 
-  webSocketClose(_ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+  webSocketClose(_ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
     // Hibernation API removes the socket from state.getWebSockets() automatically.
+    console.debug('[Channel] WebSocket closed:', code, reason || '(no reason)');
   }
 
   webSocketError(ws: WebSocket, error: unknown): void {
@@ -228,6 +239,12 @@ export class Channel implements DurableObject {
   // ─── Model Management ─────────────────────────────────────────────────────
 
   private async handleSetModel(model: string | null): Promise<void> {
+    // Deduplicate: skip storage write + broadcast if the model hasn't changed.
+    // Prevents storage churn if a client spams set_model with the same value.
+    // modelCache uses the sentinel pattern: undefined = not yet loaded from storage.
+    // A loaded null and a loaded 'some-model' are both valid values.
+    if (this.modelCache !== undefined && this.modelCache === model) return;
+
     this.modelCache = model;
     await this.state.storage.put(MODEL_KEY, model);
 
@@ -249,6 +266,12 @@ export class Channel implements DurableObject {
   }
 
   // ─── Storage Helpers (lazy cache pattern) ─────────────────────────────────
+  //
+  // Sentinel convention: `undefined` means "not yet loaded from storage".
+  // `null` means "loaded but no value stored". Both `undefined` and `null`
+  // from storage.get() are collapsed to `null` via `?? null` — they represent
+  // the same thing: no value. Never assign `undefined` to a cache field after
+  // initialization; doing so would bypass the cache on every subsequent call.
 
   private async getLastEvent(): Promise<AvatarEvent | null> {
     if (this.lastEventCache !== undefined) return this.lastEventCache;

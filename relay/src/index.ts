@@ -78,6 +78,9 @@ export default {
       }
 
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
+      // Reusing the 'stream' rate limit bucket — intentional shortcut for v1.1.
+      // The /state endpoint is lighter than a WS upgrade but shares the same quota.
+      // If /state polling becomes a concern, add a dedicated 'state' bucket.
       const rl = await checkRateLimit(env, 'stream', clientIp);
       if (!rl.allowed) {
         return rateLimitResponse(rl.retryAfterSeconds);
