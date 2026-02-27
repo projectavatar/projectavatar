@@ -28,11 +28,9 @@ const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focus
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
 
 const plugin: OpenClawPluginDefinition = {
-  // Explicit id keeps the config key stable regardless of package name.
-  // @projectavatar/openclaw-avatar would normalize to "openclaw-avatar" by default,
-  // but "projectavatar" is shorter, matches openclaw.plugin.json, and is what
-  // users reference in plugins.entries.projectavatar.config.
-  id: 'projectavatar',
+  // id matches the unscoped package name so OpenClaw's idHint derivation
+  // produces no mismatch warning. Users reference this as plugins.entries.openclaw-avatar.
+  id: 'openclaw-avatar',
   name: 'Project Avatar',
   description: 'Real-time 3D avatar driven by agent lifecycle hooks.',
 
@@ -157,9 +155,11 @@ const plugin: OpenClawPluginDefinition = {
     // ── /avatar command ────────────────────────────────────────────────────────
 
     if (typeof api.registerCommand === 'function') {
-      api.registerCommand(
-        'avatar',
-        async (args) => {
+      api.registerCommand({
+        name: 'avatar',
+        description: 'Project Avatar — get share link or channel status',
+        acceptsArgs: true,
+        handler: async (args) => {
           const token = getToken();
           if (!token) {
             return '[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>';
@@ -205,15 +205,14 @@ const plugin: OpenClawPluginDefinition = {
             } catch (err) {
               const isAbort = err instanceof Error && err.name === 'AbortError';
               return isAbort
-                ? '[Avatar] Relay timed out — check plugins.entries.projectavatar.config.relayUrl'
-                : '[Avatar] Could not reach relay — check plugins.entries.projectavatar.config.relayUrl and network.';
+                ? '[Avatar] Relay timed out — check plugins.entries.openclaw-avatar.config.relayUrl'
+                : '[Avatar] Could not reach relay — check plugins.entries.openclaw-avatar.config.relayUrl and network.';
             }
           }
 
           return '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info';
         },
-        { description: 'Project Avatar — get share link or channel status' },
-      );
+      });
     } else {
       api.logger.warn(
         '[ProjectAvatar] api.registerCommand is not available — /avatar command not registered. ' +

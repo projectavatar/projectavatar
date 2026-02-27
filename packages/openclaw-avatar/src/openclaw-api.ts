@@ -98,9 +98,15 @@ export type OpenClawPluginApi = {
   registerTool: (tool: AnyTool, opts?: OpenClawPluginToolOptions) => void;
   /**
    * Register a slash command accessible via `/commandName [args...]`.
-   * The handler receives args as a string array and returns a reply string.
+   * Takes a single command definition object.
    */
-  registerCommand: (name: string, handler: CommandHandler, opts?: { description?: string }) => void;
+  registerCommand: (command: {
+    name: string;
+    description: string;
+    acceptsArgs?: boolean;
+    requireAuth?: boolean;
+    handler: CommandHandler;
+  }) => void;
   on: <K extends PluginHookName>(
     hookName: K,
     handler: PluginHookHandlerMap[K],

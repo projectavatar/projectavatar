@@ -198,7 +198,7 @@ project-avatar/
 │   │       ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
 │   │       ├── constants.ts# Protocol version, defaults, rate limits, token utils
 │   │       └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
-│   └── openclaw-plugin/    # @projectavatar/openclaw-avatar — OpenClaw plugin
+│   └── openclaw-avatar/    # @projectavatar/openclaw-avatar — OpenClaw plugin
 ├── web/                    # Browser app — PRIMARY (Cloudflare Pages → app.projectavatar.io)
 │   └── src/
 │       ├── avatar/         # Three.js + VRM renderer

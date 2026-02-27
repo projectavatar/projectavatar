@@ -1340,7 +1340,7 @@ The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are n
 ### Plugin Package Structure
 
 ```
-packages/openclaw-plugin/
+packages/openclaw-avatar/
 ├── openclaw.plugin.json          # Plugin manifest (OpenClaw discovers this)
 ├── package.json                  # npm: @projectavatar/openclaw-avatar
 ├── src/
@@ -1395,7 +1395,7 @@ packages/openclaw-plugin/
 ### Plugin Entry Point
 
 ```typescript
-// src/index.ts — see packages/openclaw-plugin/src/index.ts for the full implementation
+// src/index.ts — see packages/openclaw-avatar/src/index.ts for the full implementation
 // Key hooks registered:
 
 api.on('message_received', () =>
@@ -1660,7 +1660,7 @@ export function createRelayClient(relayUrl: string, token: string) {
 openclaw plugins install @projectavatar/openclaw-avatar
 
 # Local dev (no build step needed — OpenClaw loads TypeScript via jiti)
-openclaw plugins install --link ./packages/openclaw-plugin
+openclaw plugins install --link ./packages/openclaw-avatar
 
 # Enable
 openclaw plugins enable projectavatar
@@ -1669,8 +1669,8 @@ openclaw plugins enable projectavatar
 openclaw secrets set AVATAR_TOKEN <your-token>
 
 # Optional config
-openclaw config set plugins.entries.projectavatar.config.relayUrl https://relay.projectavatar.io
-openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
+openclaw config set plugins.entries.openclaw-avatar.config.relayUrl https://relay.projectavatar.io
+openclaw config set plugins.entries.openclaw-avatar.config.enableAvatarTool true
 ```
 
 **No build step required for local development.** OpenClaw loads plugins via jiti, which executes TypeScript directly at runtime. The `package.json` `main` field points to `src/index.ts`. The build script (`tsc`) is only needed when publishing to npm.
@@ -1896,7 +1896,7 @@ Adds a slash command so users can get their share link and check channel status 
 
 `GET /channel/:token/state` was added to the relay in Phase 4.1. Phase 4.2 calls it from the plugin.
 
-**`packages/openclaw-plugin/src/index.ts`**
+**`packages/openclaw-avatar/src/index.ts`**
 Register a command in `register()`:
 
 ```typescript

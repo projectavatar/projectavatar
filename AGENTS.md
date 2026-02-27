@@ -7,7 +7,7 @@ Coding agent context for this repository.
 Monorepo with three independently deployable packages:
 
 - `packages/shared/` — shared types, validation, constants. Imported by relay and web. The plugin copies what it needs (standalone, no cross-package deps at runtime).
-- `packages/openclaw-plugin/` — OpenClaw plugin. TypeScript, loaded by OpenClaw via jiti — **no build step**. Entry: `src/index.ts`.
+- `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded by OpenClaw via jiti — **no build step**. Entry: `src/index.ts`.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite app. Deployed to Cloudflare Pages at `app.projectavatar.io`.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
@@ -48,9 +48,9 @@ Client → server messages (`WebSocketClientMessage`):
 - `web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
 
 ### Plugin
-- `packages/openclaw-plugin/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
-- `packages/openclaw-plugin/src/types.ts` — Standalone types (no shared package dep at runtime).
-- `packages/openclaw-plugin/openclaw.plugin.json` — Manifest with configSchema + commands.
+- `packages/openclaw-avatar/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
+- `packages/openclaw-avatar/src/types.ts` — Standalone types (no shared package dep at runtime).
+- `packages/openclaw-avatar/openclaw.plugin.json` — Manifest with configSchema + commands.
 
 ### Shared
 - `packages/shared/src/schema.ts` — AvatarEvent, ChannelState, WebSocketServerMessage, WebSocketClientMessage, isValidModelId.
@@ -63,7 +63,7 @@ OpenClaw loads TypeScript via jiti. The plugin ships `src/*.ts` directly. No `ts
 ## Testing
 
 ```bash
-cd packages/openclaw-plugin && npm test   # vitest, 39 tests
+cd packages/openclaw-avatar && npm test   # vitest, 39 tests
 cd relay && npx tsc --noEmit              # type check relay
 cd web && npm run build                   # full web build (catches type errors)
 ```
