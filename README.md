@@ -147,7 +147,7 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - [x] **Browser app** at `app.projectavatar.io` — primary experience, zero install
 - [x] **Core avatar rendering** — Three.js + @pixiv/three-vrm
 - [x] **Expression system** — 7 emotions → VRM blend shapes, exponential decay lerp
-- [x] **Animation system** — 7 actions → animation clips, crossfade transitions
+- [x] **Animation system** — 7 actions → Mixamo FBX clips retargeted to VRM 0.x via AnimationMixer, smooth crossfades
 - [x] **Prop system** — 6 reactive objects, hand bone attachment
 - [x] **Blink controller** — random blink, idle micro-animations
 - [x] **State machine** — coordinates expressions, animations, props, idle timeout
@@ -168,9 +168,15 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - [x] **WebSocket keepalive** — 60s dead-connection detection, auto-reconnect
 - [x] **No-build plugin** — OpenClaw loads TypeScript directly via jiti, no compile step
 
+### v1.1.1 (Mixamo Animations) ✅
+- [x] **Real Mixamo FBX animations** — idle, responding, searching, coding, reading, error, celebrating
+- [x] **Retargeting pipeline** — `mixamo-loader.ts` converts FBX → VRM 0.x `AnimationClip` with coordinate flip
+- [x] **AnimationMixer** — replaces procedural bone system, native Three.js crossfade
+- [x] **potato.vrm** — first bundled model from open-source-avatars (CC0)
+
 ### v1.2 (Polish)
 - [ ] Tauri desktop app — always-on-top, system tray (optional)
-- [ ] Bundled VRM models (manifest exists, models TBD)
+- [ ] More bundled VRM models
 - [ ] Voice lip-sync (connect to TTS output)
 - [ ] Custom animation import
 

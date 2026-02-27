@@ -94,6 +94,7 @@ export function StatusBadge() {
   const connectionState  = useStore((s) => s.connectionState);
   const reconnectAttempt = useStore((s) => s.reconnectAttempt);
   const lastAgentEventAt = useStore((s) => s.lastAgentEventAt);
+  const avatar           = useStore((s) => s.avatar);
 
   // Computed on render — not stored state — so it never goes stale
   const agentPresence = computePresence(lastAgentEventAt);
@@ -118,6 +119,14 @@ export function StatusBadge() {
           <div style={dividerStyle} />
           <Dot color={presenceColor} glow={agentPresence === 'active'} />
           <span style={{ color: 'var(--color-text-muted)' }}>{presenceLabel}</span>
+        </>
+      )}
+      {import.meta.env.DEV && (
+        <>
+          <div style={dividerStyle} />
+          <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>
+            {avatar.emotion} / {avatar.action}
+          </span>
         </>
       )}
     </div>

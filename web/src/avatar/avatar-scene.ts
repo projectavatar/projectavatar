@@ -25,8 +25,8 @@ export class AvatarScene {
       0.1,
       20,
     );
-    this.camera.position.set(0, 1.3, 2.5);
-    this.camera.lookAt(0, 1.2, 0);
+    this.camera.position.set(0, 0.8, 5.5);
+    this.camera.lookAt(0, 0.7, 0);
 
     // Renderer: transparent background for OBS/overlay use
     this.renderer = new THREE.WebGLRenderer({

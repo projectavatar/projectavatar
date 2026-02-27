@@ -3,10 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app.tsx';
 import './styles/global.css';
 
-const root = document.getElementById('root');
-if (!root) throw new Error('Root element not found');
-
-createRoot(root).render(
+// StrictMode intentionally re-enabled. The async VRM load effect has a
+// cancellation flag so double-mount in dev is handled correctly.
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,

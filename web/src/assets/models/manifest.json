@@ -7,6 +7,14 @@
       "url": null,
       "thumbnail": null,
       "license": "CC0"
+    },
+    {
+      "id": "potato",
+      "name": "Potato",
+      "description": "A potato. It reacts to events. Don't question it.",
+      "url": "/models/potato.vrm",
+      "thumbnail": null,
+      "license": "CC0"
     }
   ]
 }

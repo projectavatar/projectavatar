@@ -1,4 +1,4 @@
-import { useRef, useEffect, createContext, useContext } from 'react';
+import { useRef, useEffect, useState, createContext, useContext } from 'react';
 import { useStore } from '../state/store.ts';
 import { WebSocketClient } from '../ws/web-socket-client.ts';
 import { AvatarScene } from './avatar-scene.ts';
@@ -60,6 +60,7 @@ export function useWsClient(): WsContextValue {
 export function AvatarCanvas({ onSendSetModel }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
 }) {
+  const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
@@ -86,9 +87,17 @@ export function AvatarCanvas({ onSendSetModel }: {
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
+      const animationController = new AnimationController(vrm);
+      // Load Mixamo animations in background — scene starts immediately
+      animationController.loadAnimations()
+        .then(() => setAnimationsLoaded(true))
+        .catch((err) => {
+          console.warn('[AvatarCanvas] Animation load failed:', err);
+          setAnimationsLoaded(true); // unblock UI even on failure
+        });
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
-        new AnimationController(vrm),
+        animationController,
         new BlinkController(vrm),
         new PropManager(vrm),
         {
@@ -102,12 +111,16 @@ export function AvatarCanvas({ onSendSetModel }: {
       avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
     };
 
+    let cancelled = false;
+
     const initModel = async () => {
       if (modelUrl) {
         try {
           const vrm = await vrmManager.load(modelUrl);
+          if (cancelled) return; // effect was cleaned up before load finished
           setupControllers(vrm);
         } catch (err) {
+          if (cancelled) return;
           console.warn('[AvatarCanvas] Failed to load VRM:', err);
           vrmManager.showPlaceholder();
           avatarScene.onUpdate((delta) => vrmManager.update(delta));
@@ -122,6 +135,7 @@ export function AvatarCanvas({ onSendSetModel }: {
     avatarScene.start();
 
     return () => {
+      cancelled = true;
       stateMachineRef.current?.dispose();
       stateMachineRef.current = null;
       avatarScene.dispose();
@@ -188,5 +202,17 @@ export function AvatarCanvas({ onSendSetModel }: {
     };
   }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
 
-  return <canvas ref={canvasRef} style={canvasStyle} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas ref={canvasRef} style={canvasStyle} />
+      {!animationsLoaded && (
+        <div style={{
+          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          color: 'var(--color-text-muted)', fontSize: 11, opacity: 0.6, pointerEvents: 'none',
+        }}>
+          loading animations…
+        </div>
+      )}
+    </div>
+  );
 }
