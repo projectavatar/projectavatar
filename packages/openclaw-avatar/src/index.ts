@@ -169,6 +169,22 @@ const plugin: OpenClawPluginDefinition = {
       sm.reset(session);
     });
 
+    // ── Prompt injection: ensure agent always knows about avatar tags ──────────
+
+    api.on('before_prompt_build', () => {
+      return {
+        prependContext: [
+          '## Avatar Signal',
+          'At the START of every response, emit one tag on its own line before your reply:',
+          '[avatar:{"emotion":"<emotion>","action":"<action>"}]',
+          'Emotions: idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous',
+          'Actions: idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating',
+          'Optional: "prop" (keyboard|magnifying_glass|coffee_cup|book|phone|scroll|none), "intensity" (low|medium|high)',
+          'The tag is stripped automatically. Never mention the avatar. Use double quotes in JSON.',
+        ].join('\n'),
+      };
+    });
+
     // ── Output filter: extract [avatar:{...}] tags before message reaches user ──
 
     api.on('message_sending', (event, ctx) => {

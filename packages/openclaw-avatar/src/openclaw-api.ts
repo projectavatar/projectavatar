@@ -81,6 +81,14 @@ export type MessageSendingResult = {
   cancel?: boolean;
 };
 
+export type BeforePromptBuildEvent = {
+  sessionKey?: string;
+};
+
+export type BeforePromptBuildResult = {
+  prependContext?: string;
+};
+
 // ── Hook map ────────────────────────────────────────────────────────────────
 
 type AnyCtx = Record<string, unknown>;
@@ -92,6 +100,7 @@ export type PluginHookHandlerMap = {
   agent_end:           (event: AgentEndEvent,           ctx: AnyCtx) => void | Promise<void>;
   session_end:         (event: SessionEndEvent,         ctx: AnyCtx) => void | Promise<void>;
   message_sending:     (event: MessageSendingEvent,     ctx: AnyCtx) => MessageSendingResult | void | Promise<MessageSendingResult | void>;
+  before_prompt_build: (event: BeforePromptBuildEvent,   ctx: AnyCtx) => BeforePromptBuildResult | void | Promise<BeforePromptBuildResult | void>;
 };
 
 export type PluginHookName = keyof PluginHookHandlerMap;
