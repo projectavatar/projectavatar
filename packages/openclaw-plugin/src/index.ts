@@ -20,6 +20,13 @@ import { createAvatarTool } from './avatar-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig } from './types.js';
 
+/**
+ * Fallback signals for tool calls on tools not in the tool map.
+ * The avatar should always react to tool activity, even for unknown tools.
+ */
+const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'coding', prop: 'none', intensity: 'medium' };
+const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
+
 const plugin: OpenClawPluginDefinition = {
   // Explicit id keeps the config key stable regardless of package name.
   // @projectavatar/openclaw-avatar would normalize to "openclaw-avatar" by default,
@@ -33,8 +40,7 @@ const plugin: OpenClawPluginDefinition = {
     // ── Config ──────────────────────────────────────────────────────────────
 
     // Validate and sanitize pluginConfig — only valid keys are merged into cfg.
-    // The message "using defaults for invalid fields" is now true: invalid fields
-    // are stripped from the sanitized object and fall back to DEFAULT_CONFIG.
+    // Invalid fields are stripped from sanitized and fall back to DEFAULT_CONFIG.
     const { errors, sanitized } = validatePluginConfig(api.pluginConfig ?? {});
     if (errors.length > 0) {
       api.logger.warn(
@@ -45,69 +51,98 @@ const plugin: OpenClawPluginDefinition = {
     const cfg: PluginConfig = { ...DEFAULT_CONFIG, ...sanitized };
 
     if (!cfg.enabled) {
-      api.logger.info('Project Avatar plugin disabled via config.');
+      api.logger.info('[ProjectAvatar] Plugin disabled via config.');
       return;
     }
 
-    // ── Token ───────────────────────────────────────────────────────────────
+    // ── Token (lazy) ─────────────────────────────────────────────────────────
+    //
+    // Token is read on first push rather than at registration time.
+    // This handles environments where secrets are injected after process start
+    // (secret managers, runtime config reloads) without permanently disabling
+    // the plugin if AVATAR_TOKEN isn't set at boot.
+    //
+    // If the token is absent at registration, we log a warning but continue —
+    // the relay client will check on each push and drop the call if still unset.
 
-    const token = process.env.AVATAR_TOKEN ?? '';
-    if (!token) {
+    const getToken = (): string => process.env.AVATAR_TOKEN ?? '';
+
+    if (!getToken()) {
       api.logger.warn(
-        '[ProjectAvatar] AVATAR_TOKEN not set — plugin loaded but will not push events. ' +
-        'Set via: openclaw secrets set AVATAR_TOKEN <your-token>',
+        '[ProjectAvatar] AVATAR_TOKEN not set at startup — plugin will activate once the ' +
+        'variable is available. Set via: openclaw secrets set AVATAR_TOKEN <your-token>',
       );
-      return;
     }
 
     // ── Core services ────────────────────────────────────────────────────────
 
-    const relay = createRelayClient(cfg, token);
+    const relay = createRelayClient(cfg, getToken());
     const sm = createAvatarStateMachine(cfg, relay);
+
+    // Log relay hostname only — full URL may contain environment-specific path segments
+    const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
+    api.logger.info(
+      `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
+      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms` +
+      (cfg.enableAvatarTool ? ', avatar tool: enabled' : ''),
+    );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
 
     /**
      * message_received — user sent a message, agent is about to start thinking.
-     * Transition to thinking/reading immediately.
+     * Explicitly reset prop and intensity to neutral so we don't inherit stale
+     * state from the previous interaction (e.g. coffee_cup + high intensity
+     * carrying over from a previous excited/celebrating state).
      */
     api.on('message_received', () => {
-      sm.transition({ emotion: 'thinking', action: 'reading' });
+      sm.transition({ emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' });
     });
 
     /**
      * before_tool_call — agent decided to call a tool.
-     * This fires before the tool executes, giving the avatar real-time reactivity.
+     * Falls back to a generic "focused/coding" signal for unrecognized tools
+     * so the avatar always reacts to tool activity.
      */
     api.on('before_tool_call', (event) => {
-      const signal = resolveToolSignal(event.toolName, 'before');
-      if (signal) sm.transition(signal);
+      // Defensive: guard against unexpected event shapes from future API versions
+      if (typeof event.toolName !== 'string') return;
+      const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
+      sm.transition(signal);
     });
 
     /**
      * after_tool_call — tool finished (success or error).
-     * Update avatar based on outcome.
+     * Falls back to a generic "focused/responding" signal for unrecognized tools.
      */
     api.on('after_tool_call', (event) => {
-      const signal = resolveToolSignal(event.toolName, 'after', event.error);
-      if (signal) sm.transition(signal);
+      // Defensive: guard against unexpected event shapes from future API versions
+      if (typeof event.toolName !== 'string') return;
+      const errorStr = typeof event.error === 'string' ? event.error : undefined;
+      const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+      sm.transition(signal);
     });
 
     /**
      * agent_end — the agent finished its full response.
-     * Transition to satisfied (success) or concerned (error), then schedule idle.
+     * On error, use high intensity to convey urgency.
+     * Schedules idle timeout regardless of outcome.
      */
     api.on('agent_end', (event) => {
       sm.transition(
         event.success
-          ? { emotion: 'satisfied', action: 'responding' }
-          : { emotion: 'concerned', action: 'error' },
+          ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
+          : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' },
       );
       sm.scheduleIdle();
     });
 
     /**
      * session_end — conversation over. Reset to idle immediately.
+     *
+     * reset() cancels all pending timers (debounce + idle), sets current = IDLE,
+     * and pushes IDLE to the relay. The relay client is stateless (no keep-alive,
+     * no retry queue) so no additional cleanup is needed.
      */
     api.on('session_end', () => {
       sm.reset();
@@ -118,12 +153,6 @@ const plugin: OpenClawPluginDefinition = {
     if (cfg.enableAvatarTool) {
       api.registerTool(createAvatarTool(sm), { optional: true });
     }
-
-    api.logger.info(
-      `[ProjectAvatar] Plugin active — relay: ${cfg.relayUrl}, ` +
-      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms` +
-      (cfg.enableAvatarTool ? ', avatar tool: enabled' : ''),
-    );
   },
 };
 

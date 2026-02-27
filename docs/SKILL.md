@@ -1,35 +1,12 @@
 # Agent Skill
 
-The skill layer teaches your AI agent to emit avatar signals. It's two things:
+The skill layer teaches your AI agent to emit avatar signals via response tags. It works with **any agent** — not just OpenClaw — by adding a prompt template and an output filter to your setup.
 
-1. **A prompt addition** — text you add to your agent's system prompt once
-2. **An output filter** — a small script that intercepts signal tags, strips them from the response, and forwards them to the relay
-
-Both are agent-agnostic. This works with OpenClaw, ChatGPT, Claude API, raw Ollama, LangChain — anything that lets you set a system prompt and intercept output.
-
----
-
-## One-URL Install (Recommended)
-
-The easiest way to install the skill on any agent. No manual config, no copy-pasting tokens.
-
-**Step 1:** Open [app.projectavatar.io](https://app.projectavatar.io) — your token is generated automatically.
-
-**Step 2:** Click "Get Setup Link". You get a URL like:
+**If you use OpenClaw:** install the `@projectavatar/openclaw-avatar` plugin instead. It's hook-driven, requires no prompt changes, and reacts in real-time to tool calls — not just response output. See [the plugin docs](../packages/openclaw-plugin/README.md) or run:
+```bash
+openclaw plugins install @projectavatar/openclaw-avatar
+openclaw secrets set AVATAR_TOKEN <your-token>
 ```
-https://relay.projectavatar.io/skill/install?token=A3x9kQmP2nR7vB4w...
-```
-
-**Step 3:** Go to your agent and say:
-```
-Install this as a skill: https://relay.projectavatar.io/skill/install?token=A3x9kQmP...
-```
-
-The agent fetches the URL, receives a complete SKILL.md with your token already inside, and installs it. Done.
-
-**Why this works:** The endpoint returns a markdown document — the agent's native format. The token is pre-baked, the instructions are self-contained. The agent knows exactly what to do with a markdown skill document.
-
-**Security note:** The setup link contains your token. Don't share it publicly. It doesn't expire automatically — if you need to invalidate it, generate a new token in the avatar app and send a new setup link.
 
 ---
 
@@ -58,9 +35,29 @@ Avatar reacts:
 
 ---
 
+## One-URL Install (Recommended)
+
+**Step 1:** Open [app.projectavatar.io](https://app.projectavatar.io) — your token is generated automatically.
+
+**Step 2:** Click "Get Setup Link". You get a URL like:
+```
+https://relay.projectavatar.io/skill/install?token=A3x9kQmP2nR7vB4w...
+```
+
+**Step 3:** Go to your agent and say:
+```
+Install this as a skill: https://relay.projectavatar.io/skill/install?token=A3x9kQmP...
+```
+
+The agent fetches the URL, receives a complete SKILL.md with your token already inside, and installs it. Done.
+
+**Security note:** The setup link contains your token. Don't share it publicly.
+
+---
+
 ## Prompt Template
 
-Add this to your agent's system prompt. Put it near the end, after any other instructions.
+Add this to your agent's system prompt:
 
 ```
 ## Avatar Presence
@@ -89,10 +86,10 @@ Rules:
 - The tag appears BEFORE your reply, on its own line
 - Choose the emotion and action that genuinely match what you're doing
 - The tag is invisible to the user — do not mention it or reference it
-- Do not explain the tag or the avatar system in your responses
+- The JSON inside the tag must use double quotes
 ```
 
-**Token budget:** The prompt addition is ~200 tokens. The tag itself is ~30 tokens per response. Acceptable overhead for the functionality it enables.
+**Token budget:** ~200 tokens for the prompt addition, ~30 tokens per response for the tag.
 
 ---
 
@@ -115,10 +112,7 @@ const config = {
   enabled: true,
 };
 
-// After getting the agent's response:
 const cleanText = await filterResponse(rawResponse, config);
-// → cleanText has the [avatar:...] tag stripped
-// → event was pushed to relay asynchronously
 ```
 
 ### Streaming Usage
@@ -127,11 +121,9 @@ const cleanText = await filterResponse(rawResponse, config);
 import { StreamingAvatarFilter } from '@project-avatar/filter';
 
 const filter = new StreamingAvatarFilter(config, (cleanChunk) => {
-  // Forward clean chunk to user
   process.stdout.write(cleanChunk);
 });
 
-// Feed chunks as they arrive:
 for await (const chunk of agentStream) {
   filter.processChunk(chunk);
 }
@@ -140,7 +132,7 @@ filter.flush();
 
 ### Manual (no package)
 
-Copy `skill/filters/node/filter.ts` directly into your project. It has no dependencies beyond `fetch` (built into Node 18+).
+Copy `skill/filters/node/filter.ts` directly into your project — no dependencies beyond `fetch` (built into Node 18+).
 
 ```typescript
 const AVATAR_TAG_REGEX = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
@@ -153,7 +145,6 @@ export async function filterResponse(text: string, config: FilterConfig): Promis
     const event = JSON.parse(match[1]);
     const cleanText = text.replace(match[0], '').trimStart();
 
-    // Fire and forget — never block on relay push
     fetch(`${config.relayUrl}/push/${config.token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -162,7 +153,7 @@ export async function filterResponse(text: string, config: FilterConfig): Promis
 
     return cleanText;
   } catch {
-    return text; // On any failure, return original text unmodified
+    return text;
   }
 }
 ```
@@ -171,18 +162,12 @@ export async function filterResponse(text: string, config: FilterConfig): Promis
 
 ## Output Filter: Python
 
-```python
-pip install httpx  # Only dependency
+```bash
+pip install httpx
 ```
 
 ```python
-# Copy from skill/filters/python/filter.py
-
-import re
-import json
-import asyncio
-import httpx
-from typing import Optional, Tuple
+import re, json, asyncio, httpx
 
 AVATAR_TAG_PATTERN = re.compile(r'^\[avatar:(\{[^}]+\})\]\s*\n?', re.MULTILINE)
 
@@ -190,17 +175,13 @@ async def filter_response(text: str, relay_url: str, token: str) -> str:
     match = AVATAR_TAG_PATTERN.search(text)
     if not match:
         return text
-
     try:
         event = json.loads(match.group(1))
         clean_text = (text[:match.start()] + text[match.end():]).lstrip()
-
-        # Fire and forget
         asyncio.create_task(push_event(relay_url, token, event))
-
         return clean_text
     except Exception:
-        return text  # Never fail the user
+        return text
 
 async def push_event(relay_url: str, token: str, event: dict) -> None:
     try:
@@ -209,61 +190,6 @@ async def push_event(relay_url: str, token: str, event: dict) -> None:
     except Exception:
         pass
 ```
-
----
-
-## OpenClaw Integration
-
-### Current: Skill Package
-
-The `skill/openclaw/` directory is a ready-to-install OpenClaw skill package:
-
-```
-skill/openclaw/
-├── SKILL.md        # Auto-generated from packages/shared/src/skill-template.ts
-│                   # Regenerate via: npm run gen:skill
-├── filter.ts       # OpenClaw output filter hook — exports onOutput(text, ctx)
-└── config.json     # { relayUrl, token, enabled, bufferLimit }
-```
-
-Install by copying to your OpenClaw workspace skills directory:
-
-```bash
-cp -r skill/openclaw ~/.openclaw/workspace/skills/avatar
-```
-
-Then edit `~/.openclaw/workspace/skills/avatar/config.json` and set your token:
-
-```json
-{
-  "relayUrl": "https://relay.projectavatar.io",
-  "token": "your-token-here",
-  "enabled": true,
-  "bufferLimit": 200
-}
-```
-
-The OpenClaw skill handles:
-- Injecting the prompt template into the agent's system context
-- Intercepting responses via the `onOutput` hook in `filter.ts`
-- Stripping tags and pushing to relay automatically (fire-and-forget)
-
-**Note:** `SKILL.md` is auto-generated — do not edit it directly. Edit `packages/shared/src/skill-template.ts` and run `npm run gen:skill`.
-
----
-
-### Coming Next: OpenClaw Plugin
-
-An upcoming `@projectavatar/openclaw-avatar` plugin will replace this manual setup for OpenClaw users:
-
-```bash
-openclaw plugins install @projectavatar/openclaw-avatar
-openclaw secrets set AVATAR_TOKEN <your-token>
-```
-
-The plugin hooks directly into the agent lifecycle via `before_tool_call` and `after_tool_call` events, giving the avatar real-time reactivity to tool usage — not just response output. No skill install needed, no output filter, no token config file.
-
-See [IMPLEMENTATION.md — Phase 4](../IMPLEMENTATION.md#phase-4-openclaw-plugin-v11) for the full design.
 
 ---
 
@@ -280,15 +206,17 @@ See [IMPLEMENTATION.md — Phase 4](../IMPLEMENTATION.md#phase-4-openclaw-plugin
 
 ## Testing Your Setup
 
-### 1. Test the prompt
+### Test the relay directly
 
-Ask your agent: *"What emotion and action are you emitting right now?"*
+```bash
+curl -X POST https://relay.projectavatar.io/push/YOUR_TOKEN \
+  -H "Content-Type: application/json" \
+  -d '{"emotion":"excited","action":"celebrating"}'
+```
 
-A correctly prompted agent will say something like "I'm currently in a focused/responding state" without mentioning the tag explicitly, and its response will start with `[avatar:{...}]`.
+The avatar should react immediately. If it does, the pipeline works.
 
-### 2. Test the filter
-
-Run the filter against a test string:
+### Test the filter
 
 ```bash
 node -e "
@@ -299,45 +227,27 @@ filterResponse(raw, { relayUrl: 'https://relay.projectavatar.io', token: 'test',
 "
 ```
 
-Expected output: `Clean: Here is your answer.`
-
-### 3. Test the full pipeline
-
-With the avatar app open and connected:
-
-```bash
-curl -X POST https://relay.projectavatar.io/push/YOUR_TOKEN \
-  -H "Content-Type: application/json" \
-  -d '{"emotion":"excited","action":"celebrating"}'
-```
-
-The avatar should immediately react. If it does, the whole pipeline works.
+Expected: `Clean: Here is your answer.`
 
 ---
 
 ## Troubleshooting
 
 **The tag is showing up in chat.**
-
-The filter isn't running, or it's running after the response is sent to the user. Make sure `filterResponse()` is called before the clean text reaches the output. For streaming, use `StreamingAvatarFilter`.
+The filter isn't running before the response reaches the user. For streaming, use `StreamingAvatarFilter`.
 
 **The avatar isn't reacting.**
-
-Check in order:
 1. Is the avatar app open and showing "Connected"?
-2. Is the relay URL correct in the filter config?
-3. Is the token the same in both the filter config and the avatar app?
+2. Is the relay URL correct?
+3. Is the token the same in both filter config and avatar app?
 4. Run the curl test above to verify the relay is reachable.
-5. Check the relay health: `GET https://relay.projectavatar.io/health`
+5. Check relay health: `GET https://relay.projectavatar.io/health`
 
 **The agent sometimes skips the tag.**
+Move the prompt addition to the very top of the system prompt or make the instruction more emphatic. Common with smaller models.
 
-This happens with smaller/faster models that deprioritize format instructions under load. Try moving the prompt addition to the very top of the system prompt (highest priority position) or making the instruction more emphatic: *"ALWAYS begin every response with [avatar:{...}] — this is mandatory."*
+**The tag is malformed.**
+The filter silently passes through malformed tags. Log `text.match(/^\[avatar:[^\]]+\]/)` to debug. Most common cause: model uses single quotes instead of double quotes.
 
-**The tag is malformed (JSON parse error).**
-
-The filter silently passes through malformed tags. To debug: log `text.match(/^\[avatar:[^\]]+\]/)` to see what the agent is actually emitting. Common issue: the model uses single quotes instead of double quotes in the JSON. Add to the prompt: *"The JSON inside the tag must use double quotes."*
-
-**Streaming: the tag appears split across chunks.**
-
-This is the streaming buffer's job — it accumulates the first 200 chars before deciding whether a tag is present. If the agent emits a very long tag (unlikely), increase `AVATAR_BUFFER_LIMIT`.
+**Streaming: tag appears split across chunks.**
+Increase `AVATAR_BUFFER_LIMIT`. The streaming buffer accumulates the first 200 chars before deciding whether a tag is present.

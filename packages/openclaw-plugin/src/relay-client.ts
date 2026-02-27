@@ -5,8 +5,18 @@
  * WebSocket connection is needed — each avatar event is a single fire-and-forget
  * HTTP POST. Simpler, cheaper, and no lifecycle to manage.
  *
- * Critical: this must NEVER throw or block. Avatar events are cosmetic.
- * If the relay is down, the agent continues unaffected.
+ * Failure strategy: FIRE AND FORGET.
+ * If the relay is down, pushes are silently dropped. The avatar freezes in its
+ * last known state until the relay recovers and the next event arrives. This is
+ * intentional — avatar state is cosmetic and must never impact agent performance.
+ * There is no retry queue, no backpressure, no circuit breaker. If you need
+ * guaranteed delivery, you need a different architecture.
+ *
+ * Statelessness: This client holds NO persistent state — no keep-alive agent,
+ * no connection pool, no retry timers. Each push() call is fully self-contained.
+ * No cleanup or teardown is required on session end.
+ *
+ * Critical: this must NEVER throw or block.
  */
 
 import type { AvatarEvent, AvatarSignal, PluginConfig } from './types.js';
@@ -28,6 +38,10 @@ function isValidEvent(event: AvatarEvent): boolean {
 }
 
 export type RelayClient = {
+  /**
+   * Push an avatar signal to the relay. Fire-and-forget: never throws, never blocks.
+   * Invalid events are silently dropped. Network failures are silently swallowed.
+   */
   push: (signal: AvatarSignal, current?: AvatarEvent) => void;
 };
 
@@ -50,7 +64,7 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
       return; // Silently drop invalid events — state machine should never produce these
     }
 
-    // Fire and forget — don't await, don't catch outside
+    // Fire and forget — see failure strategy in module header
     void (async () => {
       try {
         await fetch(pushUrl, {
@@ -61,7 +75,7 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
           signal:  AbortSignal.timeout(5_000),
         });
       } catch {
-        // Non-critical. Avatar is cosmetic — never surface this to the user.
+        // Non-critical. Avatar is cosmetic — never surface relay errors to the user.
       }
     })();
   }

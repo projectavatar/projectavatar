@@ -11,7 +11,7 @@ This document is the complete technical blueprint for Project Avatar. A develope
 3. [Phase 1: Relay Server](#phase-1-relay-server-week-1) ✅
 4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2) ✅
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
-6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ← next
+6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ✅
 7. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
 8. [Technical Deep Dives](#technical-deep-dives)
 9. [Error Handling & Resilience](#error-handling--resilience)
@@ -1321,14 +1321,14 @@ Comprehensive tests for the filter:
 
 ### Goal
 
-A first-class OpenClaw plugin (`@projectavatar/openclaw-avatar`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users while shipping the skill as a bundled fallback for cross-platform use.
+A first-class OpenClaw plugin (`@projectavatar/openclaw-avatar`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users. The skill remains available separately for non-OpenClaw platforms.
 
 **Why a plugin, not just a skill?** The skill approach works everywhere but has a fundamental limitation: the agent must *finish generating text* before the output filter can extract and forward the avatar tag. A plugin hooks into `before_tool_call` — the avatar reacts the instant the agent decides to search, code, or read, *before* the tool returns. This is the difference between "avatar reacts to what the agent said" and "avatar reacts to what the agent is doing."
 
 **How OpenClaw hooks work (important distinction):** OpenClaw has two separate hook systems:
 
 - **Internal hooks** (`/automation/hooks`) — file-based scripts triggered by message/command/gateway events (`message:received`, `command:new`, `gateway:startup`). No agent-turn internals.
-- **Plugin hooks** (plugin API only) — registered via `api.on()` inside `register(api)`. These run *inside* the agent loop: `before_tool_call`, `after_tool_call`, `before_prompt_build`, `agent_end`, `session_start/end`, etc.
+- **Plugin hooks** (plugin API only) — registered via `api.on()` inside `register(api)`. These run *inside* the agent loop: `before_tool_call`, `after_tool_call`, `agent_end`, `session_start/end`, etc.
 
 The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are not available to standalone hook scripts.
 
@@ -1374,13 +1374,13 @@ packages/openclaw-plugin/
       "idleTimeoutMs": { "type": "number", "default": 30000, "minimum": 5000 },
       "debounceMs": { "type": "number", "default": 300, "minimum": 50 },
       "enableAvatarTool": { "type": "boolean", "default": false },
-      "suppressSkillTags": { "type": "boolean", "default": true }
+      "enableAvatarTool": { "type": "boolean", "default": false }
     }
   },
   "uiHints": {
     "relayUrl": { "label": "Relay URL", "placeholder": "https://relay.projectavatar.io" },
     "enableAvatarTool": { "label": "Avatar Tool", "help": "Register an 'avatar' tool the LLM can call explicitly", "advanced": true },
-    "suppressSkillTags": { "label": "Suppress Skill Tags", "help": "Strip [avatar:{...}] tags from output — plugin handles signaling instead", "advanced": true }
+    "enableAvatarTool": { "label": "Avatar Tool", "help": "Register an 'avatar' tool the LLM can call to explicitly set avatar state", "advanced": true }
   }
 }
 ```
@@ -1392,113 +1392,35 @@ packages/openclaw-plugin/
 ### Plugin Entry Point
 
 ```typescript
-// src/index.ts
-import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
-import { createRelayClient } from './relay-client.js';
-import { createAvatarStateMachine } from './state-machine.js';
-import { resolveToolSignal } from './tool-map.js';
-import { createAvatarTool } from './avatar-tool.js';
+// src/index.ts — see packages/openclaw-plugin/src/index.ts for the full implementation
+// Key hooks registered:
 
-export default function register(api: OpenClawPluginApi): void {
-  const cfg = {
-    relayUrl: 'https://relay.projectavatar.io',
-    enabled: true,
-    idleTimeoutMs: 30_000,
-    debounceMs: 300,
-    enableAvatarTool: false,
-    suppressSkillTags: true,
-    ...(api.pluginConfig as Record<string, unknown>),
-  };
+api.on('message_received', () =>
+  sm.transition({ emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' }));
 
-  const token = process.env.AVATAR_TOKEN;
-  if (!token) {
-    api.logger.warn(
-      'AVATAR_TOKEN not set — plugin loaded but will not push events. ' +
-      'Set via: openclaw secrets set AVATAR_TOKEN <your-token>'
-    );
-    return;
-  }
+api.on('before_tool_call', (event) => {
+  if (typeof event.toolName !== 'string') return;
+  const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
+  sm.transition(signal);
+});
 
-  if (!cfg.enabled) return;
+api.on('after_tool_call', (event) => {
+  if (typeof event.toolName !== 'string') return;
+  const errorStr = typeof event.error === 'string' ? event.error : undefined;
+  const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+  sm.transition(signal);
+});
 
-  const relay = createRelayClient(cfg.relayUrl as string, token);
-  const stateMachine = createAvatarStateMachine({
-    debounceMs: cfg.debounceMs as number,
-    idleTimeoutMs: cfg.idleTimeoutMs as number,
-    onEmit: (event) => relay.push(event),
-  });
+api.on('agent_end', (event) => {
+  sm.transition(event.success
+    ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
+    : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' });
+  sm.scheduleIdle();
+});
 
-  // ── Tool lifecycle (the core feature) ─────────────────────────────────────
+api.on('session_end', () => sm.reset()); // reset() cancels all timers + pushes IDLE
 
-  api.on('before_tool_call', (event) => {
-    const signal = resolveToolSignal(event.toolName, 'before', event.params);
-    if (signal) stateMachine.transition(signal);
-  });
-
-  api.on('after_tool_call', (event) => {
-    const signal = resolveToolSignal(event.toolName, 'after', event.params, event.error);
-    if (signal) stateMachine.transition(signal);
-  });
-
-  // ── Prompt injection: no manual skill install needed ───────────────────────
-
-  api.on('before_prompt_build', (event) => {
-    if (!cfg.suppressSkillTags) return;
-    // Guard: skip if the skill prompt (which mentions [avatar:...] tags) is already
-    // in the system context — avoids contradictory instructions when both skill and
-    // plugin are active. The message_sending hook handles stripping any emitted tags.
-    const alreadyHasSkill = event.systemPrompt?.includes('[avatar:');
-    if (alreadyHasSkill) return;
-    return {
-      prependContext: [
-        '## Avatar Presence',
-        'You have a visual avatar that reacts to your state in real-time.',
-        'Avatar state is managed automatically by a plugin via your tool calls.',
-        'Do NOT emit [avatar:...] tags — the plugin handles this.',
-        'Use the `avatar` tool only if you want to express something explicit.',
-      ].join('\n'),
-    };
-  });
-
-  // ── Bookend hooks ─────────────────────────────────────────────────────────
-
-  api.on('message_received', () => {
-    stateMachine.transition({ emotion: 'thinking', action: 'reading' });
-  });
-
-  api.on('agent_end', (event) => {
-    stateMachine.transition(
-      event.success
-        ? { emotion: 'satisfied', action: 'responding' }
-        : { emotion: 'concerned', action: 'error' }
-    );
-    stateMachine.scheduleIdle();
-  });
-
-  api.on('session_end', () => {
-    stateMachine.reset();
-    relay.push({ emotion: 'idle', action: 'waiting' });
-  });
-
-  // ── Tag suppression: strip residual [avatar:{...}] from output ─────────────
-
-  if (cfg.suppressSkillTags) {
-    api.on('message_sending', (event) => {
-      const cleaned = event.content
-        .replace(/^\[avatar:\{[^}]+\}]\s*\n?/m, '')
-        .trimStart();
-      if (cleaned !== event.content) return { content: cleaned };
-    });
-  }
-
-  // ── Optional explicit avatar tool ─────────────────────────────────────────
-
-  if (cfg.enableAvatarTool) {
-    api.registerTool(createAvatarTool(stateMachine), { optional: true });
-  }
-
-  api.logger.info(`Project Avatar plugin active (relay: ${cfg.relayUrl})`);
-}
+if (cfg.enableAvatarTool) api.registerTool(createAvatarTool(sm), { optional: true });
 ```
 
 ---
@@ -1722,10 +1644,9 @@ export function createRelayClient(relayUrl: string, token: string) {
 
 | Scenario | What happens |
 |----------|-------------|
-| OpenClaw + plugin only | Plugin handles everything via hooks. `before_prompt_build` injects a simplified prompt telling the agent not to emit tags. `message_sending` strips any residual tags. |
-| OpenClaw + plugin + skill | Plugin takes priority. `suppressSkillTags` strips tag output. No conflict. |
-| OpenClaw + skill only | Existing behavior: agent emits tags, output filter strips and pushes. Works fine, no tool-level reactivity. |
-| Non-OpenClaw platform | Skill is the only option. Plugin ships skill files for easy access. |
+| OpenClaw + plugin only | Plugin handles everything via hooks. Pure event-driven — no tag emission, no output filtering needed. |
+| OpenClaw + skill only | Agent emits tags, output filter strips and pushes. Works fine, no tool-level reactivity. |
+| Non-OpenClaw platform | Skill is the only option. See `docs/SKILL.md`. |
 
 ---
 
@@ -1756,8 +1677,6 @@ openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 - [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw-avatar` and shows in `openclaw plugins list`
 - [ ] `before_tool_call` fires and pushes correct signal for each tool in `TOOL_SIGNAL_MAP`
 - [ ] `after_tool_call` fires and updates state (success vs error paths)
-- [ ] `before_prompt_build` injects avatar context when `suppressSkillTags: true`
-- [ ] `message_sending` strips `[avatar:{...}]` tags when `suppressSkillTags: true`
 - [ ] `message_received` → avatar transitions to thinking/reading
 - [ ] `agent_end` → avatar transitions to satisfied (success) or concerned (error), then schedules idle
 - [ ] `session_end` → avatar resets to idle
@@ -1765,7 +1684,8 @@ openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 - [ ] State machine respects emotion priority (higher-priority emotion wins within debounce window)
 - [ ] Idle timeout fires after `idleTimeoutMs` of no events
 - [ ] Relay push is fire-and-forget — never blocks agent pipeline, never throws
-- [ ] Missing `AVATAR_TOKEN` → clear warning log, plugin gracefully disables
+- [ ] Missing `AVATAR_TOKEN` at startup → warning log, plugin continues (token read lazily on first push)
+- [ ] Unknown tool calls → fallback signal (`focused/coding`) emitted, avatar always reacts
 - [ ] `enableAvatarTool: true` → `avatar` tool appears in agent tool list and sets state correctly
 - [ ] Plugin config validates via JSON schema in `openclaw.plugin.json`
 - [ ] All tests pass
