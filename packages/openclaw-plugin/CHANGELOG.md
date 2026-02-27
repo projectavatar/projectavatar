@@ -1,5 +1,11 @@
 # @projectavatar/openclaw-avatar
 
+## 1.1.1
+
+### Patch Changes
+
+- c356cf4: publish
+
 ## 1.1.0
 
 ### Minor Changes
