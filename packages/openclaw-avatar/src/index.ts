@@ -157,7 +157,7 @@ const plugin: OpenClawPluginDefinition = {
     // Registered always so the skill's command-dispatch:tool can find it.
     // This avoids the registerCommand vs. user-invocable skill name collision
     // that causes the command to be deduped to /avatar_2 on Discord.
-    api.registerTool(createAvatarCommandTool(cfg, getToken), { optional: true });
+    api.registerTool(createAvatarCommandTool(cfg, getToken));
 
   },
 };
