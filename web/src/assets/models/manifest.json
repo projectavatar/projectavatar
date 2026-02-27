@@ -1,17 +1,18 @@
 {
   "models": [
     {
-      "id": "placeholder",
-      "name": "Default Avatar",
-      "description": "Standard anime-style avatar",
-      "url": null,
+      "id": "avatarsample_c",
+      "name": "AvatarSample C",
+      "description": "Official Pixiv VRoid sample. Full expression set — happy, sad, relaxed, angry, neutral, blink. Use this for testing expressions.",
+      "url": "/models/avatarsample_c.vrm",
       "thumbnail": null,
-      "license": "CC0"
+      "license": "CC0",
+      "author": "pixiv / VRoid"
     },
     {
       "id": "potato",
       "name": "Potato",
-      "description": "A potato. It reacts to events. Don't question it.",
+      "description": "Lip-sync and blink only — no emotion expressions. Good for animation testing.",
       "url": "/models/potato.vrm",
       "thumbnail": null,
       "license": "CC0"
