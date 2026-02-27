@@ -310,4 +310,34 @@ describe('AvatarStateMachine', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toBeUndefined();
   });
+
+  // ── lastSession fallback ──────────────────────────────────────────────────
+
+  it('transition without session inherits lastSession from a previous session-aware call', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+    const mainSession: SessionMeta = { sessionId: 'main-1', priority: 0 };
+
+    // First call WITH session — sets lastSession
+    sm.transition({ emotion: 'thinking', action: 'looking_around' }, mainSession);
+    vi.advanceTimersByTime(fastCfg.debounceMs + 1);
+
+    // Second call WITHOUT session — should inherit mainSession
+    sm.transition({ emotion: 'happy', action: 'greeting' });
+
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall.event.emotion).toBe('happy');
+    expect(lastCall.session).toEqual(mainSession);
+  });
+
+  it('transition without session passes undefined when no prior session exists', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    // Call with no session and no prior session — should be undefined
+    sm.transition({ emotion: 'focused', action: 'typing' });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].session).toBeUndefined();
+  });
 });
