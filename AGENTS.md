@@ -45,6 +45,8 @@ Client → server messages (`WebSocketClientMessage`):
 - `web/src/state/store.ts` — Zustand store. `applyChannelState()` is the single write path for DO state.
 - `web/src/ws/web-socket-client.ts` — WebSocket client with keepalive (60s dead-connection timer).
 - `web/src/avatar/avatar-canvas.tsx` — Mounts Three.js scene + WS client. Provides `WsContext` (sendSetModel).
+- `web/src/avatar/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling.
+- `web/src/avatar/expression-controller.ts` — Blend shape weights + head bone movement + idle breathing.
 - `web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
 
 ### Plugin
@@ -70,8 +72,6 @@ cd web && npm run build                   # full web build (catches type errors)
 
 ## Current State
 
-All phases through 4.3 are implemented and on branch `feat/phase-4.1-identity-sync`. See `IMPLEMENTATION.md` for the full technical plan.
-
 Phases complete:
 - Phase 1: Relay server ✅
 - Phase 2: Web app + avatar core ✅
@@ -80,21 +80,53 @@ Phases complete:
 - Phase 4.1: Identity persistence + multi-screen sync ✅
 - Phase 4.2: Agent presence + /avatar command ✅
 - Phase 4.3: WebSocket keepalive ✅
+- Phase 4.4: Expression improvements (this PR) ✅
 
 Next: Phase 5 (Polish + Desktop).
 
 ## Animation System (v1.1.1)
 
-Real Mixamo FBX animations via Three.js AnimationMixer. No more procedural bone manipulation.
+Real Mixamo FBX animations via Three.js AnimationMixer.
 
 ### Files
-- `web/src/avatar/mixamo-loader.ts` — loads FBX, retargets to VRM 0.x. Uses `mixamoVRMRigMap` + VRM 0.x coordinate flip (negate X/Z quaternion components, negate X/Z position components).
-- `web/src/avatar/animation-controller.ts` — AnimationMixer wrapper. `loadAnimations()` loads all 7 FBX clips in parallel. `playAction()` fades between clips (0.6s).
+- `web/src/avatar/mixamo-loader.ts` — loads FBX, retargets to VRM 0.x.
+- `web/src/avatar/animation-controller.ts` — AnimationMixer wrapper. `loadAnimations()` loads all 7 FBX clips. `playAction()` fades between clips (0.6s).
 - `web/public/animations/` — 7 Mixamo FBX files (downloaded "without skin", 30fps).
 
 ### Action → file mapping
 waiting→idle.fbx, responding→responding.fbx, searching→searching.fbx, coding→coding.fbx, reading→reading.fbx, error→error.fbx, celebrating→celebrating.fbx
 
-### VRM model
-- `web/public/models/potato.vrm` — CC0 model from open-source-avatars registry
-- `web/src/assets/models/manifest.json` — model registry for the picker
+## Expression System (v1.2)
+
+Facial expressions + head bone movement driven by `ExpressionController`.
+
+### How it works
+- **Blend shapes**: `expressionManager.setValue(name, weight)` — frame-rate independent exponential decay lerp (speed 3.0)
+- **Head bone**: `humanoid.getNormalizedBoneNode('head')` — per-emotion euler offsets, lerped at speed 2.5
+- **Breathing**: slow sine wave on head pitch (0.008 rad amplitude, ~11 breaths/min), always running
+
+### Emotion → expression mapping
+Weights are intentionally strong (0.65–1.0) — VRM blending is designed for full-weight combinations:
+- `excited` → happy 1.0 + surprised 0.35, head up + right tilt
+- `confused` → surprised 0.65, head side-tilt (z: 0.07)
+- `concerned` → sad 0.65, head down + slight turn
+- `satisfied` → happy 0.75 + relaxed 0.5, slight nod
+- `thinking` → neutral 0.4 + lookUp 0.45, head up + tilt
+- `focused` → neutral 1.0, slight forward lean
+
+### VRM 0.x name normalization (three-vrm handles this automatically)
+`joy→happy`, `sorrow→sad`, `fun→relaxed`, `lookup→lookUp`, etc.
+
+### Model requirements
+**Must have blend shape binds.** The VRM spec lists expressions but doesn't require mesh bindings — many models have the labels with 0 binds (silent no-ops). Always verify with:
+```js
+vrm0.blendShapeMaster.blendShapeGroups.forEach(g =>
+  console.log(g.presetName, 'binds:', (g.binds||[]).length)
+)
+```
+Any `binds: 0` = that expression does nothing on that model.
+
+### Bundled models
+- `web/public/models/avatarsample_c.vrm` — Official Pixiv VRoid sample (CC0). Full expressions, all binds wired. **Primary model.**
+- `web/public/models/potato.vrm` — Lip-sync + blink only, no emotion expressions. Animation testing only.
+- `web/src/assets/models/manifest.json` — model registry for the picker.

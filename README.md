@@ -174,8 +174,10 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - [x] **AnimationMixer** — replaces procedural bone system, native Three.js crossfade
 - [x] **potato.vrm** — first bundled model from open-source-avatars (CC0)
 
-### v1.2 (Polish)
+### v1.2 (Expression + Polish)
 - [ ] Tauri desktop app — always-on-top, system tray (optional)
+- [x] Expression system — richer blend shape weights, head bone movement per emotion, idle breathing micro-animation
+- [x] AvatarSample C bundled (official Pixiv VRoid CC0, full expression set)
 - [ ] More bundled VRM models
 - [ ] Voice lip-sync (connect to TTS output)
 - [ ] Custom animation import
