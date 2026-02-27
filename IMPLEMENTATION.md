@@ -12,10 +12,11 @@ This document is the complete technical blueprint for Project Avatar. A develope
 4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2) ✅
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
 6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ✅
-7. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
-8. [Technical Deep Dives](#technical-deep-dives)
-9. [Error Handling & Resilience](#error-handling--resilience)
-10. [Testing Strategy](#testing-strategy)
+7. [Phase 4.1: Identity Persistence + Multi-Screen Sync](#phase-41-identity-persistence--multi-screen-sync-v11) ✅
+8. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
+9. [Technical Deep Dives](#technical-deep-dives)
+10. [Error Handling & Resilience](#error-handling--resilience)
+11. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -1689,6 +1690,150 @@ openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 - [ ] `enableAvatarTool: true` → `avatar` tool appears in agent tool list and sets state correctly
 - [ ] Plugin config validates via JSON schema in `openclaw.plugin.json`
 - [ ] All tests pass
+
+---
+
+## Phase 4.1: Identity Persistence + Multi-Screen Sync (v1.1)
+
+### Goal
+
+The Durable Object becomes the authoritative source of truth for channel identity state. Model selection persists across sessions, syncs in real-time across all connected screens, and the web app no longer requires model in the URL.
+
+### Architecture Decision
+
+**The DO owns channel state.** Not the plugin. Not the browser. Not localStorage. The DO.
+
+- `model` — selected VRM model ID (`string | null`)
+- `lastAgentEventAt` — Unix timestamp of last agent push (`number | null`)
+- `lastEvent` — most recent avatar event (already existed)
+
+Everything else is a cache:
+- localStorage in the web app = optimistic pre-connect cache, DO overwrites on connect
+- URL = token only (`?token=abc123`), no model param
+- Plugin config = token only
+
+### Identity + Sync Flow
+
+```
+First open (no model in DO):
+  1. Token in URL or generated fresh
+  2. WebSocket connects → DO sends channel_state { model: null, ... }
+  3. App shows ModelPickerOverlay (avatar canvas running in background)
+  4. User picks model → app sends { type: 'set_model', model: 'maid-v1' } over WS
+  5. DO persists model, broadcasts model_changed to ALL clients
+  6. App receives model_changed echo → store updates → overlay disappears
+
+Return visit / new screen (model already in DO):
+  1. Open ?token=abc123
+  2. WebSocket connects → DO sends channel_state { model: 'maid-v1', ... }
+  3. App applies model immediately → avatar renders, no picker shown
+
+Multi-screen model change:
+  1. Client A sends set_model
+  2. DO persists and broadcasts model_changed to all WS clients
+  3. All clients (A, B, C, OBS) receive model_changed and reload VRM
+```
+
+### What Was Built
+
+**`packages/shared/src/schema.ts`**
+- Added `MODEL_ID_REGEX` and `isValidModelId()` validator
+- New types: `ChannelState`, `ChannelStateMessage`, `ModelChangedMessage`, `AvatarEventMessage`
+- Discriminated union `WebSocketServerMessage` covering all server→client message types
+- `SetModelMessage` and `WebSocketClientMessage` for client→server messages
+- `ChannelStateResponse` for the HTTP state endpoint
+
+**`relay/src/channel.ts`**
+- New DO storage keys: `model`, `lastAgentEventAt`
+- Lazy in-memory cache for all three storage fields (same pattern as existing `lastEventCache`)
+- `handlePush`: atomic dual-write of `lastEvent` + `lastAgentEventAt` via `storage.put(map)`
+- `handleStream`: sends `channel_state` first (model + lastAgentEventAt + lastEvent + client count), no separate replay message
+- `webSocketMessage`: handles `set_model` from clients — validates, persists, broadcasts `model_changed`
+- `handleGetState`: new HTTP GET `/state` handler returning current `ChannelState` as JSON
+
+**`relay/src/index.ts`**
+- New route: `GET /channel/:token/state` → routes to DO's `/state` handler
+
+**`web/src/ws/web-socket-client.ts`**
+- New constructor params: `onChannelState`, `onModelChanged`
+- `handleMessage()` switch: handles `channel_state`, `avatar_event`, `model_changed`
+- New public `sendSetModel(model: string | null)`: sends `set_model` over open WebSocket
+
+**`web/src/state/store.ts`**
+- Removed model from URL params entirely (only token remains in URL)
+- `updateUrlParams` strips stale `?model=` params from old URLs on load
+- Added `lastAgentEventAt: number | null` field
+- Added `applyChannelState()`: single authoritative write path for DO state, DO always wins
+- `setModelId` no longer updates URL params
+- localStorage model = optimistic cache only, overwritten by `applyChannelState` on connect
+
+**`web/src/avatar/avatar-canvas.tsx`**
+- Wires `onChannelState` → `applyChannelState`, `onModelChanged` → `setModelId`
+- Provides `WsContext` with `sendSetModel` via React context (no prop drilling)
+- `useWsClient()` hook for descendant components to access `sendSetModel`
+
+**`web/src/app.tsx`**
+- Replaced full-screen wizard gate with layered approach:
+  - No token → `<TokenSetup />`
+  - Token + no model + connecting → canvas + connecting indicator
+  - Token + no model + connected → canvas + `<ModelPickerOverlay />`
+  - Token + model → full avatar experience (no blocker)
+- Canvas always mounts as soon as token is available — WS connects immediately
+
+**`web/src/token-setup.tsx`** *(new)*
+- Handles the no-token case: auto-generates a token, shows share links
+- Token-only share URL (`?token=abc123`, no model param)
+- Existing token paste + validation
+
+**`web/src/model-picker-overlay.tsx`** *(new)*
+- Overlay rendered on top of the live canvas
+- On select: calls `sendSetModel(id)` via `useWsClient()`
+- Store updates when `model_changed` echo arrives from DO — overlay disappears naturally
+
+**`web/src/components/settings-drawer.tsx`**
+- Share links updated: `?token=abc123` only (no model param)
+- Model picker: calls `sendSetModel` on change (disabled when not connected)
+- Hint text: "Model change syncs to all connected screens instantly."
+
+### Share Link Format
+
+```
+https://app.projectavatar.io/?token=abc123
+```
+
+No model in URL. The DO holds the model. This link works for:
+- First-time setup (will show model picker after connect)
+- Re-linking lost sessions
+- Adding additional screens
+- OBS browser source
+
+### GET /channel/:token/state
+
+```
+GET /channel/:token/state
+→ 200 { model: "maid-v1", lastAgentEventAt: 1709123456789, connectedClients: 3 }
+```
+
+Used by the plugin for `/avatar link` command generation (Phase 4.2).
+
+### Old URL Migration
+
+On init, `updateUrlParams` strips any stale `?model=` param from old URLs. Users with bookmarked URLs like `?token=abc&model=maid-v1` will have the model param cleaned silently on next visit. The DO state takes over.
+
+### Acceptance Criteria
+
+- [x] DO stores model and lastAgentEventAt to persistent storage
+- [x] WebSocket connect → client receives `channel_state` with model + lastAgentEventAt + lastEvent
+- [x] App applies model from DO on connect (DO wins over localStorage)
+- [x] When DO model is null, `ModelPickerOverlay` appears after connect
+- [x] User picks model → `set_model` sent via WS → DO broadcasts `model_changed` to all clients
+- [x] All connected screens switch model when any client calls `set_model`
+- [x] Share link is `?token=abc123` only — no model param
+- [x] `GET /channel/:token/state` returns current channel state as JSON
+- [x] Settings drawer: model picker calls `sendSetModel`, disabled when disconnected
+- [x] `?model=` stripped from URL on init (backward compat with old links)
+- [x] All existing tests pass (39/39)
+- [x] All packages compile clean (web, relay, plugin)
 
 ---
 

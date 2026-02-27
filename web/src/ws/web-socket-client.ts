@@ -1,14 +1,17 @@
 import { validateAvatarEvent } from '@project-avatar/shared';
-import type { AvatarEvent } from '@project-avatar/shared';
+import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
 
 export type ConnectionCallback = (state: 'connected' | 'disconnected' | 'reconnecting', attempt?: number) => void;
 export type EventCallback = (event: AvatarEvent) => void;
+export type ChannelStateCallback = (state: ChannelState & { lastEvent: AvatarEvent | null }) => void;
+export type ModelChangedCallback = (model: string | null) => void;
 
-interface WebSocketMessage {
+interface ServerMessage {
   type: string;
   data?: unknown;
   timestamp?: number;
   replay?: boolean;
+  version?: string;
 }
 
 export class WebSocketClient {
@@ -20,18 +23,23 @@ export class WebSocketClient {
   private intentionalClose = false;
   private onEvent: EventCallback;
   private onConnectionChange: ConnectionCallback;
+  private onChannelState: ChannelStateCallback;
+  private onModelChanged: ModelChangedCallback;
 
   constructor(
     relayUrl: string,
     token: string,
     onEvent: EventCallback,
     onConnectionChange: ConnectionCallback,
+    onChannelState: ChannelStateCallback,
+    onModelChanged: ModelChangedCallback,
   ) {
-    // Convert http(s) to ws(s)
     const wsBase = relayUrl.replace(/^http/, 'ws');
     this.url = `${wsBase}/stream/${token}`;
     this.onEvent = onEvent;
     this.onConnectionChange = onConnectionChange;
+    this.onChannelState = onChannelState;
+    this.onModelChanged = onModelChanged;
   }
 
   connect(): void {
@@ -54,15 +62,8 @@ export class WebSocketClient {
 
     this.ws.onmessage = (evt: MessageEvent) => {
       try {
-        const msg = JSON.parse(String(evt.data)) as WebSocketMessage;
-        if (msg.type === 'avatar_event' && msg.data) {
-          const validation = validateAvatarEvent(msg.data);
-          if (validation.ok) {
-            this.onEvent(msg.data as AvatarEvent);
-          } else {
-            console.warn('[Avatar WS] Invalid event:', validation.error);
-          }
-        }
+        const msg = JSON.parse(String(evt.data)) as ServerMessage;
+        this.handleMessage(msg);
       } catch (e) {
         console.warn('[Avatar WS] Failed to parse message:', e);
       }
@@ -75,7 +76,7 @@ export class WebSocketClient {
     };
 
     this.ws.onerror = () => {
-      // onclose will fire after this, which handles reconnection
+      // onclose fires after this — reconnection handled there
       this.ws?.close();
     };
   }
@@ -85,6 +86,63 @@ export class WebSocketClient {
     this.cleanup();
     this.onConnectionChange('disconnected');
     console.log('[Avatar WS] Disconnected (intentional)');
+  }
+
+  /**
+   * Send a set_model message to the relay.
+   * The DO will persist the model and broadcast `model_changed` to all clients
+   * (including the sender). The local store is updated when `model_changed`
+   * arrives — do not update it optimistically here.
+   */
+  sendSetModel(model: string | null): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('[Avatar WS] Cannot send set_model — not connected');
+      return;
+    }
+    this.ws.send(JSON.stringify({ type: 'set_model', model }));
+  }
+
+  private handleMessage(msg: ServerMessage): void {
+    switch (msg.type) {
+      case 'channel_state': {
+        const data = msg.data as (ChannelState & { lastEvent: AvatarEvent | null }) | undefined;
+        if (data) {
+          this.onChannelState(data);
+          // If there's a last event included, replay it through the event handler
+          if (data.lastEvent) {
+            const validation = validateAvatarEvent(data.lastEvent);
+            if (validation.ok) {
+              this.onEvent(data.lastEvent as AvatarEvent);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'avatar_event': {
+        if (msg.data) {
+          const validation = validateAvatarEvent(msg.data);
+          if (validation.ok) {
+            this.onEvent(msg.data as AvatarEvent);
+          } else {
+            console.warn('[Avatar WS] Invalid avatar_event:', validation.error);
+          }
+        }
+        break;
+      }
+
+      case 'model_changed': {
+        const data = msg.data as { model: string | null } | undefined;
+        if (data !== undefined) {
+          this.onModelChanged(data.model ?? null);
+        }
+        break;
+      }
+
+      default:
+        // Unknown message type — ignore
+        break;
+    }
   }
 
   private cleanup(): void {
