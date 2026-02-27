@@ -79,7 +79,6 @@ export interface PluginConfig {
   enabled:          boolean;
   idleTimeoutMs:    number;
   debounceMs:       number;
-  enableAvatarTool: boolean;
 }
 
 export const DEFAULT_CONFIG: PluginConfig = {
@@ -88,7 +87,6 @@ export const DEFAULT_CONFIG: PluginConfig = {
   enabled:          true,
   idleTimeoutMs:    5_000,
   debounceMs:       300,
-  enableAvatarTool: false,
 };
 
 export const IDLE_EVENT: AvatarEvent = {
@@ -167,10 +165,6 @@ export function validatePluginConfig(
     else sanitized.debounceMs = cfg.debounceMs;
   }
 
-  if ('enableAvatarTool' in cfg) {
-    if (typeof cfg.enableAvatarTool !== 'boolean') errors.push('enableAvatarTool must be a boolean');
-    else sanitized.enableAvatarTool = cfg.enableAvatarTool;
-  }
 
   return { errors, sanitized };
 }

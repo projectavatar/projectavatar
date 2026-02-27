@@ -15,14 +15,12 @@ describe('validatePluginConfig', () => {
       enabled: false,
       idleTimeoutMs: 10_000,
       debounceMs: 500,
-      enableAvatarTool: true,
     });
     expect(errors).toHaveLength(0);
     expect(sanitized.relayUrl).toBe('https://relay.example.com');
     expect(sanitized.enabled).toBe(false);
     expect(sanitized.idleTimeoutMs).toBe(10_000);
     expect(sanitized.debounceMs).toBe(500);
-    expect(sanitized.enableAvatarTool).toBe(true);
   });
 
   it('strips trailing slash from relayUrl', () => {

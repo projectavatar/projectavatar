@@ -93,7 +93,6 @@ const plugin: OpenClawPluginDefinition = {
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
       `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms` +
-      (cfg.enableAvatarTool ? ', avatar tool: enabled' : ''),
     );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
