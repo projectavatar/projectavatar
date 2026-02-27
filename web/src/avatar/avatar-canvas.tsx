@@ -60,6 +60,7 @@ export function AvatarCanvas() {
   const setAvatarState      = useStore((s) => s.setAvatarState);
   const applyChannelState   = useStore((s) => s.applyChannelState);
   const setModelId          = useStore((s) => s.setModelId);
+  const recordAgentEvent    = useStore((s) => s.recordAgentEvent);
 
   // Initialize scene + avatar system. Re-runs when modelUrl changes.
   useEffect(() => {
@@ -133,6 +134,7 @@ export function AvatarCanvas() {
 
     const onEvent = (event: AvatarEvent) => {
       stateMachineRef.current?.handleEvent(event);
+      recordAgentEvent(); // Update presence timestamp live as events arrive
     };
 
     const onConnectionChange = (
@@ -174,7 +176,7 @@ export function AvatarCanvas() {
       ws.disconnect();
       wsRef.current = null;
     };
-  }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId]);
+  }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent]);
 
   const wsContextValue: WsContextValue = {
     sendSetModel: (modelId) => {

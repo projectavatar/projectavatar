@@ -14,12 +14,16 @@ interface ServerMessage {
   version?: string;
 }
 
+/** If no message is received within this window, close + reconnect */
+const KEEPALIVE_TIMEOUT_MS = 60_000;
+
 export class WebSocketClient {
   private url: string;
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30_000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
   private onEvent: EventCallback;
   private onConnectionChange: ConnectionCallback;
@@ -57,10 +61,12 @@ export class WebSocketClient {
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
       this.onConnectionChange('connected');
+      this.resetKeepalive();
       console.log('[Avatar WS] Connected');
     };
 
     this.ws.onmessage = (evt: MessageEvent) => {
+      this.resetKeepalive(); // Any message resets the dead-connection timer
       try {
         const msg = JSON.parse(String(evt.data)) as ServerMessage;
         this.handleMessage(msg);
@@ -86,6 +92,15 @@ export class WebSocketClient {
     this.cleanup();
     this.onConnectionChange('disconnected');
     console.log('[Avatar WS] Disconnected (intentional)');
+  }
+
+  private resetKeepalive(): void {
+    if (this.keepaliveTimer !== null) clearTimeout(this.keepaliveTimer);
+    this.keepaliveTimer = setTimeout(() => {
+      this.keepaliveTimer = null;
+      console.warn('[Avatar WS] No message in 60s — reconnecting');
+      this.ws?.close(); // onclose fires → scheduleReconnect
+    }, KEEPALIVE_TIMEOUT_MS);
   }
 
   /**
@@ -149,6 +164,10 @@ export class WebSocketClient {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.keepaliveTimer !== null) {
+      clearTimeout(this.keepaliveTimer);
+      this.keepaliveTimer = null;
     }
     if (this.ws) {
       this.ws.onopen = null;

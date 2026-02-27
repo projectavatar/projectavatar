@@ -153,6 +153,58 @@ const plugin: OpenClawPluginDefinition = {
     if (cfg.enableAvatarTool) {
       api.registerTool(createAvatarTool(sm), { optional: true });
     }
+
+    // ── /avatar command ────────────────────────────────────────────────────────
+
+    if (typeof api.registerCommand === 'function') {
+      api.registerCommand(
+        'avatar',
+        async (args) => {
+          const token = getToken();
+          if (!token) {
+            return '[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>';
+          }
+
+          const sub = args[0] ?? 'link';
+
+          if (sub === 'link') {
+            const appBase = cfg.relayUrl
+              .replace('relay.projectavatar.io', 'app.projectavatar.io')
+              .replace(/\/+$/, '');
+            return `[Avatar] Share link:\n${appBase}/?token=${token}`;
+          }
+
+          if (sub === 'status') {
+            try {
+              const res = await fetch(
+                `${cfg.relayUrl}/channel/${encodeURIComponent(token)}/state`,
+                { signal: AbortSignal.timeout(5_000) },
+              );
+              if (!res.ok) {
+                return `[Avatar] Relay returned HTTP ${res.status}`;
+              }
+              const state = await res.json() as import('./types.js').ChannelStateResponse;
+              const model    = state.model          ?? 'not selected';
+              const clients  = state.connectedClients;
+              const lastSeen = state.lastAgentEventAt
+                ? `${Math.round((Date.now() - state.lastAgentEventAt) / 1_000)}s ago`
+                : 'never';
+              return (
+                `[Avatar] Channel status:\n` +
+                `  Model:       ${model}\n` +
+                `  Viewers:     ${clients}\n` +
+                `  Last event:  ${lastSeen}`
+              );
+            } catch {
+              return '[Avatar] Could not reach relay — check AVATAR_RELAY_URL and network.';
+            }
+          }
+
+          return '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info';
+        },
+        { description: 'Project Avatar — get share link or channel status' },
+      );
+    }
   },
 };
 

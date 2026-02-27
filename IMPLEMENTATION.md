@@ -13,8 +13,8 @@ This document is the complete technical blueprint for Project Avatar. A develope
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
 6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ✅
 7. [Phase 4.1: Identity Persistence + Multi-Screen Sync](#phase-41-identity-persistence--multi-screen-sync-v11) ✅
-8. [Phase 4.2: Agent Presence + Plugin Share Link](#phase-42-agent-presence--plugin-share-link-v11)
-9. [Phase 4.3: WebSocket Keepalive](#phase-43-websocket-keepalive-v11)
+8. [Phase 4.2: Agent Presence + Plugin Share Link](#phase-42-agent-presence--plugin-share-link-v11) ✅
+9. [Phase 4.3: WebSocket Keepalive](#phase-43-websocket-keepalive-v11) ✅
 10. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
 11. [Technical Deep Dives](#technical-deep-dives)
 12. [Error Handling & Resilience](#error-handling--resilience)
@@ -1659,7 +1659,7 @@ export function createRelayClient(relayUrl: string, token: string) {
 # Install
 openclaw plugins install @projectavatar/openclaw-avatar
 
-# Local dev
+# Local dev (no build step needed — OpenClaw loads TypeScript via jiti)
 openclaw plugins install --link ./packages/openclaw-plugin
 
 # Enable
@@ -1672,6 +1672,12 @@ openclaw secrets set AVATAR_TOKEN <your-token>
 openclaw config set plugins.entries.projectavatar.config.relayUrl https://relay.projectavatar.io
 openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 ```
+
+**No build step required for local development.** OpenClaw loads plugins via jiti, which executes TypeScript directly at runtime. The `package.json` `main` field points to `src/index.ts`. The build script (`tsc`) is only needed when publishing to npm.
+
+**Commands available after install:**
+- `/avatar link` — prints your share URL (`?token=<token>`)
+- `/avatar status` — shows model, connected viewers, and last agent event age
 
 ---
 
@@ -1839,7 +1845,7 @@ On init, `updateUrlParams` strips any stale `?model=` param from old URLs. Users
 
 ---
 
-## Phase 4.2: Agent Presence + Plugin Share Link (v1.1)
+## Phase 4.2: Agent Presence + Plugin Share Link (v1.1) ✅
 
 ### Goal
 
@@ -1935,17 +1941,17 @@ api.registerCommand('avatar', async (args) => {
 
 ### Acceptance Criteria
 
-- [ ] `StatusBadge` shows agent presence alongside WS connection state
-- [ ] Presence updates live as `avatar_event` messages arrive (no reconnect needed)
-- [ ] `away` state shown correctly when agent hasn't pushed in 5min or `lastAgentEventAt` is null
-- [ ] `/avatar link` returns correct share URL
-- [ ] `/avatar status` returns model, viewer count, last event age
-- [ ] `/avatar status` handles relay unreachable gracefully
-- [ ] Plugin command registered and appears in OpenClaw help
+- [x] `StatusBadge` shows agent presence alongside WS connection state
+- [x] Presence updates live as `avatar_event` messages arrive (no reconnect needed)
+- [x] `away` state shown correctly when agent hasn't pushed in 5min or `lastAgentEventAt` is null
+- [x] `/avatar link` returns correct share URL
+- [x] `/avatar status` returns model, viewer count, last event age
+- [x] `/avatar status` handles relay unreachable gracefully
+- [x] Plugin command registered and appears in OpenClaw help
 
 ---
 
-## Phase 4.3: WebSocket Keepalive (v1.1)
+## Phase 4.3: WebSocket Keepalive (v1.1) ✅
 
 ### Goal
 
@@ -1994,9 +2000,9 @@ Call `resetKeepaliveTimer()` in `onopen` and `onmessage`.
 
 ### Acceptance Criteria
 
-- [ ] WebSocket connections survive 5+ minutes of agent inactivity (no avatar events being pushed)
-- [ ] Reconnection happens cleanly if connection does drop silently
-- [ ] No visible glitch to the user when keepalive fires
+- [x] WebSocket connections survive 5+ minutes of agent inactivity (no avatar events being pushed)
+- [x] Reconnection happens cleanly if connection does drop silently
+- [x] No visible glitch to the user when keepalive fires
 
 ---
 

@@ -32,6 +32,13 @@
       }
     }
   },
+  "commands": [
+    {
+      "name": "avatar",
+      "description": "Get your avatar share link or check channel status",
+      "usage": "/avatar [link|status]"
+    }
+  ],
   "uiHints": {
     "relayUrl": {
       "label": "Relay URL",

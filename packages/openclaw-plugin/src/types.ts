@@ -52,6 +52,13 @@ export const IDLE_EVENT: AvatarEvent = {
   intensity: 'medium',
 };
 
+/** Response from GET /channel/:token/state */
+export interface ChannelStateResponse {
+  model: string | null;
+  lastAgentEventAt: number | null;
+  connectedClients: number;
+}
+
 /**
  * Runtime config validation.
  * Returns a list of error strings (empty = valid), AND a sanitized config object

@@ -86,6 +86,8 @@ export type PluginHookName = keyof PluginHookHandlerMap;
 
 // ── Plugin API ───────────────────────────────────────────────────────────────
 
+export type CommandHandler = (args: string[]) => string | Promise<string>;
+
 export type OpenClawPluginApi = {
   id: string;
   name: string;
@@ -94,6 +96,11 @@ export type OpenClawPluginApi = {
   pluginConfig?: Record<string, unknown>;
   logger: PluginLogger;
   registerTool: (tool: AnyTool, opts?: OpenClawPluginToolOptions) => void;
+  /**
+   * Register a slash command accessible via `/commandName [args...]`.
+   * The handler receives args as a string array and returns a reply string.
+   */
+  registerCommand: (name: string, handler: CommandHandler, opts?: { description?: string }) => void;
   on: <K extends PluginHookName>(
     hookName: K,
     handler: PluginHookHandlerMap[K],
