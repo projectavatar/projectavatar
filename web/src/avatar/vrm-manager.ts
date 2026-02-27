@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
+import { VRMLoaderPlugin, VRM, VRMUtils } from '@pixiv/three-vrm';
 
 /**
  * Manages VRM model loading, switching, and per-frame updates.
@@ -38,8 +38,8 @@ export class VrmManager {
       throw new Error('Loaded file is not a valid VRM model');
     }
 
-    // VRM models face +Z by default; rotate to face camera (-Z)
-    vrm.scene.rotation.y = Math.PI;
+    // VRM 0.x faces Z-, VRM 1.0 faces Z+. rotateVRM0 handles the difference.
+    VRMUtils.rotateVRM0(vrm);
     vrm.scene.position.y = -0.4;
     this.scene.add(vrm.scene);
     this.currentVrm = vrm;
