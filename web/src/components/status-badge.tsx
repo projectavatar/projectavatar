@@ -121,7 +121,7 @@ export function StatusBadge() {
           <span style={{ color: 'var(--color-text-muted)' }}>{presenceLabel}</span>
         </>
       )}
-      {(import.meta as any).env?.DEV && (
+      {import.meta.env.DEV && (
         <>
           <div style={dividerStyle} />
           <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>

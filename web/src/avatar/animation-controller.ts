@@ -107,8 +107,8 @@ export class AnimationController {
     this.loaded = true;
 
     // Listen for play-once animations finishing → return to idle
-    mixer.addEventListener('finished', (e: THREE.Event) => {
-      const finishedAction = (e as any).action as THREE.AnimationAction;
+    mixer.addEventListener('finished', (e) => {
+      const finishedAction = (e as THREE.AnimationMixerEventMap['finished']).action;
       // Only auto-return if this was the active play-once action
       if (finishedAction === this.actions.get(this.currentAction)) {
         this.playAction('waiting', 'medium');
