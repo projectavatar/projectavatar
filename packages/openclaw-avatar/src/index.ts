@@ -17,6 +17,7 @@ import { createRelayClient } from './relay-client.js';
 import { createAvatarStateMachine } from './state-machine.js';
 import { resolveToolSignal } from './tool-map.js';
 import { createAvatarTool } from './avatar-tool.js';
+import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig } from './types.js';
 
@@ -152,73 +153,12 @@ const plugin: OpenClawPluginDefinition = {
       api.registerTool(createAvatarTool(sm), { optional: true });
     }
 
-    // ── /avatar command ────────────────────────────────────────────────────────
+    // ── /avatar command tool (for skill command-dispatch) ──────────────────────
+    // Registered always so the skill's command-dispatch:tool can find it.
+    // This avoids the registerCommand vs. user-invocable skill name collision
+    // that causes the command to be deduped to /avatar_2 on Discord.
+    api.registerTool(createAvatarCommandTool(cfg, getToken), { optional: true });
 
-    if (typeof api.registerCommand === 'function') {
-      api.registerCommand({
-        name: 'avatar',
-        description: 'Project Avatar — get share link or channel status',
-        acceptsArgs: true,
-        handler: async (args) => {
-          const token = getToken();
-          if (!token) {
-            return '[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>';
-          }
-
-          const sub = args[0] ?? 'link';
-
-          if (sub === 'link') {
-            // Use cfg.appUrl — configurable for self-hosted deployments.
-            // Do NOT derive app URL from relayUrl (different domains).
-            const appBase = cfg.appUrl.replace(/\/+$/, '');
-            return `[Avatar] Share link:\n${appBase}/?token=${token}`;
-          }
-
-          if (sub === 'status') {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 5_000);
-              let res: Response;
-              try {
-                res = await fetch(
-                  `${cfg.relayUrl}/channel/${encodeURIComponent(token)}/state`,
-                  { signal: controller.signal },
-                );
-              } finally {
-                clearTimeout(timeout);
-              }
-              if (!res.ok) {
-                return `[Avatar] Relay returned HTTP ${res.status}`;
-              }
-              const state = await res.json() as import('./types.js').ChannelStateResponse;
-              const model    = state.model          ?? 'not selected';
-              const clients  = state.connectedClients;
-              const lastSeen = state.lastAgentEventAt
-                ? `${Math.round((Date.now() - state.lastAgentEventAt) / 1_000)}s ago`
-                : 'never';
-              return (
-                `[Avatar] Channel status:\n` +
-                `  Model:       ${model}\n` +
-                `  Viewers:     ${clients}\n` +
-                `  Last event:  ${lastSeen}`
-              );
-            } catch (err) {
-              const isAbort = err instanceof Error && err.name === 'AbortError';
-              return isAbort
-                ? '[Avatar] Relay timed out — check plugins.entries.openclaw-avatar.config.relayUrl'
-                : '[Avatar] Could not reach relay — check plugins.entries.openclaw-avatar.config.relayUrl and network.';
-            }
-          }
-
-          return '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info';
-        },
-      });
-    } else {
-      api.logger.warn(
-        '[ProjectAvatar] api.registerCommand is not available — /avatar command not registered. ' +
-        'Update OpenClaw to enable slash commands.',
-      );
-    }
   },
 };
 

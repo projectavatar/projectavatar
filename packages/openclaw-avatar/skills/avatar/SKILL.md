@@ -2,6 +2,8 @@
 name: avatar
 description: "Project Avatar — get your share link or check channel status."
 user-invocable: true
+command-dispatch: tool
+command-tool: avatar_link
 ---
 
 # Avatar Command
