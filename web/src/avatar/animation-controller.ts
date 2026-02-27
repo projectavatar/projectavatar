@@ -31,7 +31,7 @@ const INTENSITY_SPEED: Record<Intensity, number> = {
   high: 1.3,
 };
 
-const FADE_DURATION = 0.3;
+const FADE_DURATION = 0.6;
 
 // ─── AnimationController ──────────────────────────────────────────────────────
 
