@@ -34,28 +34,28 @@ const talking: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.15, duration: 0.4 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.06, period: 1.8, phase: 0 },
+        { kind: 'reach', axis: 'z', target: 0.15, duration: 0.4 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.06, period: 1.8, phase: 0 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.3 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.08, period: 1.4, phase: 0.5 },
+        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.3 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.08, period: 1.4, phase: 0.5 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.03, period: 2.2, phase: 1.0 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.03, period: 2.2, phase: 1.0 },
       ],
     },
     // Head nods along with speech rhythm
     {
       bone: 'head',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.03, period: 1.6 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.03, period: 1.6 },
         { kind: 'noise', axis: 'y', amplitude: 0.02, speed: 0.8, seed: 20 },
       ],
     },
@@ -79,56 +79,56 @@ const typing: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.6, duration: 0.4 },
-        { kind: 'reach', axis: 'z', target: -0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.6, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 0.2, duration: 0.4 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.6, duration: 0.4 },
-        { kind: 'reach', axis: 'z', target: 0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.6, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.2, duration: 0.4 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.9, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.9, duration: 0.3 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.9, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.9, duration: 0.3 },
       ],
     },
     // Subtle finger/hand wiggle to simulate keystrokes
     {
       bone: 'rightHand',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.06, period: 0.25 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.03, period: 0.35, phase: 1.0 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.06, period: 0.25 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.03, period: 0.35, phase: 1.0 },
       ],
     },
     {
       bone: 'leftHand',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.06, period: 0.28, phase: 0.5 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.03, period: 0.38, phase: 1.5 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.06, period: 0.28, phase: 0.5 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.03, period: 0.38, phase: 1.5 },
       ],
     },
     // Head slightly forward, focused on screen
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.08, duration: 0.5 },
+        { kind: 'reach', axis: 'x', target: -0.08, duration: 0.5 },
         { kind: 'noise', axis: 'y', amplitude: 0.01, speed: 0.3, seed: 30 },
       ],
     },
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.04, duration: 0.5 },
+        { kind: 'reach', axis: 'x', target: -0.04, duration: 0.5 },
       ],
     },
   ],
@@ -143,13 +143,13 @@ const nodding: Recipe = {
     {
       bone: 'head',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.12, period: 0.6 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.12, period: 0.6 },
       ],
     },
     {
       bone: 'neck',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.04, period: 0.6, phase: 0.3 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.04, period: 0.6, phase: 0.3 },
       ],
     },
   ],
@@ -166,34 +166,34 @@ const waving: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.3 },
-        { kind: 'reach', axis: 'z', target: -1.2, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: 1.2, duration: 0.3 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.5, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: 0.5, duration: 0.25 },
       ],
     },
     // Wave hand back and forth
     {
       bone: 'rightHand',
       primitives: [
-        { kind: 'oscillate', axis: 'z', amplitude: 0.4, period: 0.4 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.4, period: 0.4 },
       ],
     },
     // Slight body lean toward wave
     {
       bone: 'spine',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.03, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 0.03, duration: 0.4 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.04, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: 0.04, duration: 0.3 },
       ],
     },
   ],
@@ -210,26 +210,26 @@ const greeting: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: 0.12, settleAngle: 0.04, attackTime: 0.3, settleTime: 0.5 },
+        { kind: 'recoil', axis: 'x', peakAngle: -0.12, settleAngle: -0.04, attackTime: 0.3, settleTime: 0.5 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: 0.08, settleAngle: -0.02, attackTime: 0.3, settleTime: 0.5 },
+        { kind: 'recoil', axis: 'x', peakAngle: -0.08, settleAngle: 0.02, attackTime: 0.3, settleTime: 0.5 },
       ],
     },
     // Arms slightly open
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 0.2, duration: 0.4 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.2, duration: 0.4 },
       ],
     },
   ],
@@ -246,34 +246,34 @@ const laughing: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.06, period: 0.35 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.06, period: 0.35 },
       ],
     },
     {
       bone: 'spine',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.04, period: 0.35, phase: 0.2 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.04, period: 0.35, phase: 0.2 },
       ],
     },
     // Head thrown back slightly then bouncing
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.2 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.04, period: 0.35, phase: 0.5 },
+        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.2 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.04, period: 0.35, phase: 0.5 },
       ],
     },
     // Shoulders shake
     {
       bone: 'leftShoulder',
       primitives: [
-        { kind: 'oscillate', axis: 'z', amplitude: 0.04, period: 0.35 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.04, period: 0.35 },
       ],
     },
     {
       bone: 'rightShoulder',
       primitives: [
-        { kind: 'oscillate', axis: 'z', amplitude: 0.04, period: 0.35, phase: Math.PI },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.04, period: 0.35, phase: Math.PI },
       ],
     },
   ],
@@ -290,14 +290,14 @@ const pointing: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.8, duration: 0.3 },
-        { kind: 'reach', axis: 'z', target: -0.3, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: -0.8, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: 0.3, duration: 0.3 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.15, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: 0.15, duration: 0.25 },
       ],
     },
     // Lean slightly into the point
@@ -327,20 +327,20 @@ const fist_pump: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'recoil', axis: 'z', peakAngle: -1.5, settleAngle: -1.0, attackTime: 0.2, settleTime: 0.3 },
+        { kind: 'recoil', axis: 'z', peakAngle: 1.5, settleAngle: 1.0, attackTime: 0.2, settleTime: 0.3 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -1.2, settleAngle: -0.8, attackTime: 0.15, settleTime: 0.3 },
+        { kind: 'recoil', axis: 'x', peakAngle: 1.2, settleAngle: 0.8, attackTime: 0.15, settleTime: 0.3 },
       ],
     },
     // Body lean into it
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.06, settleAngle: 0, attackTime: 0.2, settleTime: 0.4 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.06, settleAngle: 0, attackTime: 0.2, settleTime: 0.4 },
       ],
     },
   ],
@@ -357,13 +357,13 @@ const dismissive: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.4, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: 0.4, duration: 0.3 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.5, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: 0.5, duration: 0.25 },
       ],
     },
     {
@@ -399,27 +399,27 @@ const plotting: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.5 },
-        { kind: 'reach', axis: 'z', target: 0.15, duration: 0.5 },
+        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.5 },
+        { kind: 'reach', axis: 'z', target: -0.15, duration: 0.5 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.5 },
-        { kind: 'reach', axis: 'z', target: -0.15, duration: 0.5 },
+        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.5 },
+        { kind: 'reach', axis: 'z', target: 0.15, duration: 0.5 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.0, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 1.0, duration: 0.4 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.0, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 1.0, duration: 0.4 },
       ],
     },
     // Slow menacing sway
@@ -432,7 +432,7 @@ const plotting: Recipe = {
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.4 },
         { kind: 'noise', axis: 'y', amplitude: 0.015, speed: 0.3, seed: 40 },
       ],
     },
@@ -449,7 +449,7 @@ const sarcastic: Recipe = {
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.1, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: -0.1, duration: 0.3 },
         { kind: 'reach', axis: 'y', target: -0.1, duration: 0.35 },
       ],
     },
@@ -457,20 +457,20 @@ const sarcastic: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.04, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 0.04, duration: 0.4 },
       ],
     },
     // One hand on hip
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.5, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.5, duration: 0.4 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.2, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 1.2, duration: 0.35 },
       ],
     },
   ],
@@ -486,7 +486,7 @@ const looking_around: Recipe = {
       bone: 'head',
       primitives: [
         { kind: 'oscillate', axis: 'y', amplitude: 0.2, period: 3.0 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.05, period: 2.2, phase: 1.0 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.05, period: 2.2, phase: 1.0 },
       ],
     },
     {
@@ -514,27 +514,27 @@ const shading_eyes: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.2, duration: 0.4 },
-        { kind: 'reach', axis: 'z', target: -1.0, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 1.0, duration: 0.4 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.4, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 1.4, duration: 0.35 },
       ],
     },
     {
       bone: 'rightHand',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.3 },
       ],
     },
     // Head tilted up slightly, squinting
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.3 },
         { kind: 'noise', axis: 'y', amplitude: 0.03, speed: 0.2, seed: 50 },
       ],
     },
@@ -551,28 +551,28 @@ const telling_secret: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.08, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.08, duration: 0.4 },
         { kind: 'reach', axis: 'y', target: 0.06, duration: 0.4 },
       ],
     },
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.35 },
-        { kind: 'reach', axis: 'z', target: 0.1, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.35 },
+        { kind: 'reach', axis: 'z', target: -0.1, duration: 0.35 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.3, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 1.3, duration: 0.3 },
       ],
     },
     {
       bone: 'head',
       primitives: [
         { kind: 'reach', axis: 'y', target: 0.1, duration: 0.3 },
-        { kind: 'reach', axis: 'x', target: 0.04, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: -0.04, duration: 0.3 },
       ],
     },
   ],
@@ -588,38 +588,38 @@ const victory: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'recoil', axis: 'z', peakAngle: -1.6, settleAngle: -1.3, attackTime: 0.25, settleTime: 0.4 },
+        { kind: 'recoil', axis: 'z', peakAngle: 1.6, settleAngle: 1.3, attackTime: 0.25, settleTime: 0.4 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'recoil', axis: 'z', peakAngle: 1.6, settleAngle: 1.3, attackTime: 0.25, settleTime: 0.4 },
+        { kind: 'recoil', axis: 'z', peakAngle: -1.6, settleAngle: -1.3, attackTime: 0.25, settleTime: 0.4 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.3 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.3 },
       ],
     },
     // Triumphant lean back
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.1, settleAngle: -0.04, attackTime: 0.25, settleTime: 0.5 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.1, settleAngle: 0.04, attackTime: 0.25, settleTime: 0.5 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.08, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.08, duration: 0.3 },
       ],
     },
   ],
@@ -658,25 +658,25 @@ const relief: Recipe = {
     {
       bone: 'leftShoulder',
       primitives: [
-        { kind: 'recoil', axis: 'z', peakAngle: 0.08, settleAngle: -0.03, attackTime: 0.3, settleTime: 0.8 },
+        { kind: 'recoil', axis: 'z', peakAngle: -0.08, settleAngle: 0.03, attackTime: 0.3, settleTime: 0.8 },
       ],
     },
     {
       bone: 'rightShoulder',
       primitives: [
-        { kind: 'recoil', axis: 'z', peakAngle: -0.08, settleAngle: 0.03, attackTime: 0.3, settleTime: 0.8 },
+        { kind: 'recoil', axis: 'z', peakAngle: 0.08, settleAngle: -0.03, attackTime: 0.3, settleTime: 0.8 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.1, settleAngle: 0.03, attackTime: 0.4, settleTime: 0.6 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.1, settleAngle: -0.03, attackTime: 0.4, settleTime: 0.6 },
       ],
     },
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.05, settleAngle: 0.02, attackTime: 0.3, settleTime: 0.7 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.05, settleAngle: -0.02, attackTime: 0.3, settleTime: 0.7 },
       ],
     },
   ],
@@ -693,14 +693,14 @@ const cautious_agree: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.08, settleAngle: -0.02, attackTime: 0.3, settleTime: 0.5 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.08, settleAngle: 0.02, attackTime: 0.3, settleTime: 0.5 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.6, delay: 0.4 },
-        { kind: 'reach', axis: 'z', target: 0.04, duration: 0.5 },
+        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.6, delay: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.04, duration: 0.5 },
       ],
     },
   ],
@@ -717,28 +717,28 @@ const angry_fist: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.2 },
-        { kind: 'reach', axis: 'z', target: -0.5, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.2 },
+        { kind: 'reach', axis: 'z', target: 0.5, duration: 0.2 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.2, duration: 0.2 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.1, period: 0.25 },
+        { kind: 'reach', axis: 'x', target: 1.2, duration: 0.2 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.1, period: 0.25 },
       ],
     },
     // Body tense
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.3 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.08, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: -0.08, duration: 0.25 },
       ],
     },
   ],
@@ -755,34 +755,34 @@ const rallying: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -1.2, duration: 0.3 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.15, period: 0.6 },
+        { kind: 'reach', axis: 'z', target: 1.2, duration: 0.3 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.15, period: 0.6 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 1.2, duration: 0.3 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.15, period: 0.6, phase: Math.PI },
+        { kind: 'reach', axis: 'z', target: -1.2, duration: 0.3 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.15, period: 0.6, phase: Math.PI },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.6, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: 0.6, duration: 0.25 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.6, duration: 0.25 },
+        { kind: 'reach', axis: 'x', target: 0.6, duration: 0.25 },
       ],
     },
     // Energetic bounce
     {
       bone: 'chest',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.04, period: 0.6 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.04, period: 0.6 },
       ],
     },
   ],
@@ -799,39 +799,39 @@ const sad_idle: Recipe = {
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.12, duration: 0.6 },
+        { kind: 'reach', axis: 'x', target: -0.12, duration: 0.6 },
         { kind: 'noise', axis: 'y', amplitude: 0.01, speed: 0.15, seed: 60 },
       ],
     },
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.8 },
+        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.8 },
       ],
     },
     {
       bone: 'leftShoulder',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.06, duration: 0.7 },
+        { kind: 'reach', axis: 'z', target: -0.06, duration: 0.7 },
       ],
     },
     {
       bone: 'rightShoulder',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.06, duration: 0.7 },
+        { kind: 'reach', axis: 'z', target: 0.06, duration: 0.7 },
       ],
     },
     // Arms hanging more limply
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.05, duration: 0.6 },
+        { kind: 'reach', axis: 'x', target: -0.05, duration: 0.6 },
       ],
     },
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.05, duration: 0.6 },
+        { kind: 'reach', axis: 'x', target: -0.05, duration: 0.6 },
       ],
     },
   ],
@@ -848,22 +848,22 @@ const nervous_look: Recipe = {
       bone: 'head',
       primitives: [
         { kind: 'oscillate', axis: 'y', amplitude: 0.12, period: 1.5 },
-        { kind: 'noise', axis: 'x', amplitude: 0.03, speed: 1.5, seed: 70 },
+        { kind: 'noise', axis: 'x', amplitude: -0.03, speed: 1.5, seed: 70 },
       ],
     },
     // Shoulders tense
     {
       bone: 'leftShoulder',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.05, duration: 0.3 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.02, period: 2.0 },
+        { kind: 'reach', axis: 'z', target: -0.05, duration: 0.3 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.02, period: 2.0 },
       ],
     },
     {
       bone: 'rightShoulder',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.05, duration: 0.3 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.02, period: 2.0, phase: Math.PI },
+        { kind: 'reach', axis: 'z', target: 0.05, duration: 0.3 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.02, period: 2.0, phase: Math.PI },
       ],
     },
   ],
@@ -879,41 +879,41 @@ const terrified: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'recoil', axis: 'x', peakAngle: -0.15, settleAngle: -0.08, attackTime: 0.15, settleTime: 0.4 },
+        { kind: 'recoil', axis: 'x', peakAngle: 0.15, settleAngle: 0.08, attackTime: 0.15, settleTime: 0.4 },
       ],
     },
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.2 },
-        { kind: 'reach', axis: 'z', target: -0.4, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.2 },
+        { kind: 'reach', axis: 'z', target: 0.4, duration: 0.2 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.2 },
-        { kind: 'reach', axis: 'z', target: 0.4, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.2 },
+        { kind: 'reach', axis: 'z', target: -0.4, duration: 0.2 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.8, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: 0.8, duration: 0.2 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.8, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: 0.8, duration: 0.2 },
       ],
     },
     // Trembling
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.15 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.015, period: 0.12 },
+        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.15 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.015, period: 0.12 },
         { kind: 'oscillate', axis: 'y', amplitude: 0.01, period: 0.15 },
       ],
     },
@@ -930,28 +930,28 @@ const scratching_head: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.2, duration: 0.4 },
-        { kind: 'reach', axis: 'z', target: -0.8, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 0.2, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 0.8, duration: 0.4 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.5, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 1.5, duration: 0.35 },
       ],
     },
     // Scratching motion
     {
       bone: 'rightHand',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.08, period: 0.3 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.08, period: 0.3 },
       ],
     },
     // Head tilts into the scratch
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.08, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.08, duration: 0.4 },
       ],
     },
   ],
@@ -967,34 +967,34 @@ const cocky: Recipe = {
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.4 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.04, duration: 0.3 },
-        { kind: 'reach', axis: 'z', target: 0.06, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 0.04, duration: 0.3 },
+        { kind: 'reach', axis: 'z', target: -0.06, duration: 0.35 },
       ],
     },
     // Hand on hip
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.5, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: -0.5, duration: 0.4 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.3, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 1.3, duration: 0.35 },
       ],
     },
     // Subtle sway
     {
       bone: 'spine',
       primitives: [
-        { kind: 'oscillate', axis: 'z', amplitude: 0.01, period: 3.5 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.01, period: 3.5 },
       ],
     },
   ],
@@ -1010,35 +1010,35 @@ const questioning: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.4, duration: 0.35 },
-        { kind: 'reach', axis: 'z', target: -0.5, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: -0.4, duration: 0.35 },
+        { kind: 'reach', axis: 'z', target: 0.5, duration: 0.35 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.6, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.6, duration: 0.3 },
       ],
     },
     {
       bone: 'rightHand',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.3, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: 0.3, duration: 0.3 },
       ],
     },
     // Head tilted
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 0.1, duration: 0.3 },
-        { kind: 'reach', axis: 'x', target: 0.03, duration: 0.35 },
+        { kind: 'reach', axis: 'z', target: -0.1, duration: 0.3 },
+        { kind: 'reach', axis: 'x', target: -0.03, duration: 0.35 },
       ],
     },
     // Slight lean
     {
       bone: 'chest',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.03, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.03, duration: 0.4 },
       ],
     },
   ],
@@ -1054,22 +1054,22 @@ const phone: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: 0.1, duration: 0.4 },
-        { kind: 'reach', axis: 'z', target: -0.9, duration: 0.4 },
+        { kind: 'reach', axis: 'x', target: -0.1, duration: 0.4 },
+        { kind: 'reach', axis: 'z', target: 0.9, duration: 0.4 },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -1.6, duration: 0.35 },
+        { kind: 'reach', axis: 'x', target: 1.6, duration: 0.35 },
       ],
     },
     // Head tilts toward phone
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -0.08, duration: 0.3 },
-        { kind: 'noise', axis: 'x', amplitude: 0.015, speed: 0.4, seed: 80 },
+        { kind: 'reach', axis: 'z', target: 0.08, duration: 0.3 },
+        { kind: 'noise', axis: 'x', amplitude: -0.015, speed: 0.4, seed: 80 },
       ],
     },
     // Slight pacing sway
@@ -1092,41 +1092,41 @@ const celebrating: Recipe = {
     {
       bone: 'rightUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: -1.3, duration: 0.2 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.2, period: 0.5 },
+        { kind: 'reach', axis: 'z', target: 1.3, duration: 0.2 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.2, period: 0.5 },
       ],
     },
     {
       bone: 'leftUpperArm',
       primitives: [
-        { kind: 'reach', axis: 'z', target: 1.3, duration: 0.2 },
-        { kind: 'oscillate', axis: 'z', amplitude: 0.2, period: 0.5, phase: Math.PI },
+        { kind: 'reach', axis: 'z', target: -1.3, duration: 0.2 },
+        { kind: 'oscillate', axis: 'z', amplitude: -0.2, period: 0.5, phase: Math.PI },
       ],
     },
     {
       bone: 'rightLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.5, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: 0.5, duration: 0.2 },
       ],
     },
     {
       bone: 'leftLowerArm',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.5, duration: 0.2 },
+        { kind: 'reach', axis: 'x', target: 0.5, duration: 0.2 },
       ],
     },
     // Bouncy body
     {
       bone: 'chest',
       primitives: [
-        { kind: 'oscillate', axis: 'x', amplitude: 0.05, period: 0.5 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.05, period: 0.5 },
       ],
     },
     {
       bone: 'head',
       primitives: [
-        { kind: 'reach', axis: 'x', target: -0.06, duration: 0.2 },
-        { kind: 'oscillate', axis: 'x', amplitude: 0.03, period: 0.5, phase: 0.5 },
+        { kind: 'reach', axis: 'x', target: 0.06, duration: 0.2 },
+        { kind: 'oscillate', axis: 'x', amplitude: -0.03, period: 0.5, phase: 0.5 },
       ],
     },
   ],

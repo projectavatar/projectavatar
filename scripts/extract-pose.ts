@@ -21,8 +21,7 @@
  * The retargeting pipeline matches mixamo-loader.ts exactly:
  *   1. Get parent world rotation + rest rotation inverse
  *   2. premultiply(parentWorldRot).multiply(restRotInverse)
- *   3. VRM 0.x flip: negate quaternion X and Z
- *   4. Convert to euler
+ *   3. Convert to euler (no VRM 0.x flip — normalized bones are version-agnostic)
  */
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
@@ -161,9 +160,9 @@ function extractFrame(frameIdx: number): Map<string, { x: number; y: number; z: 
       .premultiply(_parentRestWorld)
       .multiply(_restRotInv);
 
-    // VRM 0.x flip: negate X and Z
-    const flipped = new THREE.Quaternion(-_q.x, _q.y, -_q.z, _q.w);
-    const euler = new THREE.Euler().setFromQuaternion(flipped);
+    // No VRM 0.x flip — normalized bones have identity rest orientation
+    // and a standardized coordinate system regardless of VRM version.
+    const euler = new THREE.Euler().setFromQuaternion(_q);
 
     result.set(vrmBone, { x: euler.x, y: euler.y, z: euler.z });
   }
