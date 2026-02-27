@@ -1,6 +1,0 @@
-{
-  "relayUrl": "https://relay.projectavatar.io",
-  "token": "YOUR_TOKEN_HERE",
-  "enabled": true,
-  "bufferLimit": 200
-}
