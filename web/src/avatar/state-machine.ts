@@ -100,8 +100,10 @@ export class StateMachine {
 
   /** Update all subsystems. Call every frame with delta time. */
   update(delta: number): void {
-    this.expressionCtrl.update(delta);
+    // Order matters: mixer must write bone values before expression controller
+    // applies its additive head offset on top. Blink runs last (also expression-level).
     this.animationCtrl.update(delta);
+    this.expressionCtrl.update(delta);
     this.blinkCtrl.update(delta);
   }
 
