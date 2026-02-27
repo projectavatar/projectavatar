@@ -45,7 +45,7 @@ export type AvatarStateMachine = {
   scheduleIdle: () => void;
   /** Immediately reset to idle and cancel all pending timers. Call on session_end. */
   reset: () => void;
-  /** Get a snapshot of current state (for relay-client merge). */
+  /** Get a snapshot of current state. */
   getCurrent: () => AvatarEvent;
 };
 
@@ -75,7 +75,7 @@ export function createAvatarStateMachine(
   function emit(event: AvatarEvent) {
     current = { ...event };
     lastEmitTime = Date.now();
-    relay.push(event, event); // pass both so relay-client just uses the event directly
+    relay.push(event, event);
   }
 
   function transition(signal: AvatarSignal): void {
@@ -93,6 +93,8 @@ export function createAvatarStateMachine(
     if (eventsEqual(next, current)) return;
 
     const elapsed = Date.now() - lastEmitTime;
+    // Clamp to avoid negative setTimeout (which Node treats as 0 but defeats debounce intent)
+    const remaining = Math.max(0, cfg.debounceMs - elapsed);
     const inDebounce = elapsed < cfg.debounceMs;
 
     if (!inDebounce) {
@@ -123,7 +125,7 @@ export function createAvatarStateMachine(
         };
         // Only emit if it would actually change the state
         if (!eventsEqual(current, deferred)) emit(deferred);
-      }, cfg.debounceMs - elapsed);
+      }, remaining);
       return;
     }
 
@@ -145,11 +147,14 @@ export function createAvatarStateMachine(
   function reset(): void {
     clearPending();
     clearIdle();
-    if (!eventsEqual(current, IDLE_EVENT)) {
-      emit({ ...IDLE_EVENT });
-    }
+    // Set current and clear lastEmitTime BEFORE emit so any downstream readers
+    // (e.g. relay push handlers) see the correct post-reset state immediately.
+    const wasIdle = eventsEqual(current, IDLE_EVENT);
     current = { ...IDLE_EVENT };
     lastEmitTime = 0;
+    if (!wasIdle) {
+      relay.push(IDLE_EVENT, IDLE_EVENT);
+    }
   }
 
   function getCurrent(): AvatarEvent {

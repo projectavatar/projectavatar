@@ -7,17 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { resolveToolSignal, TOOL_SIGNAL_MAP } from '../src/tool-map.js';
+import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from '../src/types.js';
 
-const VALID_EMOTIONS = new Set([
-  'idle', 'thinking', 'focused', 'excited', 'confused', 'satisfied', 'concerned',
-]);
-const VALID_ACTIONS = new Set([
-  'responding', 'searching', 'coding', 'reading', 'waiting', 'error', 'celebrating',
-]);
-const VALID_PROPS = new Set([
-  'none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll',
-]);
-const VALID_INTENSITIES = new Set(['low', 'medium', 'high']);
+// Derived from the canonical arrays — stays in sync automatically when schema changes
+const VALID_EMOTIONS   = new Set<string>(EMOTIONS);
+const VALID_ACTIONS    = new Set<string>(ACTIONS);
+const VALID_PROPS      = new Set<string>(PROPS);
+const VALID_INTENSITIES = new Set<string>(INTENSITIES);
 
 describe('resolveToolSignal', () => {
   it('returns null for unknown tools', () => {

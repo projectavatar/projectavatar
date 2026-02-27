@@ -32,7 +32,10 @@ export type RelayClient = {
 };
 
 export function createRelayClient(cfg: PluginConfig, token: string): RelayClient {
-  const pushUrl = `${cfg.relayUrl}/push/${encodeURIComponent(token)}`;
+  // Trailing slash is stripped during config validation, but guard here too
+  // in case createRelayClient is called directly in tests with a raw URL.
+  const baseUrl = cfg.relayUrl.replace(/\/+$/, '');
+  const pushUrl = `${baseUrl}/push/${encodeURIComponent(token)}`;
 
   function push(signal: AvatarSignal, current: AvatarEvent = IDLE_EVENT): void {
     // Merge signal onto current state to get a complete event

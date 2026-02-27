@@ -21,11 +21,17 @@ import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, AvatarSignal } from './types.js';
 
 /**
- * Avatar tag regex.
- * Flags: m = ^ matches start of any line; g = strip ALL tags, not just the first.
- * Note: {[^}]+} is intentionally non-recursive — our schema has no nested objects.
+ * Avatar tag regex — non-global, used inside the handler as a fresh instance.
+ *
+ * ⚠️  Do NOT add the `g` flag here. A module-level global regex retains
+ * `lastIndex` state between calls, causing intermittent missed matches when
+ * used with `.test()` or `.exec()`. We use a fresh regex per invocation instead,
+ * and call `.replace()` with this pattern inline for stripping.
+ *
+ * Note: `[^}]+` intentionally does not match nested braces — our signal schema
+ * is flat. If the schema ever gains nested objects, switch to a proper JSON parser.
  */
-const AVATAR_TAG_RE = /^\[avatar:(\{[^}]+\})\]\s*\n?/gm;
+const AVATAR_TAG_PATTERN = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
 
 const plugin: OpenClawPluginDefinition = {
   // Explicit id keeps the config key stable regardless of package name.
@@ -39,19 +45,17 @@ const plugin: OpenClawPluginDefinition = {
   register(api: OpenClawPluginApi): void {
     // ── Config ──────────────────────────────────────────────────────────────
 
-    // Validate pluginConfig before spreading — bad values (e.g. debounceMs: "potato")
-    // would silently corrupt number comparisons without this check.
-    if (api.pluginConfig) {
-      const errors = validatePluginConfig(api.pluginConfig);
-      if (errors.length > 0) {
-        api.logger.warn(`[ProjectAvatar] Invalid plugin config, using defaults. Errors: ${errors.join('; ')}`);
-      }
+    // Validate and sanitize pluginConfig — only valid keys are merged into cfg.
+    // The message "using defaults for invalid fields" is now true: invalid fields
+    // are stripped from the sanitized object and fall back to DEFAULT_CONFIG.
+    const { errors, sanitized } = validatePluginConfig(api.pluginConfig ?? {});
+    if (errors.length > 0) {
+      api.logger.warn(
+        `[ProjectAvatar] Invalid plugin config — invalid fields reset to defaults. Errors: ${errors.join('; ')}`,
+      );
     }
 
-    const cfg: PluginConfig = {
-      ...DEFAULT_CONFIG,
-      ...(api.pluginConfig as Partial<PluginConfig> | undefined),
-    };
+    const cfg: PluginConfig = { ...DEFAULT_CONFIG, ...sanitized };
 
     if (!cfg.enabled) {
       api.logger.info('Project Avatar plugin disabled via config.');
@@ -117,7 +121,6 @@ const plugin: OpenClawPluginDefinition = {
 
     /**
      * session_end — conversation over. Reset to idle immediately.
-     * reset() already emits IDLE_EVENT internally — no extra push needed.
      */
     api.on('session_end', () => {
       sm.reset();
@@ -140,7 +143,7 @@ const plugin: OpenClawPluginDefinition = {
         const alreadyHasSkillPrompt = typeof event.prompt === 'string' &&
           event.prompt.includes('[avatar:{"emotion"');
 
-        if (alreadyHasSkillPrompt) return;
+        if (alreadyHasSkillPrompt) return undefined;
 
         return {
           prependContext: [
@@ -168,15 +171,19 @@ const plugin: OpenClawPluginDefinition = {
      *
      * Before stripping, push the first tag's event to the relay — the LLM may
      * have emitted a genuinely meaningful state alongside its message.
+     *
+     * Returns undefined (no change) when no tags are present — OpenClaw treats
+     * undefined as "pass through unchanged," not as "empty content."
      */
     api.on('message_sending', (event) => {
-      // Use a fresh non-global regex for detection/capture to avoid lastIndex issues
-      const detectRe = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
-      if (!detectRe.test(event.content)) return;
+      // Fresh regex per call — avoids lastIndex state from a module-level global regex
+      const tagRe = new RegExp(AVATAR_TAG_PATTERN.source, 'gm');
 
-      // Push the first tag's event to the relay before stripping
+      if (!AVATAR_TAG_PATTERN.test(event.content)) return undefined;
+
+      // Capture and push the first tag's event to the relay before stripping
       try {
-        const firstMatch = event.content.match(detectRe);
+        const firstMatch = AVATAR_TAG_PATTERN.exec(event.content);
         if (firstMatch?.[1]) {
           const parsed = JSON.parse(firstMatch[1]) as Record<string, unknown>;
           // Validate before transitioning — LLMs can emit garbage
@@ -192,9 +199,11 @@ const plugin: OpenClawPluginDefinition = {
         // Malformed tag — ignore, just strip it
       }
 
-      // Strip ALL avatar tags (global regex)
-      const cleaned = event.content.replace(AVATAR_TAG_RE, '').trimStart();
-      return { content: cleaned };
+      // Strip ALL avatar tags using the global version of the pattern
+      const cleaned = event.content.replace(tagRe, '').trimStart();
+
+      // Only return a mutation if content actually changed
+      return cleaned !== event.content ? { content: cleaned } : undefined;
     });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────

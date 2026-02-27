@@ -190,6 +190,36 @@ describe('AvatarStateMachine', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('reset sets current to idle before pushing to relay', () => {
+    // Verifies fix for issue #5 (reset ordering): current must be IDLE before
+    // the relay.push fires, not after. If relay.push reads getCurrent() mid-reset
+    // it should see IDLE, not the old state.
+    const calls: AvatarEvent[] = [];
+    let currentAtPushTime: AvatarEvent | undefined;
+
+    const relay: RelayClient = {
+      push: (signal: AvatarSignal, current?: AvatarEvent) => {
+        // Capture what getCurrent() would return during the push
+        currentAtPushTime = sm.getCurrent();
+        const ev: AvatarEvent = {
+          emotion:   signal.emotion   ?? current?.emotion   ?? 'idle',
+          action:    signal.action    ?? current?.action    ?? 'waiting',
+          prop:      signal.prop      ?? current?.prop      ?? 'none',
+          intensity: signal.intensity ?? current?.intensity ?? 'medium',
+        };
+        calls.push({ ...ev });
+      },
+    };
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'excited', action: 'celebrating' });
+    sm.reset();
+
+    // Current should already be IDLE when push fires
+    expect(currentAtPushTime?.emotion).toBe('idle');
+    expect(calls[calls.length - 1].emotion).toBe('idle');
+  });
+
   it('reset cancels pending deferred timer', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);

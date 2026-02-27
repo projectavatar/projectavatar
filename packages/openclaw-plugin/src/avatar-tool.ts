@@ -49,12 +49,12 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
         prop: {
           type: 'string',
           enum: [...PROPS],
-          description: "Optional prop to hold in your avatar's hand.",
+          description: "Optional prop to hold in your avatar's hand. Omitting inherits the current prop.",
         },
         intensity: {
           type: 'string',
           enum: [...INTENSITIES],
-          description: 'Optional intensity of the expression. Defaults to medium.',
+          description: 'Optional intensity of the expression. Omitting inherits the current avatar intensity.',
         },
       },
     },
