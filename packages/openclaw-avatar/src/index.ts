@@ -111,6 +111,9 @@ const plugin: OpenClawPluginDefinition = {
 
     api.on('before_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
+      // Skip avatar_signal — it IS the signal. Emitting lifecycle signals for it
+      // would override the agent's intended expression with the unknown-tool fallback.
+      if (event.toolName === 'avatar_signal' || event.toolName === 'avatar_commands') return;
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       const signal  = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
       sm.transition(signal, session);
@@ -118,6 +121,7 @@ const plugin: OpenClawPluginDefinition = {
 
     api.on('after_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
+      if (event.toolName === 'avatar_signal' || event.toolName === 'avatar_commands') return;
       const session  = deriveSessionMeta(ctx as Record<string, unknown>);
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
       const signal   = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;

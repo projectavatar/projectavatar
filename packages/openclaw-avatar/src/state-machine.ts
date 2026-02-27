@@ -72,6 +72,8 @@ export function createAvatarStateMachine(
   let lastEmitTime = 0;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Last session seen from any hook — used as fallback when transition() is called without session (e.g. avatar_signal tool). */
+  let lastSession: SessionMeta | undefined = undefined;
 
   function clearPending() {
     if (pendingTimer !== null) {
@@ -94,6 +96,11 @@ export function createAvatarStateMachine(
   }
 
   function transition(signal: AvatarSignal, session?: SessionMeta): void {
+    // Track the most recent session so avatar_signal (which has no hook context)
+    // can inherit it. Only update when a real session is provided.
+    if (session !== undefined) lastSession = session;
+    const effectiveSession = session ?? lastSession;
+
     clearIdle();
 
     // Build the candidate next state
@@ -115,7 +122,7 @@ export function createAvatarStateMachine(
     if (!inDebounce) {
       // Outside debounce window — emit immediately
       clearPending();
-      emit(next, session);
+      emit(next, effectiveSession);
       return;
     }
 
@@ -130,7 +137,7 @@ export function createAvatarStateMachine(
       // multiple times since the timer was scheduled.
       clearPending();
       const deferredSignal  = { ...signal };
-      const deferredSession = session;
+      const deferredSession = effectiveSession;
       pendingTimer = setTimeout(() => {
         pendingTimer = null;
         const deferred: AvatarEvent = {
@@ -147,7 +154,7 @@ export function createAvatarStateMachine(
 
     // Higher or equal priority — emit immediately, cancel any pending lower-priority
     clearPending();
-    emit(next, session);
+    emit(next, effectiveSession);
   }
 
   function scheduleIdle(session?: SessionMeta): void {
