@@ -40,6 +40,7 @@ export class VrmManager {
 
     // VRM models face +Z by default; rotate to face camera (-Z)
     vrm.scene.rotation.y = Math.PI;
+    vrm.scene.position.y = -0.4;
     this.scene.add(vrm.scene);
     this.currentVrm = vrm;
 

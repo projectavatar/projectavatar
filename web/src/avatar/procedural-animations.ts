@@ -73,6 +73,14 @@ const waiting: ProceduralAnimation = (t, intensity) => {
   const headTilt = Math.sin(t * speed * 0.3) * amp * 0.3;
   pose.set(B.head, quat(0, 0, headTilt));
 
+  // Arms relaxed at sides — prevents T-pose. Slight outward drop + micro sway.
+  const lArmSway = Math.sin(t * speed * 0.4 + 0.5) * 0.008;
+  const rArmSway = Math.sin(t * speed * 0.4) * 0.008;
+  pose.set(B.leftUpperArm,  quat(0, 0,  1.3 + lArmSway));  // drop from T-pose to sides
+  pose.set(B.leftLowerArm,  quat(0, 0,  0.02));
+  pose.set(B.rightUpperArm, quat(0, 0, -1.3 + rArmSway));  // drop from T-pose to sides
+  pose.set(B.rightLowerArm, quat(0, 0, -0.02));
+
   return pose;
 };
 
@@ -134,6 +142,12 @@ const searching: ProceduralAnimation = (t, intensity) => {
   // Slight upward gaze — looking into the distance
   pose.set(B.upperChest, quat(-0.02 * amp, 0, 0));
 
+  // Breathing — more visible than idle so body keeps moving visibly
+  const breathe2 = Math.sin(t * speed * 1.8) * 0.025 * amp;
+  const sway2 = Math.sin(t * speed * 0.4) * 0.015 * amp;
+  pose.set(B.spine, quat(breathe2 * 0.5, 0, sway2));
+  pose.set(B.chest, quat(breathe2, 0, 0));
+
   // Right arm: hand to chin thinking pose
   pose.set(B.rightUpperArm, quat(-0.4 * amp, 0.1 * amp, -0.3 * amp));
   pose.set(B.rightLowerArm, quat(-0.8 * amp, 0, 0));
@@ -144,10 +158,7 @@ const searching: ProceduralAnimation = (t, intensity) => {
   // Left arm relaxed at side
   pose.set(B.leftUpperArm, quat(0, 0, 0.05 * amp));
 
-  // Breathing
-  const breathe = Math.sin(t * speed * 1.8) * 0.015 * amp;
-  pose.set(B.spine, quat(breathe, 0, 0));
-  pose.set(B.chest, quat(breathe * 0.7, 0, 0));
+  // (breathing handled above)
 
   return pose;
 };

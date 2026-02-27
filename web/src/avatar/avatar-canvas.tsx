@@ -99,15 +99,19 @@ export function AvatarCanvas({ onSendSetModel }: {
         },
       );
       stateMachineRef.current = stateMachine;
-      avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
+      avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });
     };
+
+    let cancelled = false;
 
     const initModel = async () => {
       if (modelUrl) {
         try {
           const vrm = await vrmManager.load(modelUrl);
+          if (cancelled) return; // effect was cleaned up before load finished
           setupControllers(vrm);
         } catch (err) {
+          if (cancelled) return;
           console.warn('[AvatarCanvas] Failed to load VRM:', err);
           vrmManager.showPlaceholder();
           avatarScene.onUpdate((delta) => vrmManager.update(delta));
@@ -122,6 +126,7 @@ export function AvatarCanvas({ onSendSetModel }: {
     avatarScene.start();
 
     return () => {
+      cancelled = true;
       stateMachineRef.current?.dispose();
       stateMachineRef.current = null;
       avatarScene.dispose();
