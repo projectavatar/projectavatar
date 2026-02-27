@@ -1,6 +1,18 @@
-<!-- AUTO-GENERATED — do not edit directly.
-     Source: packages/shared/src/skill-template.ts
-     Regenerate: npm run gen:skill -->
+---
+# AUTO-GENERATED — do not edit directly.
+# Source: packages/shared/src/skill-template.ts
+# Regenerate: npm run gen:skill
+name: avatar
+description: "Real-time 3D avatar that reacts to your emotional state and actions. Emit one [avatar:{...}] tag per response."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🧿",
+        "requires": { "env": ["AVATAR_TOKEN"] },
+      },
+  }
+---
 
 # Avatar Skill
 
