@@ -10,11 +10,15 @@
 
 import type { PluginConfig, ChannelStateResponse } from './types.js';
 
+function reply(text: string) {
+  return { content: [{ type: 'text' as const, text }] };
+}
+
 export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => string) {
   return {
     name: 'avatar_link',
     description: 'Returns the avatar share link or channel status. Used internally by the /avatar slash command.',
-    inputSchema: {
+    parameters: {
       type: 'object' as const,
       properties: {
         command: { type: 'string', description: 'Raw args after /avatar (e.g. "link", "status", or empty)' },
@@ -22,17 +26,17 @@ export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => strin
         skillName: { type: 'string' },
       },
     },
-    async execute(params: Record<string, unknown>): Promise<{ text: string }> {
+    async execute(_toolCallId: string, params: Record<string, unknown>): Promise<ReturnType<typeof reply>> {
       const token = getToken();
       if (!token) {
-        return { text: '[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>' };
+        return reply('[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>');
       }
 
       const sub = ((params.command as string | undefined) ?? '').trim().toLowerCase() || 'link';
 
       if (sub === 'link' || sub === '') {
         const appBase = cfg.appUrl.replace(/\/+$/, '');
-        return { text: `[Avatar] Share link:\n${appBase}/?token=${token}` };
+        return reply(`[Avatar] Share link:\n${appBase}/?token=${token}`);
       }
 
       if (sub === 'status') {
@@ -49,7 +53,7 @@ export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => strin
             clearTimeout(timeout);
           }
           if (!res.ok) {
-            return { text: `[Avatar] Relay returned HTTP ${res.status}` };
+            return reply(`[Avatar] Relay returned HTTP ${res.status}`);
           }
           const state = await res.json() as ChannelStateResponse;
           const model    = state.model          ?? 'not selected';
@@ -57,24 +61,22 @@ export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => strin
           const lastSeen = state.lastAgentEventAt
             ? `${Math.round((Date.now() - state.lastAgentEventAt) / 1_000)}s ago`
             : 'never';
-          return {
-            text:
-              `[Avatar] Channel status:\n` +
-              `  Model:       ${model}\n` +
-              `  Viewers:     ${clients}\n` +
-              `  Last event:  ${lastSeen}`,
-          };
+          return reply(
+            `[Avatar] Channel status:\n` +
+            `  Model:       ${model}\n` +
+            `  Viewers:     ${clients}\n` +
+            `  Last event:  ${lastSeen}`,
+          );
         } catch (err) {
           const isAbort = err instanceof Error && err.name === 'AbortError';
-          return {
-            text: isAbort
-              ? '[Avatar] Relay timed out — check plugins.entries.openclaw-avatar.config.relayUrl'
-              : '[Avatar] Could not reach relay — check plugins.entries.openclaw-avatar.config.relayUrl and network.',
-          };
+          return reply(isAbort
+            ? '[Avatar] Relay timed out — check plugins.entries.openclaw-avatar.config.relayUrl'
+            : '[Avatar] Could not reach relay — check plugins.entries.openclaw-avatar.config.relayUrl and network.',
+          );
         }
       }
 
-      return { text: '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info' };
+      return reply('[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info');
     },
   };
 }
