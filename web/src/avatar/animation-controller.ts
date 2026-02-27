@@ -5,6 +5,9 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+/** Base URL for animation assets (served from /animations/ in public/) */
+const ANIMATIONS_BASE = '/animations';
+
 /** Map from Action state to the FBX filename served from /animations/ */
 const ACTION_TO_FILE: Record<Action, string> = {
   waiting: 'idle.fbx',
@@ -71,7 +74,7 @@ export class AnimationController {
     // Load all animations in parallel
     const results = await Promise.allSettled(
       entries.map(async ([action, filename]) => {
-        const url = `/animations/${filename}`;
+        const url = `${ANIMATIONS_BASE}/${filename}`;
         const clip = await loadMixamoAnimation(url, this.vrm);
         // Give the clip a meaningful name for debugging
         clip.name = action;
@@ -103,16 +106,30 @@ export class AnimationController {
 
     this.loaded = true;
 
-    // Start idle immediately
+    // Listen for play-once animations finishing → return to idle
+    mixer.addEventListener('finished', (e: THREE.Event) => {
+      const finishedAction = (e as any).action as THREE.AnimationAction;
+      // Only auto-return if this was the active play-once action
+      if (finishedAction === this.actions.get(this.currentAction)) {
+        this.playAction('waiting', 'medium');
+      }
+    });
+
+    console.info(
+      `[AnimationController] Loaded ${this.actions.size}/${entries.length} animations`,
+    );
+
+    // Apply any action that was requested before animations finished loading
+    const pendingAction = this.currentAction;
     const idleAction = this.actions.get('waiting');
     if (idleAction) {
       idleAction.play();
       this.currentAction = 'waiting';
     }
-
-    console.info(
-      `[AnimationController] Loaded ${this.actions.size}/${entries.length} animations`,
-    );
+    // Replay pending action if it was set before load completed
+    if (pendingAction !== 'waiting') {
+      this.playAction(pendingAction, 'medium');
+    }
   }
 
   /**
@@ -137,10 +154,9 @@ export class AnimationController {
 
     const prevAnimAction = this.actions.get(this.currentAction);
 
-    // Skip if already playing the same action
+    // If same action already playing, just update timeScale
     if (action === this.currentAction && prevAnimAction?.isRunning()) {
-      // Just update speed if intensity changed
-      nextAnimAction.timeScale = INTENSITY_SPEED[intensity];
+      prevAnimAction.timeScale = INTENSITY_SPEED[intensity];
       return;
     }
 
@@ -180,7 +196,6 @@ export class AnimationController {
       this.mixer.stopAllAction();
       // Uncache all clips to free memory
       for (const action of this.actions.values()) {
-        this.mixer.uncacheAction(action.getClip());
         this.mixer.uncacheClip(action.getClip());
       }
       this.mixer = null;

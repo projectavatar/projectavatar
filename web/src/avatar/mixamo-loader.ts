@@ -95,8 +95,13 @@ export async function loadMixamoAnimation(
     if (vrmNodeName == null || mixamoRigNode == null) continue;
 
     // Rest pose transforms for retargeting
+    // parent may be null for root bones — fall back to identity
     mixamoRigNode.getWorldQuaternion(restRotationInverse).invert();
-    mixamoRigNode.parent!.getWorldQuaternion(parentRestWorldRotation);
+    if (mixamoRigNode.parent) {
+      mixamoRigNode.parent.getWorldQuaternion(parentRestWorldRotation);
+    } else {
+      parentRestWorldRotation.identity();
+    }
 
     if (track instanceof THREE.QuaternionKeyframeTrack) {
       // Retarget quaternion rotations in-place on a copy

@@ -1,4 +1,4 @@
-import { useRef, useEffect, createContext, useContext } from 'react';
+import { useRef, useEffect, useState, createContext, useContext } from 'react';
 import { useStore } from '../state/store.ts';
 import { WebSocketClient } from '../ws/web-socket-client.ts';
 import { AvatarScene } from './avatar-scene.ts';
@@ -60,6 +60,7 @@ export function useWsClient(): WsContextValue {
 export function AvatarCanvas({ onSendSetModel }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
 }) {
+  const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
@@ -88,9 +89,12 @@ export function AvatarCanvas({ onSendSetModel }: {
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm);
       // Load Mixamo animations in background — scene starts immediately
-      animationController.loadAnimations().catch((err) =>
-        console.warn('[AvatarCanvas] Animation load failed:', err),
-      );
+      animationController.loadAnimations()
+        .then(() => setAnimationsLoaded(true))
+        .catch((err) => {
+          console.warn('[AvatarCanvas] Animation load failed:', err);
+          setAnimationsLoaded(true); // unblock UI even on failure
+        });
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
         animationController,
@@ -198,5 +202,17 @@ export function AvatarCanvas({ onSendSetModel }: {
     };
   }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
 
-  return <canvas ref={canvasRef} style={canvasStyle} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas ref={canvasRef} style={canvasStyle} />
+      {!animationsLoaded && (
+        <div style={{
+          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+          color: 'var(--color-text-muted)', fontSize: 11, opacity: 0.6, pointerEvents: 'none',
+        }}>
+          loading animations…
+        </div>
+      )}
+    </div>
+  );
 }

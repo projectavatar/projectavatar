@@ -121,10 +121,14 @@ export function StatusBadge() {
           <span style={{ color: 'var(--color-text-muted)' }}>{presenceLabel}</span>
         </>
       )}
-      <div style={dividerStyle} />
-      <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>
-        {avatar.emotion} / {avatar.action}
-      </span>
+      {(import.meta as any).env?.DEV && (
+        <>
+          <div style={dividerStyle} />
+          <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>
+            {avatar.emotion} / {avatar.action}
+          </span>
+        </>
+      )}
     </div>
   );
 }
