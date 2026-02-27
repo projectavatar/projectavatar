@@ -155,9 +155,11 @@ const plugin: OpenClawPluginDefinition = {
     // ── /avatar command ────────────────────────────────────────────────────────
 
     if (typeof api.registerCommand === 'function') {
-      api.registerCommand(
-        'avatar',
-        async (args) => {
+      api.registerCommand({
+        name: 'avatar',
+        description: 'Project Avatar — get share link or channel status',
+        acceptsArgs: true,
+        handler: async (args) => {
           const token = getToken();
           if (!token) {
             return '[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>';
@@ -210,8 +212,7 @@ const plugin: OpenClawPluginDefinition = {
 
           return '[Avatar] Usage:\n  /avatar link    — get your share URL\n  /avatar status  — show channel info';
         },
-        { description: 'Project Avatar — get share link or channel status' },
-      );
+      });
     } else {
       api.logger.warn(
         '[ProjectAvatar] api.registerCommand is not available — /avatar command not registered. ' +
