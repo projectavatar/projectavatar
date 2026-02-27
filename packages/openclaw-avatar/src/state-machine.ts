@@ -8,9 +8,10 @@
  *  3. Respect emotion priority — a high-priority signal (like "confused/error")
  *     won't get overridden by a lower-priority one within the debounce window
  *  4. Schedule idle timeout after the last event
+ *  5. Pass session metadata to the relay for multi-session arbitration
  */
 
-import type { AvatarEvent, AvatarSignal, PluginConfig } from './types.js';
+import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './types.js';
 import { IDLE_EVENT } from './types.js';
 import type { RelayClient } from './relay-client.js';
 
@@ -39,12 +40,26 @@ function eventsEqual(a: AvatarEvent, b: AvatarEvent): boolean {
 }
 
 export type AvatarStateMachine = {
-  /** Merge a partial signal into current state and (debounced) push to relay. */
-  transition: (signal: AvatarSignal) => void;
-  /** Schedule a return to idle after idleTimeoutMs. Call after agent_end. */
-  scheduleIdle: () => void;
-  /** Immediately reset to idle and cancel all pending timers. Call on session_end. */
-  reset: () => void;
+  /**
+   * Merge a partial signal into current state and (debounced) push to relay.
+   * @param signal   The state delta to apply
+   * @param session  Optional session metadata for relay arbitration.
+   *                 If omitted, the relay treats the push as a legacy push.
+   */
+  transition: (signal: AvatarSignal, session?: SessionMeta) => void;
+  /**
+   * Schedule a return to idle after idleTimeoutMs. Call after agent_end.
+   * @param session  The session that triggered agent_end — captured in the timer
+   *                 closure so the idle push is correctly attributed for arbitration.
+   *                 Without this, a session's idle timer could bypass arbitration
+   *                 and override an active lower-priority session.
+   */
+  scheduleIdle: (session?: SessionMeta) => void;
+  /**
+   * Immediately reset to idle and cancel all pending timers. Call on session_end.
+   * @param session  Optional session metadata so the relay can attribute the idle push.
+   */
+  reset: (session?: SessionMeta) => void;
   /** Get a snapshot of current state. */
   getCurrent: () => AvatarEvent;
 };
@@ -72,13 +87,13 @@ export function createAvatarStateMachine(
     }
   }
 
-  function emit(event: AvatarEvent) {
+  function emit(event: AvatarEvent, session?: SessionMeta) {
     current = { ...event };
     lastEmitTime = Date.now();
-    relay.push(event, event);
+    relay.push(event, event, session);
   }
 
-  function transition(signal: AvatarSignal): void {
+  function transition(signal: AvatarSignal, session?: SessionMeta): void {
     clearIdle();
 
     // Build the candidate next state
@@ -100,7 +115,7 @@ export function createAvatarStateMachine(
     if (!inDebounce) {
       // Outside debounce window — emit immediately
       clearPending();
-      emit(next);
+      emit(next, session);
       return;
     }
 
@@ -114,7 +129,8 @@ export function createAvatarStateMachine(
       // fire time. This avoids emitting a stale snapshot if state has changed
       // multiple times since the timer was scheduled.
       clearPending();
-      const deferredSignal = { ...signal };
+      const deferredSignal  = { ...signal };
+      const deferredSession = session;
       pendingTimer = setTimeout(() => {
         pendingTimer = null;
         const deferred: AvatarEvent = {
@@ -124,27 +140,31 @@ export function createAvatarStateMachine(
           intensity: deferredSignal.intensity ?? current.intensity,
         };
         // Only emit if it would actually change the state
-        if (!eventsEqual(current, deferred)) emit(deferred);
+        if (!eventsEqual(current, deferred)) emit(deferred, deferredSession);
       }, remaining);
       return;
     }
 
     // Higher or equal priority — emit immediately, cancel any pending lower-priority
     clearPending();
-    emit(next);
+    emit(next, session);
   }
 
-  function scheduleIdle(): void {
+  function scheduleIdle(session?: SessionMeta): void {
     clearIdle();
+    // Capture the session in the closure so the idle push is attributed to the
+    // correct session. Without this, the timer fires without sessionId/priority,
+    // bypasses relay arbitration, and can override an active lower-priority session.
+    const idleSession = session;
     idleTimer = setTimeout(() => {
       idleTimer = null;
       if (!eventsEqual(current, IDLE_EVENT)) {
-        emit({ ...IDLE_EVENT });
+        emit({ ...IDLE_EVENT }, idleSession);
       }
     }, cfg.idleTimeoutMs);
   }
 
-  function reset(): void {
+  function reset(session?: SessionMeta): void {
     clearPending();
     clearIdle();
     // Set current and clear lastEmitTime BEFORE emit so any downstream readers
@@ -153,7 +173,7 @@ export function createAvatarStateMachine(
     current = { ...IDLE_EVENT };
     lastEmitTime = 0;
     if (!wasIdle) {
-      relay.push(IDLE_EVENT, IDLE_EVENT);
+      relay.push(IDLE_EVENT, IDLE_EVENT, session);
     }
   }
 

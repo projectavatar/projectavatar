@@ -51,6 +51,19 @@ export interface AvatarEvent {
   action: Action;
   prop?: Prop;
   intensity?: Intensity;
+  /**
+   * Opaque string identifying the agent session that pushed this event.
+   * Used by the relay for multi-session arbitration — lower-priority sessions
+   * are suppressed while a higher-priority session is active.
+   * Optional: events without sessionId are treated as legacy single-session pushes (priority 0).
+   */
+  sessionId?: string;
+  /**
+   * Session priority for arbitration. Lower number = higher priority.
+   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
+   * Optional: defaults to 0 (treated as highest priority) when absent.
+   */
+  priority?: number;
 }
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
@@ -96,8 +109,16 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
     };
   }
 
-  // Reject additional properties
-  const allowedKeys = new Set(['emotion', 'action', 'prop', 'intensity']);
+  if (e.sessionId !== undefined && typeof e.sessionId !== 'string') {
+    return { ok: false, error: 'sessionId must be a string when provided' };
+  }
+
+  if (e.priority !== undefined && (typeof e.priority !== 'number' || !Number.isInteger(e.priority) || e.priority < 0)) {
+    return { ok: false, error: 'priority must be a non-negative integer when provided' };
+  }
+
+  // Reject additional properties — sessionId and priority are now explicitly allowed
+  const allowedKeys = new Set(['emotion', 'action', 'prop', 'intensity', 'sessionId', 'priority']);
   for (const key of Object.keys(e)) {
     if (!allowedKeys.has(key)) {
       return { ok: false, error: `Unknown field: ${key}` };

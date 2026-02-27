@@ -80,7 +80,8 @@ Phases complete:
 - Phase 4.1: Identity persistence + multi-screen sync ✅
 - Phase 4.2: Agent presence + /avatar command ✅
 - Phase 4.3: WebSocket keepalive ✅
-- Phase 4.4: Expression improvements (this PR) ✅
+- Phase 4.4: Expression improvements ✅
+- Phase 4.5: Multi-session arbitration ✅
 
 Next: Phase 5 (Polish + Desktop).
 
@@ -130,3 +131,42 @@ Any `binds: 0` = that expression does nothing on that model.
 - `web/public/models/avatarsample_c.vrm` — Official Pixiv VRoid sample (CC0). Full expressions, all binds wired. **Primary model.**
 - `web/public/models/potato.vrm` — Lip-sync + blink only, no emotion expressions. Animation testing only.
 - `web/src/assets/models/manifest.json` — model registry for the picker.
+
+## Multi-Session Arbitration (v1.3)
+
+Multiple concurrent agent sessions pushing to the same channel are handled by the relay via priority-based arbitration with a first-mover tiebreaker.
+
+### How it works
+
+Each push event carries two optional fields:
+- `sessionId` — stable opaque string identifying the session (OpenClaw sessionKey passed as-is)
+- `priority` — integer derived from sessionKey structure; lower = higher priority
+
+The Durable Object maintains an in-memory session registry (`Map<sessionId, SessionEntry>`).
+On each push:
+1. Register/update the session entry — `firstPushAt` is set once and never changed
+2. Prune stale entries (> 60s silence, lazy GC on write)
+3. Resolve the active winner: lowest priority tier; ties broken by earliest `firstPushAt`
+4. Fan out only if the pushing session is the winner; suppressed pushes return `{ ok: true, suppressed: true }`
+
+The registry is ephemeral (in-memory only) — DO hibernation resets it. Sessions re-announce on their next push.
+
+### Priority derivation (plugin side)
+
+Priority = number of `:subagent:` segments in the OpenClaw sessionKey:
+- Main/channel sessions → 0 (highest priority)
+- Sub-agents → 1
+- Nested sub-agents → 2
+- Cron/isolated sessions → 1 (same as sub-agents)
+
+### Tiebreaker: first-mover holds
+
+Two concurrent sessions at the same priority (e.g. two channel agents sharing a token) both get priority 0. The one that pushed first holds the avatar until it goes idle (10s silence). Only then does the other session's next push win.
+
+### Backward compatibility
+
+Events without `sessionId` bypass arbitration entirely and always fan out — single-session and skill-based setups are unaffected.
+
+### Key constants (relay/src/channel.ts)
+- `SESSION_ACTIVE_WINDOW_MS = 10_000` — how long a session stays "active" after its last push
+- `SESSION_EVICT_AFTER_MS = 60_000` — stale entry TTL (lazy GC)

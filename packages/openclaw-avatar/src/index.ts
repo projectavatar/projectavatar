@@ -19,7 +19,8 @@ import { resolveToolSignal } from './tool-map.js';
 import { createAvatarTool } from './avatar-tool.js';
 import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
-import type { PluginConfig } from './types.js';
+import type { PluginConfig, SessionMeta } from './types.js';
+import { deriveSessionPriority } from './session-utils.js';
 
 /**
  * Fallback signals for tool calls on tools not in the tool map.
@@ -27,6 +28,24 @@ import type { PluginConfig } from './types.js';
  */
 const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'coding', prop: 'none', intensity: 'medium' };
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
+
+
+/**
+ * Derive a SessionMeta from an OpenClaw hook context object.
+ *
+ * Returns undefined if the context lacks a sessionKey (old OpenClaw versions
+ * or unusual hook invocations) — the relay treats absent sessionId as a legacy
+ * single-session push that always fans out.
+ */
+function deriveSessionMeta(ctx: Record<string, unknown>): SessionMeta | undefined {
+  const sessionKey = typeof ctx['sessionKey'] === 'string' ? ctx['sessionKey'] : undefined;
+  if (!sessionKey) return undefined;
+
+  return {
+    sessionId: sessionKey,
+    priority:  deriveSessionPriority(sessionKey),
+  };
+}
 
 const plugin: OpenClawPluginDefinition = {
   // id matches the unscoped package name so OpenClaw's idHint derivation
@@ -38,8 +57,6 @@ const plugin: OpenClawPluginDefinition = {
   register(api: OpenClawPluginApi): void {
     // ── Config ──────────────────────────────────────────────────────────────
 
-    // Validate and sanitize pluginConfig — only valid keys are merged into cfg.
-    // Invalid fields are stripped from sanitized and fall back to DEFAULT_CONFIG.
     const { errors, sanitized } = validatePluginConfig(api.pluginConfig ?? {});
     if (errors.length > 0) {
       api.logger.warn(
@@ -55,14 +72,6 @@ const plugin: OpenClawPluginDefinition = {
     }
 
     // ── Token (lazy) ─────────────────────────────────────────────────────────
-    //
-    // Token is read on first push rather than at registration time.
-    // This handles environments where secrets are injected after process start
-    // (secret managers, runtime config reloads) without permanently disabling
-    // the plugin if AVATAR_TOKEN isn't set at boot.
-    //
-    // If the token is absent at registration, we log a warning but continue —
-    // the relay client will check on each push and drop the call if still unset.
 
     const getToken = (): string => process.env.AVATAR_TOKEN ?? '';
 
@@ -78,7 +87,6 @@ const plugin: OpenClawPluginDefinition = {
     const relay = createRelayClient(cfg, getToken());
     const sm = createAvatarStateMachine(cfg, relay);
 
-    // Log relay hostname only — full URL may contain environment-specific path segments
     const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
@@ -87,64 +95,51 @@ const plugin: OpenClawPluginDefinition = {
     );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
+    //
+    // Every hook receives `ctx` as the second argument (OpenClaw PluginHookAgentContext).
+    // We cast ctx to Record<string,unknown> once per handler — OpenClaw injects sessionKey
+    // at runtime but our local type stubs use AnyCtx. deriveSessionMeta extracts it safely.
 
-    /**
-     * message_received — user sent a message, agent is about to start thinking.
-     * Explicitly reset prop and intensity to neutral so we don't inherit stale
-     * state from the previous interaction (e.g. coffee_cup + high intensity
-     * carrying over from a previous excited/celebrating state).
-     */
-    api.on('message_received', () => {
-      sm.transition({ emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' });
+    api.on('message_received', (_event, ctx) => {
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      sm.transition(
+        { emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' },
+        session,
+      );
     });
 
-    /**
-     * before_tool_call — agent decided to call a tool.
-     * Falls back to a generic "focused/coding" signal for unrecognized tools
-     * so the avatar always reacts to tool activity.
-     */
-    api.on('before_tool_call', (event) => {
-      // Defensive: guard against unexpected event shapes from future API versions
+    api.on('before_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
-      const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
-      sm.transition(signal);
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      const signal  = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
+      sm.transition(signal, session);
     });
 
-    /**
-     * after_tool_call — tool finished (success or error).
-     * Falls back to a generic "focused/responding" signal for unrecognized tools.
-     */
-    api.on('after_tool_call', (event) => {
-      // Defensive: guard against unexpected event shapes from future API versions
+    api.on('after_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
+      const session  = deriveSessionMeta(ctx as Record<string, unknown>);
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
-      const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
-      sm.transition(signal);
+      const signal   = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+      sm.transition(signal, session);
     });
 
-    /**
-     * agent_end — the agent finished its full response.
-     * On error, use high intensity to convey urgency.
-     * Schedules idle timeout regardless of outcome.
-     */
-    api.on('agent_end', (event) => {
+    api.on('agent_end', (event, ctx) => {
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
         event.success
           ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
           : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' },
+        session,
       );
-      sm.scheduleIdle();
+      // Pass session to scheduleIdle so the idle timer fires with the correct session
+      // context. Without this, the timer bypasses arbitration (no sessionId) and can
+      // override an active lower-priority session with an unsuppressed idle push.
+      sm.scheduleIdle(session);
     });
 
-    /**
-     * session_end — conversation over. Reset to idle immediately.
-     *
-     * reset() cancels all pending timers (debounce + idle), sets current = IDLE,
-     * and pushes IDLE to the relay. The relay client is stateless (no keep-alive,
-     * no retry queue) so no additional cleanup is needed.
-     */
-    api.on('session_end', () => {
-      sm.reset();
+    api.on('session_end', (_event, ctx) => {
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      sm.reset(session);
     });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────
@@ -153,12 +148,9 @@ const plugin: OpenClawPluginDefinition = {
       api.registerTool(createAvatarTool(sm), { optional: true });
     }
 
-    // ── /avatar command tool (for skill command-dispatch) ──────────────────────
-    // Registered always so the skill's command-dispatch:tool can find it.
-    // This avoids the registerCommand vs. user-invocable skill name collision
-    // that causes the command to be deduped to /avatar_2 on Discord.
-    api.registerTool(createAvatarCommandTool(cfg, getToken));
+    // ── /avatar command tool ───────────────────────────────────────────────────
 
+    api.registerTool(createAvatarCommandTool(cfg, getToken));
   },
 };
 

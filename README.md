@@ -178,6 +178,7 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - [ ] Tauri desktop app — always-on-top, system tray (optional)
 - [x] Expression system — richer blend shape weights, head bone movement per emotion, idle breathing micro-animation
 - [x] AvatarSample C bundled (official Pixiv VRoid CC0, full expression set)
+- [x] **Multi-session arbitration** — multiple concurrent agent sessions share one avatar gracefully; priority-based + first-mover tiebreaker, no thrashing
 - [ ] More bundled VRM models
 - [ ] Voice lip-sync (connect to TTS output)
 - [ ] Custom animation import

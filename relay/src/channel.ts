@@ -10,20 +10,133 @@ import type {
 } from '../../packages/shared/src/schema.js';
 import type { Env } from './types.js';
 
-const LAST_EVENT_KEY        = 'lastEvent';
-const MODEL_KEY             = 'model';
+const LAST_EVENT_KEY          = 'lastEvent';
+const MODEL_KEY               = 'model';
 const LAST_AGENT_EVENT_AT_KEY = 'lastAgentEventAt';
+
+/**
+ * How long (ms) a session remains "active" after its last push.
+ * A higher-priority session that has been silent for this window is considered
+ * idle, and the next push from any lower-priority session will win arbitration.
+ *
+ * 10s is intentionally generous — a main session that pauses between tool calls
+ * should still hold the avatar. Sub-agents only surface when the main session is
+ * genuinely idle, not just between steps.
+ */
+const SESSION_ACTIVE_WINDOW_MS = 10_000;
+
+/**
+ * How long (ms) before a session entry is evicted from the in-memory registry.
+ * Lazy cleanup: pruning happens on each push, not on a timer.
+ * Sessions that stop pushing (crash, end) are removed after this window.
+ */
+const SESSION_EVICT_AFTER_MS = 60_000;
+
+/**
+ * In-memory registry entry for a single session.
+ * The registry is ephemeral — not persisted to DO storage. If the DO hibernates
+ * and wakes, the registry starts empty and sessions re-announce on their next push.
+ */
+interface SessionEntry {
+  priority:    number;    // Lower = higher priority (0 = main session)
+  firstPushAt: number;    // Unix ms of the very first push — used as tiebreaker; never updated
+  lastPushAt:  number;    // Unix ms of most recent push
+  lastEvent:   AvatarEvent;
+}
+
+/**
+ * Resolve which session wins the right to fan out.
+ *
+ * Single-pass selection with a compound comparison:
+ *   - A session wins if it has a lower priority number than the current winner.
+ *   - On a tie (same priority), the session with the earlier firstPushAt wins
+ *     ("first mover holds").
+ *
+ * Returns the winning sessionId, or null if no active sessions exist (degenerate
+ * case — the pushing session should always be in the registry by call time).
+ *
+ * ## Why first-mover wins on ties
+ *
+ * Two concurrent sessions at the same priority (e.g. two channel agents sharing
+ * a token) would thrash last-writer-wins without a tiebreaker. "First mover holds"
+ * is deterministic and stable: whichever session pushed first controls the avatar
+ * until it goes idle (SESSION_ACTIVE_WINDOW_MS of silence). Only then does another
+ * session of the same priority win. No coordination between sessions is required.
+ */
+function resolveWinner(sessions: Map<string, SessionEntry>, now: number): string | null {
+  let winnerPriority  = Infinity;
+  let winnerFirstPush = Infinity;
+  let winnerId: string | null = null;
+
+  for (const [id, entry] of sessions) {
+    // Only consider sessions that pushed recently
+    if (now - entry.lastPushAt > SESSION_ACTIVE_WINDOW_MS) continue;
+
+    if (
+      entry.priority < winnerPriority ||
+      (entry.priority === winnerPriority && entry.firstPushAt < winnerFirstPush)
+    ) {
+      winnerPriority  = entry.priority;
+      winnerFirstPush = entry.firstPushAt;
+      winnerId        = id;
+    }
+  }
+
+  return winnerId;
+}
+
+/**
+ * Strip internal arbitration fields from an event before sending to WebSocket clients.
+ *
+ * `sessionId` and `priority` are relay implementation details — the web app has no
+ * use for them and they bloat every WS frame. Clients only need the display fields.
+ */
+function toClientEvent(event: AvatarEvent): AvatarEvent {
+  // Explicitly construct the client event rather than using spread + cast.
+  // The cast `{ ...rest } as AvatarEvent` would suppress a type error but hide
+  // the fact that Omit<AvatarEvent, 'sessionId'|'priority'> != AvatarEvent.
+  // Explicit construction is unambiguous and requires no suppression.
+  const clean: AvatarEvent = {
+    emotion:   event.emotion,
+    action:    event.action,
+    prop:      event.prop,
+    intensity: event.intensity,
+  };
+  return clean;
+}
 
 /**
  * Channel Durable Object — one instance per token.
  *
  * Responsibilities:
  * - Holds the set of connected WebSocket clients (via hibernation API)
- * - Receives pushed avatar events and fans them out to all connected clients
+ * - Receives pushed avatar events and fans them out to connected clients
+ * - Arbitrates between multiple concurrent sessions:
+ *     - Lower priority number wins (0 = main session, 1 = sub-agent, depth-based)
+ *     - On priority tie, the session that pushed FIRST holds until it goes idle
+ *     - Lower-priority or later-starting same-priority events are silently absorbed
  * - Persists the last known event, model, and lastAgentEventAt to DO storage
  * - Sends full channel state to new clients on WebSocket connect
  * - Handles `set_model` messages from clients and broadcasts `model_changed`
  * - Exposes GET /state for the plugin's share-link generation
+ *
+ * ## lastAgentEventAt semantics
+ *
+ * `lastAgentEventAt` is updated ONLY when a push fans out (i.e. the pushing session
+ * is the winner). Suppressed pushes do NOT update it.
+ *
+ * Rationale: `lastAgentEventAt` is used by the web app's online/offline indicator.
+ * It reflects "when did the avatar last visibly react" — which is exactly when a
+ * push won arbitration. Updating it on suppressed pushes would show the avatar as
+ * "online" even during stretches when nothing visible is happening, which defeats
+ * the purpose of the indicator.
+ *
+ * Consequence: if only a sub-agent is active while the main session is suppressing
+ * it, `lastAgentEventAt` will appear stale to web clients. This is acceptable —
+ * the indicator reflects the avatar's visible state, not raw push activity.
+ *
+ * ## Multi-session arbitration
+ * See resolveWinner() and SESSION_ACTIVE_WINDOW_MS / SESSION_EVICT_AFTER_MS above.
  *
  * ## Source of truth
  * The DO owns channel identity state: model selection and agent activity
@@ -33,13 +146,14 @@ const LAST_AGENT_EVENT_AT_KEY = 'lastAgentEventAt';
  * ## Token security model
  * This DO instance is identified by SHA-256(token), derived in the Worker
  * before routing here. The DO itself does NOT validate tokens — validation
- * happens at the Worker layer (auth.ts + index.ts). Never expose DO instances
- * directly without the Worker authentication layer in front.
+ * happens at the Worker layer (auth.ts + index.ts).
  *
  * ## Hibernation
- * The DO uses the WebSocket Hibernation API (`state.acceptWebSocket`). This
- * means the DO can sleep when idle (zero cost) and wake on the next request.
- * All persistent state is stored in DO storage so it survives eviction.
+ * Uses the WebSocket Hibernation API. The session registry is in-memory only —
+ * it resets on hibernation. Sessions re-announce on their next push.
+ * On wake: firstPushAt is re-set for each session on first push post-wake.
+ * Sessions re-race naturally within a few pushes. Acceptable tradeoff for zero
+ * hibernation cost.
  */
 export class Channel implements DurableObject {
   private state: DurableObjectState;
@@ -49,6 +163,13 @@ export class Channel implements DurableObject {
   private lastEventCache: AvatarEvent | null | undefined = undefined;
   private modelCache: string | null | undefined = undefined;
   private lastAgentEventAtCache: number | null | undefined = undefined;
+
+  /**
+   * In-memory session registry. Keyed by sessionId.
+   * Ephemeral — resets on DO hibernation. Sessions re-register on next push.
+   * Only populated when events include sessionId — legacy events bypass this entirely.
+   */
+  private sessions: Map<string, SessionEntry> = new Map();
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
@@ -103,22 +224,71 @@ export class Channel implements DurableObject {
     }
 
     const event = body as AvatarEvent;
-    const now = Date.now();
+    const now   = Date.now();
+
+    // ── Multi-session arbitration ──────────────────────────────────────────
+    //
+    // Legacy events (no sessionId) bypass arbitration entirely — they fan out
+    // immediately. This preserves backward compatibility for skill-based agents
+    // and single-session setups.
+    //
+    // For session-aware events:
+    //   1. Register/update the session entry (firstPushAt is set once, never changed)
+    //   2. Prune stale entries (lazy GC — no timers needed)
+    //   3. Resolve the active winner via resolveWinner()
+    //   4. Fan out only if this session IS the winner
+
+    let shouldFanOut = true;
+
+    if (event.sessionId !== undefined) {
+      const sessionId = event.sessionId;
+      const priority  = event.priority ?? 0;
+
+      // Register or update — preserve firstPushAt so the tiebreaker is stable
+      const existing = this.sessions.get(sessionId);
+      this.sessions.set(sessionId, {
+        priority,
+        firstPushAt: existing?.firstPushAt ?? now,  // first push timestamp never changes
+        lastPushAt:  now,
+        lastEvent:   event,
+      });
+
+      // Lazy prune: remove sessions silent for > SESSION_EVICT_AFTER_MS.
+      // Deleting from a Map during for...of is safe per the ES2015 Map iterator spec —
+      // the iterator skips deleted entries and visits entries added during iteration.
+      for (const [id, entry] of this.sessions) {
+        if (now - entry.lastPushAt > SESSION_EVICT_AFTER_MS) {
+          this.sessions.delete(id);
+        }
+      }
+
+      const winnerId = resolveWinner(this.sessions, now);
+      shouldFanOut   = winnerId === sessionId;
+    }
+
+    if (!shouldFanOut) {
+      // Suppressed: a higher-priority or earlier-started same-priority session is active.
+      // Return 200 so the plugin doesn't surface an error — suppression is intentional.
+      // lastAgentEventAt is NOT updated for suppressed pushes — see class doc for rationale.
+      return jsonResponse({ ok: true, clients: 0, suppressed: true }, 200);
+    }
 
     // Persist event + activity timestamp in a single atomic write
     await this.state.storage.put({
       [LAST_EVENT_KEY]:          event,
       [LAST_AGENT_EVENT_AT_KEY]: now,
     });
-    this.lastEventCache          = event;
-    this.lastAgentEventAtCache   = now;
+    this.lastEventCache        = event;
+    this.lastAgentEventAtCache = now;
 
-    // Fan out to all connected WebSocket clients
-    const sockets = this.state.getWebSockets();
+    // Fan out to all connected WebSocket clients.
+    // Strip sessionId/priority before sending — clients have no use for relay internals.
+    const clientEvent = toClientEvent(event);
+    const sockets     = this.state.getWebSockets();
     const message: AvatarEventMessage = {
       type:      'avatar_event',
       version:   PROTOCOL_VERSION,
-      data:      event,
+      data:      clientEvent,
       timestamp: now,
       replay:    false,
     };
@@ -158,18 +328,16 @@ export class Channel implements DurableObject {
       this.getLastEvent(),
     ]);
 
-    // Send channel_state FIRST — client needs model before rendering avatar
-    // getWebSockets() includes the newly accepted socket — so connectedClients
-    // reflects the accurate post-connect count (including this client). This is
-    // intentional: the client sees itself counted among the viewers immediately.
+    // Send channel_state FIRST — client needs model before rendering avatar.
+    // Strip relay-internal fields from lastEvent before sending.
     const channelStateMsg: ChannelStateMessage = {
-      type:      'channel_state',
-      version:   PROTOCOL_VERSION,
-      data:      {
+      type:    'channel_state',
+      version: PROTOCOL_VERSION,
+      data:    {
         model,
         lastAgentEventAt,
         connectedClients: this.state.getWebSockets().length,
-        lastEvent,
+        lastEvent: lastEvent ? toClientEvent(lastEvent) : null,
       },
       timestamp: Date.now(),
     };
@@ -201,29 +369,26 @@ export class Channel implements DurableObject {
   // ─── WebSocket Lifecycle (Hibernation API) ─────────────────────────────────
 
   webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): void {
-    if (typeof message !== 'string') return; // Binary frames not supported
+    if (typeof message !== 'string') return;
 
     let msg: unknown;
     try {
       msg = JSON.parse(message);
     } catch {
-      return; // Malformed JSON — ignore silently
+      return;
     }
 
     const m = msg as Record<string, unknown>;
     if (m['type'] === 'set_model') {
       const model = m['model'] ?? null;
-      // Validate: must be a valid model ID string or explicit null (to clear model)
       if (model !== null && !isValidModelId(model)) return;
       void this.handleSetModel(model as string | null);
     } else {
-      // Unknown message type — log at debug level for easier diagnostics
       console.debug('[Channel] Unknown WebSocket message type:', m['type']);
     }
   }
 
   webSocketClose(_ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
-    // Hibernation API removes the socket from state.getWebSockets() automatically.
     console.debug('[Channel] WebSocket closed:', code, reason || '(no reason)');
   }
 
@@ -239,10 +404,6 @@ export class Channel implements DurableObject {
   // ─── Model Management ─────────────────────────────────────────────────────
 
   private async handleSetModel(model: string | null): Promise<void> {
-    // Deduplicate: skip storage write + broadcast if the model hasn't changed.
-    // Prevents storage churn if a client spams set_model with the same value.
-    // modelCache uses the sentinel pattern: undefined = not yet loaded from storage.
-    // A loaded null and a loaded 'some-model' are both valid values.
     if (this.modelCache !== undefined && this.modelCache === model) return;
 
     this.modelCache = model;
@@ -266,12 +427,6 @@ export class Channel implements DurableObject {
   }
 
   // ─── Storage Helpers (lazy cache pattern) ─────────────────────────────────
-  //
-  // Sentinel convention: `undefined` means "not yet loaded from storage".
-  // `null` means "loaded but no value stored". Both `undefined` and `null`
-  // from storage.get() are collapsed to `null` via `?? null` — they represent
-  // the same thing: no value. Never assign `undefined` to a cache field after
-  // initialization; doing so would bypass the cache on every subsequent call.
 
   private async getLastEvent(): Promise<AvatarEvent | null> {
     if (this.lastEventCache !== undefined) return this.lastEventCache;
