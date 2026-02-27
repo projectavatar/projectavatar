@@ -10,25 +10,20 @@
  */
 
 import type { AvatarEvent, AvatarSignal, PluginConfig } from './types.js';
-import { IDLE_EVENT } from './types.js';
+import { EMOTIONS, ACTIONS, PROPS, INTENSITIES, IDLE_EVENT } from './types.js';
 
-const EMOTIONS = new Set([
-  'idle', 'thinking', 'focused', 'excited', 'confused', 'satisfied', 'concerned',
-]);
-const ACTIONS = new Set([
-  'responding', 'searching', 'coding', 'reading', 'waiting', 'error', 'celebrating',
-]);
-const PROPS = new Set([
-  'none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll',
-]);
-const INTENSITIES = new Set(['low', 'medium', 'high']);
+// Derived from the canonical arrays — never duplicated.
+const EMOTION_SET   = new Set<string>(EMOTIONS);
+const ACTION_SET    = new Set<string>(ACTIONS);
+const PROP_SET      = new Set<string>(PROPS);
+const INTENSITY_SET = new Set<string>(INTENSITIES);
 
 function isValidEvent(event: AvatarEvent): boolean {
   return (
-    EMOTIONS.has(event.emotion) &&
-    ACTIONS.has(event.action) &&
-    PROPS.has(event.prop) &&
-    INTENSITIES.has(event.intensity)
+    EMOTION_SET.has(event.emotion) &&
+    ACTION_SET.has(event.action) &&
+    PROP_SET.has(event.prop) &&
+    INTENSITY_SET.has(event.intensity)
   );
 }
 
@@ -49,18 +44,18 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
     };
 
     if (!isValidEvent(event)) {
-      return; // Silently drop invalid events
+      return; // Silently drop invalid events — state machine should never produce these
     }
 
     // Fire and forget — don't await, don't catch outside
     void (async () => {
       try {
         await fetch(pushUrl, {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(event),
+          body:    JSON.stringify(event),
           // AbortSignal.timeout is Node 17.3+; safe for OpenClaw's Node 18+ requirement
-          signal: AbortSignal.timeout(5_000),
+          signal:  AbortSignal.timeout(5_000),
         });
       } catch {
         // Non-critical. Avatar is cosmetic — never surface this to the user.

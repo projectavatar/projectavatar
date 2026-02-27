@@ -107,13 +107,22 @@ export function createAvatarStateMachine(
     const nextPri = priority(next.emotion);
 
     if (nextPri < curPri) {
-      // Lower priority than what's current — defer it
-      // If there's already a pending lower-priority event, replace it
+      // Lower priority than current — defer until debounce window closes.
+      // Capture the signal (not next) and re-merge against current state at
+      // fire time. This avoids emitting a stale snapshot if state has changed
+      // multiple times since the timer was scheduled.
       clearPending();
+      const deferredSignal = { ...signal };
       pendingTimer = setTimeout(() => {
         pendingTimer = null;
-        // Re-check: if state has changed since we scheduled, skip
-        if (!eventsEqual(current, next)) emit(next);
+        const deferred: AvatarEvent = {
+          emotion:   deferredSignal.emotion   ?? current.emotion,
+          action:    deferredSignal.action    ?? current.action,
+          prop:      deferredSignal.prop      ?? current.prop,
+          intensity: deferredSignal.intensity ?? current.intensity,
+        };
+        // Only emit if it would actually change the state
+        if (!eventsEqual(current, deferred)) emit(deferred);
       }, cfg.debounceMs - elapsed);
       return;
     }

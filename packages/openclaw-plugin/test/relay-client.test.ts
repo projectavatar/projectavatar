@@ -82,6 +82,20 @@ describe('createRelayClient', () => {
     // Still no unhandled rejection here — test would fail if there was one
   });
 
+  it('URL-encodes tokens with special characters', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const relay = createRelayClient(DEFAULT_CONFIG, 'my/token+with spaces');
+    relay.push({ emotion: 'focused', action: 'coding', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const [url] = mockFetch.mock.calls[0] as [string];
+    expect(url).toContain('my%2Ftoken%2Bwith%20spaces');
+    expect(url).not.toContain('my/token+with spaces');
+  });
+
   it('does not call fetch for invalid events', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', mockFetch);

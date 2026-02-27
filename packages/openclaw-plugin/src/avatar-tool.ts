@@ -11,6 +11,14 @@
  */
 
 import type { AvatarStateMachine } from './state-machine.js';
+import type { Emotion, Action, Prop, Intensity } from './types.js';
+import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from './types.js';
+
+// Derived sets for runtime validation — same source of truth as types.ts
+const EMOTION_SET   = new Set<string>(EMOTIONS);
+const ACTION_SET    = new Set<string>(ACTIONS);
+const PROP_SET      = new Set<string>(PROPS);
+const INTENSITY_SET = new Set<string>(INTENSITIES);
 
 export function createAvatarTool(stateMachine: AvatarStateMachine) {
   return {
@@ -30,32 +38,51 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
       properties: {
         emotion: {
           type: 'string',
-          enum: ['idle', 'thinking', 'focused', 'excited', 'confused', 'satisfied', 'concerned'],
+          enum: [...EMOTIONS],
           description: 'Your current emotional state.',
         },
         action: {
           type: 'string',
-          enum: ['responding', 'searching', 'coding', 'reading', 'waiting', 'error', 'celebrating'],
+          enum: [...ACTIONS],
           description: 'What you are currently doing.',
         },
         prop: {
           type: 'string',
-          enum: ['keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll', 'none'],
-          description: 'Optional prop to hold in your avatar\'s hand.',
+          enum: [...PROPS],
+          description: "Optional prop to hold in your avatar's hand.",
         },
         intensity: {
           type: 'string',
-          enum: ['low', 'medium', 'high'],
+          enum: [...INTENSITIES],
           description: 'Optional intensity of the expression. Defaults to medium.',
         },
       },
     },
-    async execute(params: Record<string, unknown>) {
+    async execute(params: Record<string, unknown>): Promise<{ ok: true } | { ok: false; error: string }> {
+      const emotion   = params.emotion   as string | undefined;
+      const action    = params.action    as string | undefined;
+      const prop      = params.prop      as string | undefined;
+      const intensity = params.intensity as string | undefined;
+
+      // Validate — LLMs can emit invalid enum values despite the schema
+      if (!emotion || !EMOTION_SET.has(emotion)) {
+        return { ok: false, error: `Invalid emotion: ${String(emotion)}` };
+      }
+      if (!action || !ACTION_SET.has(action)) {
+        return { ok: false, error: `Invalid action: ${String(action)}` };
+      }
+      if (prop !== undefined && !PROP_SET.has(prop)) {
+        return { ok: false, error: `Invalid prop: ${String(prop)}` };
+      }
+      if (intensity !== undefined && !INTENSITY_SET.has(intensity)) {
+        return { ok: false, error: `Invalid intensity: ${String(intensity)}` };
+      }
+
       stateMachine.transition({
-        emotion:   params.emotion   as string | undefined as any,
-        action:    params.action    as string | undefined as any,
-        prop:      params.prop      as string | undefined as any,
-        intensity: params.intensity as string | undefined as any,
+        emotion:   emotion   as Emotion,
+        action:    action    as Action,
+        prop:      prop      as Prop      | undefined,
+        intensity: intensity as Intensity | undefined,
       });
       return { ok: true };
     },

@@ -16,7 +16,6 @@
   },
   "files": [
     "dist",
-    "skill",
     "openclaw.plugin.json"
   ],
   "scripts": {

@@ -17,11 +17,15 @@ import { createRelayClient } from './relay-client.js';
 import { createAvatarStateMachine } from './state-machine.js';
 import { resolveToolSignal } from './tool-map.js';
 import { createAvatarTool } from './avatar-tool.js';
-import { IDLE_EVENT, DEFAULT_CONFIG } from './types.js';
-import type { PluginConfig } from './types.js';
+import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
+import type { PluginConfig, AvatarSignal } from './types.js';
 
-/** Avatar tag regex — same pattern as the output filter */
-const AVATAR_TAG_RE = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
+/**
+ * Avatar tag regex.
+ * Flags: m = ^ matches start of any line; g = strip ALL tags, not just the first.
+ * Note: {[^}]+} is intentionally non-recursive — our schema has no nested objects.
+ */
+const AVATAR_TAG_RE = /^\[avatar:(\{[^}]+\})\]\s*\n?/gm;
 
 const plugin: OpenClawPluginDefinition = {
   // Explicit id keeps the config key stable regardless of package name.
@@ -34,6 +38,15 @@ const plugin: OpenClawPluginDefinition = {
 
   register(api: OpenClawPluginApi): void {
     // ── Config ──────────────────────────────────────────────────────────────
+
+    // Validate pluginConfig before spreading — bad values (e.g. debounceMs: "potato")
+    // would silently corrupt number comparisons without this check.
+    if (api.pluginConfig) {
+      const errors = validatePluginConfig(api.pluginConfig);
+      if (errors.length > 0) {
+        api.logger.warn(`[ProjectAvatar] Invalid plugin config, using defaults. Errors: ${errors.join('; ')}`);
+      }
+    }
 
     const cfg: PluginConfig = {
       ...DEFAULT_CONFIG,
@@ -104,10 +117,10 @@ const plugin: OpenClawPluginDefinition = {
 
     /**
      * session_end — conversation over. Reset to idle immediately.
+     * reset() already emits IDLE_EVENT internally — no extra push needed.
      */
     api.on('session_end', () => {
       sm.reset();
-      relay.push(IDLE_EVENT, IDLE_EVENT);
     });
 
     // ── Prompt injection (when suppressSkillTags is true) ─────────────────────
@@ -121,9 +134,11 @@ const plugin: OpenClawPluginDefinition = {
      */
     if (cfg.suppressSkillTags) {
       api.on('before_prompt_build', (event) => {
-        // If the skill's tag-emission prompt is already injected, skip.
+        // Detect if the skill's tag-emission prompt is already active.
+        // Use a specific sentinel from the skill SKILL.md rather than the
+        // generic '[avatar:' string, which could appear in examples or docs.
         const alreadyHasSkillPrompt = typeof event.prompt === 'string' &&
-          event.prompt.includes('[avatar:');
+          event.prompt.includes('[avatar:{"emotion"');
 
         if (alreadyHasSkillPrompt) return;
 
@@ -146,34 +161,41 @@ const plugin: OpenClawPluginDefinition = {
 
     /**
      * message_sending — strip any avatar tags that leaked through.
-     * This covers the case where the skill prompt is installed alongside the plugin,
-     * or the LLM ignored the "don't emit tags" instruction.
+     *
+     * Always active regardless of suppressSkillTags: if the skill prompt is active
+     * alongside the plugin, or the LLM ignores the "don't emit tags" instruction,
+     * tags must never reach the user. Tag stripping is unconditional.
+     *
+     * Before stripping, push the first tag's event to the relay — the LLM may
+     * have emitted a genuinely meaningful state alongside its message.
      */
-    if (cfg.suppressSkillTags) {
-      api.on('message_sending', (event) => {
-        if (!AVATAR_TAG_RE.test(event.content)) return;
+    api.on('message_sending', (event) => {
+      // Use a fresh non-global regex for detection/capture to avoid lastIndex issues
+      const detectRe = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
+      if (!detectRe.test(event.content)) return;
 
-        // Also push the tag's event to the relay before stripping — the LLM
-        // may have emitted a genuinely meaningful state alongside its message.
-        try {
-          const match = event.content.match(AVATAR_TAG_RE);
-          if (match?.[1]) {
-            const parsed = JSON.parse(match[1]) as Record<string, unknown>;
-            sm.transition({
-              emotion:   parsed.emotion   as any,
-              action:    parsed.action    as any,
-              prop:      parsed.prop      as any,
-              intensity: parsed.intensity as any,
-            });
+      // Push the first tag's event to the relay before stripping
+      try {
+        const firstMatch = event.content.match(detectRe);
+        if (firstMatch?.[1]) {
+          const parsed = JSON.parse(firstMatch[1]) as Record<string, unknown>;
+          // Validate before transitioning — LLMs can emit garbage
+          const emotion   = typeof parsed.emotion   === 'string' ? parsed.emotion   : undefined;
+          const action    = typeof parsed.action    === 'string' ? parsed.action    : undefined;
+          const prop      = typeof parsed.prop      === 'string' ? parsed.prop      : undefined;
+          const intensity = typeof parsed.intensity === 'string' ? parsed.intensity : undefined;
+          if (emotion && action) {
+            sm.transition({ emotion, action, prop, intensity } as AvatarSignal);
           }
-        } catch {
-          // Malformed tag — ignore, just strip it
         }
+      } catch {
+        // Malformed tag — ignore, just strip it
+      }
 
-        const cleaned = event.content.replace(AVATAR_TAG_RE, '').trimStart();
-        return { content: cleaned };
-      });
-    }
+      // Strip ALL avatar tags (global regex)
+      const cleaned = event.content.replace(AVATAR_TAG_RE, '').trimStart();
+      return { content: cleaned };
+    });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────
 
