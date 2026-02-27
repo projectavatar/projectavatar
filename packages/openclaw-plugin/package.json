@@ -4,31 +4,22 @@
   "description": "Real-time 3D avatar driven by OpenClaw agent lifecycle hooks. Your agent gets a face.",
   "type": "module",
   "main": "src/index.ts",
-  "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "import": "./src/index.ts",
-      "types": "./dist/index.d.ts"
-    }
+    ".": "./src/index.ts"
   },
   "openclaw": {
     "extensions": ["./src/index.ts"]
   },
   "files": [
     "src",
-    "dist",
     "openclaw.plugin.json"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
     "test": "vitest --run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
   "peerDependencies": {

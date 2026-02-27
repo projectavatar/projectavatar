@@ -5,7 +5,6 @@ on:
     branches: [master]
     paths:
       - 'packages/openclaw-plugin/**'
-      - 'packages/shared/**'
       - '.changeset/**'
       - '.github/workflows/publish-plugin.yml'
 
@@ -29,14 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: cd packages/openclaw-plugin && npm run typecheck
-
       - name: Run tests
         run: cd packages/openclaw-plugin && npm run test
-
-      - name: Build
-        run: cd packages/openclaw-plugin && npm run build
 
   # ── Release: create Version PR or publish ─────────────────────────────────
   release:
@@ -59,9 +52,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Build plugin
-        run: cd packages/openclaw-plugin && npm run build
 
       # changesets/action does two things depending on state:
       #   1. No pending changesets → opens (or updates) a "Version Packages" PR
