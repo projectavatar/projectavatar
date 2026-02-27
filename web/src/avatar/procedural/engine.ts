@@ -183,7 +183,7 @@ export class ProceduralEngine {
 
     // ── Evaluate active recipe ──
     if (this.activeRecipe && this.recipeWeight > 0.001) {
-      this._evaluateRecipe(this.activeRecipe, this.recipeElapsed, this.recipeWeight);
+      this._evaluateRecipe(this.activeRecipe, this.recipeElapsed, this.recipeWeight, dt);
     }
 
     // ── Write to bones ──
@@ -240,14 +240,14 @@ export class ProceduralEngine {
   }
 
   /** Evaluate a recipe and add results to frameBuffer. */
-  private _evaluateRecipe(recipe: Recipe, elapsed: number, weight: number): void {
+  private _evaluateRecipe(recipe: Recipe, elapsed: number, weight: number, dt: number): void {
     const scale = weight * this.intensityScale;
 
     for (const boneTarget of recipe.bones) {
       let rx = 0, ry = 0, rz = 0;
 
       for (const prim of boneTarget.primitives) {
-        const value = this._evalPrimitive(prim, elapsed, boneTarget.bone);
+        const value = this._evalPrimitive(prim, elapsed, boneTarget.bone, dt);
         if (prim.kind === 'hold') continue;
         const axis = (prim as any).axis as string;
         if (axis === 'x') rx += value;
@@ -274,7 +274,7 @@ export class ProceduralEngine {
   }
 
   /** Evaluate a single primitive. */
-  private _evalPrimitive(prim: Primitive, elapsed: number, bone: AnimBone): number {
+  private _evalPrimitive(prim: Primitive, elapsed: number, bone: AnimBone, dt: number): number {
     switch (prim.kind) {
       case 'oscillate':
         return evalOscillate(prim, elapsed);
@@ -291,7 +291,7 @@ export class ProceduralEngine {
           state = createSpring(0);
           this.springs.set(key, state);
         }
-        return stepSpring(state, prim.target, prim.stiffness ?? 12, prim.damping ?? 0.7, 1 / 60);
+        return stepSpring(state, prim.target, prim.stiffness ?? 12, prim.damping ?? 0.7, dt);
       }
       case 'hold':
         return 0;
