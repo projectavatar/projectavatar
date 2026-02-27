@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useStore } from './state/store.ts';
 import { TokenSetup } from './token-setup.tsx';
 import { ModelPickerOverlay } from './model-picker-overlay.tsx';
@@ -59,38 +59,38 @@ const connectingPillStyle: React.CSSProperties = {
  *
  * 1. No token → TokenSetup
  * 2. Token present → always mount AvatarCanvas (WS connects immediately)
- *    a. No model + connecting  → canvas + "Connecting..." pill + StatusBadge
- *    b. No model + connected   → canvas + ModelPickerOverlay
- *    c. Model set              → full avatar experience
+ *    a. No channel_state yet (connecting or just connected) → canvas + "Connecting..." pill
+ *    b. channel_state received + no model → ModelPickerOverlay
+ *    c. channel_state received + model set → full avatar
  *
  * WsContext.Provider lives here — above BOTH AvatarCanvas and ModelPickerOverlay —
- * so siblings share the same sendSetModel reference. Do NOT move it inside
- * AvatarCanvas or ModelPickerOverlay will get the default no-op.
+ * so siblings share the same sendSetModel. Do NOT move it into AvatarCanvas.
+ *
+ * Context value is memoized with [] (stable for App lifetime) — sendSetModel
+ * reads from sendSetModelRef at call time, so the function identity is constant
+ * even across WS reconnects. No wsReady state needed; the ref is the source
+ * of truth and the warning covers the not-ready case.
  */
 export function App() {
-  const token           = useStore((s) => s.token);
-  const modelId         = useStore((s) => s.modelId);
-  const theme           = useStore((s) => s.theme);
-  const connectionState = useStore((s) => s.connectionState);
-  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+  const token                  = useStore((s) => s.token);
+  const modelId                = useStore((s) => s.modelId);
+  const theme                  = useStore((s) => s.theme);
+  const channelStateReceived   = useStore((s) => s.channelStateReceived);
+  const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
-  // Holds the sendSetModel function provided by AvatarCanvas via onSendSetModel.
-  // Stored as a ref to avoid re-renders when the function changes; the context
-  // value is memoized and reads from the ref at call time.
+  // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
+  // Reading the ref at call time means the context value never needs to change.
   const sendSetModelRef = useRef<((modelId: string | null) => void) | null>(null);
-  const [wsReady, setWsReady] = useState(false);
 
   const handleSendSetModelReady = useCallback(
     (fn: ((modelId: string | null) => void) | null) => {
       sendSetModelRef.current = fn;
-      setWsReady(fn !== null);
     },
     [],
   );
 
-  // Stable context value — sendSetModel delegates to the ref so the function
-  // identity stays constant across WS reconnects. useMemo ensures the object
-  // reference is stable and doesn't cause unnecessary re-renders in consumers.
+  // Stable for App lifetime — reads ref at call time, never recreated.
+  // No wsReady dependency needed; the warning covers the not-connected case.
   const wsContextValue = useMemo<WsContextValue>(
     () => ({
       sendSetModel: (id) => {
@@ -101,21 +101,20 @@ export function App() {
         sendSetModelRef.current(id);
       },
     }),
-    // wsReady is listed so useMemo re-runs when the WS becomes ready/unready,
-    // but sendSetModel itself stays the same function reference.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [wsReady],
+    [], // stable for App lifetime
   );
 
-  // Apply theme to body
   useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }, [theme]);
 
   if (!token) return <TokenSetup />;
 
-  const showPicker        = !modelId && connectionState === 'connected';
-  const showPickerLoading = !modelId && connectionState !== 'connected';
+  // Gate picker on channelStateReceived, not just connectionState === 'connected'.
+  // This prevents the picker from flashing open between onopen (connectionState flips
+  // to 'connected') and the first message event (channel_state arrives).
+  const showPicker   = channelStateReceived && !modelId;
+  const showLoading  = !channelStateReceived;
 
   return (
     <WsContext.Provider value={wsContextValue}>
@@ -124,18 +123,15 @@ export function App() {
 
         {showPicker && <ModelPickerOverlay />}
 
-        {showPickerLoading && (
+        {showLoading && (
           <div style={connectingStyle}>
             <div style={connectingPillStyle}>Connecting...</div>
           </div>
         )}
 
-        {/*
-          StatusBadge and settings button are always shown when we have a token
-          (even before model is selected) so the user can see connection state
-          and access settings if something goes wrong during onboarding.
-        */}
+        {/* StatusBadge always shown — user can see connection state during onboarding */}
         <StatusBadge />
+
         {modelId && (
           <>
             <button

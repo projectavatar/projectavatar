@@ -22,16 +22,16 @@ const canvasStyle: React.CSSProperties = {
 // ModelPickerOverlay and SettingsDrawer.
 //
 // IMPORTANT: The Provider must be rendered at the App level (above both
-// AvatarCanvas and ModelPickerOverlay), NOT inside AvatarCanvas itself.
-// ModelPickerOverlay is a sibling of AvatarCanvas, not a descendant, so a
-// provider inside AvatarCanvas would never be seen by it.
+// AvatarCanvas and ModelPickerOverlay). ModelPickerOverlay is a sibling of
+// AvatarCanvas, not a descendant — a provider inside AvatarCanvas would be
+// invisible to it.
 //
-// The context is created here (co-located with the WebSocket client that owns
-// the ref), but the Provider is in app.tsx. AvatarCanvas registers its
-// sendSetModel via `useWsRegistry` so app.tsx can surface it through the context.
+// Context is created here (co-located with the WS client), but the Provider
+// is in app.tsx. AvatarCanvas exposes sendSetModel via the onSendSetModel prop,
+// which app.tsx stores in a ref and delegates to via the stable context value.
 
 export interface WsContextValue {
-  /** Send a set_model message to the relay DO. Logs a warning if not connected. */
+  /** Send a set_model message to the relay DO. Warns if not connected. */
   sendSetModel: (modelId: string | null) => void;
 }
 
@@ -50,13 +50,12 @@ export function useWsClient(): WsContextValue {
 /**
  * Three.js canvas + WebSocket client.
  *
- * Renders the VRM scene and manages the WebSocket lifecycle. Does NOT provide
- * WsContext itself — that provider lives in app.tsx above both AvatarCanvas
- * and ModelPickerOverlay so siblings can share the same context.
+ * Does NOT provide WsContext — that lives in app.tsx so siblings
+ * (ModelPickerOverlay, SettingsDrawer) can share the same sendSetModel.
  *
- * The `onSendSetModel` prop is the bridge: AvatarCanvas calls it with a stable
- * function reference when the WS client is ready, so app.tsx can wire it into
- * the WsContext value.
+ * Bridge pattern: AvatarCanvas calls `onSendSetModel(fn)` when the WS client
+ * is ready and `onSendSetModel(null)` on disconnect. app.tsx stores this in a
+ * ref and delegates from the stable WsContext value.
  */
 export function AvatarCanvas({ onSendSetModel }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
@@ -66,17 +65,18 @@ export function AvatarCanvas({ onSendSetModel }: {
   const wsRef           = useRef<WebSocketClient | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
 
-  const token               = useStore((s) => s.token);
-  const relayUrl            = useStore((s) => s.relayUrl);
-  const modelUrl            = useStore((s) => s.modelUrl);
-  const setConnectionState  = useStore((s) => s.setConnectionState);
-  const setReconnectAttempt = useStore((s) => s.setReconnectAttempt);
-  const setAvatarState      = useStore((s) => s.setAvatarState);
-  const applyChannelState   = useStore((s) => s.applyChannelState);
-  const setModelId          = useStore((s) => s.setModelId);
-  const recordAgentEvent    = useStore((s) => s.recordAgentEvent);
+  const token                = useStore((s) => s.token);
+  const relayUrl             = useStore((s) => s.relayUrl);
+  const modelUrl             = useStore((s) => s.modelUrl);
+  const setConnectionState   = useStore((s) => s.setConnectionState);
+  const setReconnectAttempt  = useStore((s) => s.setReconnectAttempt);
+  const setAvatarState       = useStore((s) => s.setAvatarState);
+  const applyChannelState    = useStore((s) => s.applyChannelState);
+  const setModelId           = useStore((s) => s.setModelId);
+  const recordAgentEvent     = useStore((s) => s.recordAgentEvent);
+  const resetConnectionState = useStore((s) => s.resetConnectionState);
 
-  // Initialize scene + avatar system. Re-runs when modelUrl changes.
+  // Scene lifecycle — re-runs when modelUrl changes (new VRM to load)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -86,32 +86,20 @@ export function AvatarCanvas({ onSendSetModel }: {
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
-      const expressionCtrl = new ExpressionController(vrm);
-      const animationCtrl  = new AnimationController(vrm);
-      const blinkCtrl      = new BlinkController(vrm);
-      const propManager    = new PropManager(vrm);
-
       const stateMachine = new StateMachine(
-        expressionCtrl,
-        animationCtrl,
-        blinkCtrl,
-        propManager,
+        new ExpressionController(vrm),
+        new AnimationController(vrm),
+        new BlinkController(vrm),
+        new PropManager(vrm),
         {
-          onStateChange: (state) => {
-            setAvatarState({
-              emotion:   state.emotion,
-              action:    state.action,
-              prop:      state.prop,
-              intensity: state.intensity,
-            });
-          },
+          onStateChange: (state) => setAvatarState({
+            emotion: state.emotion, action: state.action,
+            prop: state.prop, intensity: state.intensity,
+          }),
         },
       );
       stateMachineRef.current = stateMachine;
-      avatarScene.onUpdate((delta) => {
-        vrmManager.update(delta);
-        stateMachine.update(delta);
-      });
+      avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
     };
 
     const initModel = async () => {
@@ -120,7 +108,7 @@ export function AvatarCanvas({ onSendSetModel }: {
           const vrm = await vrmManager.load(modelUrl);
           setupControllers(vrm);
         } catch (err) {
-          console.warn('[AvatarCanvas] Failed to load VRM model, using placeholder:', err);
+          console.warn('[AvatarCanvas] Failed to load VRM:', err);
           vrmManager.showPlaceholder();
           avatarScene.onUpdate((delta) => vrmManager.update(delta));
         }
@@ -142,21 +130,16 @@ export function AvatarCanvas({ onSendSetModel }: {
     };
   }, [modelUrl, setAvatarState]);
 
-  // WebSocket connection lifecycle. Re-runs when token or relayUrl changes.
+  // WebSocket lifecycle — re-runs when token or relayUrl changes
   useEffect(() => {
     if (!token) {
-      // No token — clear sendSetModel from parent context
       onSendSetModel?.(null);
+      resetConnectionState();
       return;
     }
 
     const onEvent = (event: AvatarEvent) => {
       stateMachineRef.current?.handleEvent(event);
-      // recordAgentEvent updates lastAgentEventAt + sets agentPresence to 'active'.
-      // Note: this is also called for replayed lastEvent on connect, which is intentional —
-      // if the DO has a recent lastEvent, presence should reflect that via lastAgentEventAt
-      // (already applied in applyChannelState). The replay sets the visual pose only.
-      // agentPresence staleness is handled by StatusBadge computing it from lastAgentEventAt.
       recordAgentEvent();
     };
 
@@ -164,6 +147,11 @@ export function AvatarCanvas({ onSendSetModel }: {
       state: 'connected' | 'disconnected' | 'reconnecting',
       attempt?: number,
     ) => {
+      if (state === 'disconnected' || state === 'reconnecting') {
+        // Clear channelStateReceived so the picker gate resets correctly.
+        // On reconnect, channel_state will arrive fresh and set it back to true.
+        resetConnectionState();
+      }
       setConnectionState(
         state === 'connected' ? 'connected'
           : state === 'reconnecting' ? 'reconnecting'
@@ -173,7 +161,7 @@ export function AvatarCanvas({ onSendSetModel }: {
     };
 
     const onChannelState = (data: ChannelState & { lastEvent: AvatarEvent | null }) => {
-      applyChannelState(data);
+      applyChannelState(data); // sets channelStateReceived = true
     };
 
     const onModelChanged = (model: string | null) => {
@@ -181,28 +169,24 @@ export function AvatarCanvas({ onSendSetModel }: {
     };
 
     const ws = new WebSocketClient(
-      relayUrl,
-      token,
-      onEvent,
-      onConnectionChange,
-      onChannelState,
-      onModelChanged,
+      relayUrl, token, onEvent, onConnectionChange, onChannelState, onModelChanged,
     );
     wsRef.current = ws;
 
-    // Expose sendSetModel to parent (app.tsx → WsContext.Provider)
-    // Stable arrow function — wsRef.current is read at call time, not captured
-    onSendSetModel?.((modelId) => wsRef.current?.sendSetModel(modelId));
-
     setConnectionState('connecting');
-    ws.connect();
+    ws.connect(); // connect first, then advertise sendSetModel
+
+    // Expose sendSetModel AFTER connect() — WS is now dialing.
+    // Stable arrow — reads wsRef.current at call time, not captured here.
+    onSendSetModel?.((modelId) => wsRef.current?.sendSetModel(modelId));
 
     return () => {
       ws.disconnect();
       wsRef.current = null;
       onSendSetModel?.(null);
+      resetConnectionState();
     };
-  }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, onSendSetModel]);
+  }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
 
   return <canvas ref={canvasRef} style={canvasStyle} />;
 }

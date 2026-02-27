@@ -14,35 +14,28 @@ export interface AvatarState {
 }
 
 export interface AppState {
-  // Auth / config
   token: string | null;
   relayUrl: string;
   modelId: string | null;
   modelUrl: string | null;
-
-  // Channel state (from DO — source of truth)
   lastAgentEventAt: number | null;
-  // Note: agentPresence ('active'|'recent'|'away') is NOT stored here.
-  // It is computed on render in StatusBadge from lastAgentEventAt + Date.now().
-  // Storing it as state would cause it to go stale (e.g. showing 'active' forever
-  // after the agent goes idle) without a periodic recomputation timer.
-
-  // Connection
+  // agentPresence is NOT stored — computed on render in StatusBadge
+  // from lastAgentEventAt + Date.now() to avoid stale state.
   connectionState: ConnectionState;
   reconnectAttempt: number;
-
-  // Avatar
+  /**
+   * True once the first channel_state message is received from the DO after
+   * connecting. Gates ModelPickerOverlay to prevent a flash between onopen
+   * (connectionState = 'connected') and the first message event (channel_state).
+   * Reset via resetConnectionState() on disconnect or token change.
+   */
+  channelStateReceived: boolean;
   avatar: AvatarState;
-
-  // UI
   settingsOpen: boolean;
   theme: 'dark' | 'transparent';
   setupComplete: boolean;
-
-  // Actions
   setToken: (token: string | null) => void;
   setRelayUrl: (url: string) => void;
-  /** Update local model state (called when model_changed arrives from DO) */
   setModelId: (id: string | null) => void;
   setModelUrl: (url: string | null) => void;
   setConnectionState: (state: ConnectionState) => void;
@@ -53,18 +46,18 @@ export interface AppState {
   setSetupComplete: (complete: boolean) => void;
   generateAndSetToken: () => string;
   /**
-   * Apply the full channel state received from the DO on WebSocket connect.
-   * This is the single authoritative write path for DO-owned state.
-   * Overwrites any locally cached model — DO always wins.
+   * Apply channel state from DO on connect — single authoritative write path.
+   * DO always wins over localStorage. Sets channelStateReceived = true.
    */
   applyChannelState: (channelState: ChannelState & { lastEvent: AvatarEvent | null }) => void;
-  /** Record a live agent event — updates lastAgentEventAt (presence is computed on render) */
+  /** Record live agent event — updates lastAgentEventAt only */
   recordAgentEvent: () => void;
+  /** Reset transient connection state — call on disconnect or token change */
+  resetConnectionState: () => void;
 }
 
 const STORAGE_KEY = 'project-avatar-settings';
 
-/** Look up a model's URL from the manifest by ID */
 function resolveModelUrl(modelId: string | null): string | null {
   if (!modelId) return null;
   const models = (manifest as unknown as { models: ModelEntry[] }).models;
@@ -72,26 +65,16 @@ function resolveModelUrl(modelId: string | null): string | null {
   return entry?.url ?? null;
 }
 
-/**
- * Update URL params via history.replaceState — no reload.
- * Only token is stored in the URL. Model is owned by the DO.
- */
 function updateUrlParams(params: Record<string, string | null>) {
   try {
     const url = new URL(window.location.href);
     for (const [key, value] of Object.entries(params)) {
-      if (value != null) {
-        url.searchParams.set(key, value);
-      } else {
-        url.searchParams.delete(key);
-      }
+      if (value != null) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
     }
-    // Also strip any stale `model` param from old URLs
-    url.searchParams.delete('model');
+    url.searchParams.delete('model'); // strip stale pre-4.1 param
     window.history.replaceState(null, '', url.toString());
-  } catch {
-    // SSR or restricted environment — silently ignore
-  }
+  } catch { /* SSR / restricted */ }
 }
 
 function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>> {
@@ -106,45 +89,27 @@ function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'mo
       modelUrl: typeof parsed['modelUrl'] === 'string' ? parsed['modelUrl'] : undefined,
       theme:    parsed['theme'] === 'transparent' ? 'transparent' : undefined,
     };
-  } catch {
-    return {};
-  }
+  } catch { return {}; }
 }
 
 function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      token:    state.token,
-      relayUrl: state.relayUrl,
-      modelId:  state.modelId,
-      modelUrl: state.modelUrl,
-      theme:    state.theme,
+      token: state.token, relayUrl: state.relayUrl,
+      modelId: state.modelId, modelUrl: state.modelUrl, theme: state.theme,
     }));
-  } catch {
-    // localStorage may be unavailable (e.g. OBS browser source privacy settings)
-  }
+  } catch { /* localStorage unavailable */ }
 }
 
-/** Read URL params on init — token only, model is owned by DO */
 function getUrlParams(): { token: string | null } {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    return { token: params.get('token') };
-  } catch {
-    return { token: null };
-  }
+  try { return { token: new URLSearchParams(window.location.search).get('token') }; }
+  catch { return { token: null }; }
 }
 
-const persisted  = loadPersistedState();
-const urlParams  = getUrlParams();
-
-// Token: URL wins over localStorage (share links, OBS browser sources)
-const initialToken = urlParams.token ?? persisted.token ?? null;
-
-// Model: localStorage is an optimistic cache only.
-// The DO will send the real model via channel_state on connect.
-// If they disagree, applyChannelState() (called on connect) wins.
-const initialModelId  = persisted.modelId ?? null;
+const persisted      = loadPersistedState();
+const urlParams      = getUrlParams();
+const initialToken   = urlParams.token ?? persisted.token ?? null;
+const initialModelId = persisted.modelId ?? null;
 const initialModelUrl = resolveModelUrl(initialModelId) ?? persisted.modelUrl ?? null;
 
 export const useStore = create<AppState>((set, get) => ({
@@ -153,71 +118,45 @@ export const useStore = create<AppState>((set, get) => ({
   modelId:  initialModelId,
   modelUrl: initialModelUrl,
 
-  lastAgentEventAt: null,
+  lastAgentEventAt:     null,
+  channelStateReceived: false,
+  connectionState:      'disconnected',
+  reconnectAttempt:     0,
 
-  connectionState: 'disconnected',
-  reconnectAttempt: 0,
-
-  avatar: {
-    emotion:   'idle',
-    action:    'waiting',
-    prop:      'none',
-    intensity: 'medium',
-  },
+  avatar: { emotion: 'idle', action: 'waiting', prop: 'none', intensity: 'medium' },
 
   settingsOpen:  false,
   theme:         persisted.theme ?? 'dark',
   setupComplete: false,
 
-  setToken: (token) => {
-    set({ token });
-    const state = get();
-    persistState(state);
-    updateUrlParams({ token });
-  },
+  setToken: (token) => { set({ token }); persistState(get()); updateUrlParams({ token }); },
 
-  setRelayUrl: (relayUrl) => {
-    set({ relayUrl });
-    persistState(get());
-  },
+  setRelayUrl: (relayUrl) => { set({ relayUrl }); persistState(get()); },
 
   setModelId: (modelId) => {
     const modelUrl = resolveModelUrl(modelId);
     set({ modelId, modelUrl });
     persistState(get());
-    // No URL param update — model is owned by the DO, not the URL
   },
 
-  setModelUrl: (modelUrl) => {
-    set({ modelUrl });
-    persistState(get());
-  },
+  setModelUrl: (modelUrl) => { set({ modelUrl }); persistState(get()); },
 
   setConnectionState: (connectionState) => set({ connectionState }),
 
   setReconnectAttempt: (reconnectAttempt) => set({ reconnectAttempt }),
 
-  setAvatarState: (partial) =>
-    set((state) => ({
-      avatar: { ...state.avatar, ...partial },
-    })),
+  setAvatarState: (partial) => set((state) => ({ avatar: { ...state.avatar, ...partial } })),
 
-  setSettingsOpen:  (settingsOpen)  => set({ settingsOpen }),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 
-  setTheme: (theme) => {
-    set({ theme });
-    persistState(get());
-  },
+  setTheme: (theme) => { set({ theme }); persistState(get()); },
 
-  setSetupComplete: (complete) => {
-    set({ setupComplete: complete });
-  },
+  setSetupComplete: (complete) => set({ setupComplete: complete }),
 
   generateAndSetToken: () => {
     const token = generateToken();
     set({ token });
-    const state = get();
-    persistState(state);
+    persistState(get());
     updateUrlParams({ token });
     return token;
   },
@@ -228,15 +167,13 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       modelId,
       modelUrl,
-      lastAgentEventAt: channelState.lastAgentEventAt,
+      lastAgentEventAt:     channelState.lastAgentEventAt,
+      channelStateReceived: true,
     });
-    // Update localStorage cache with the DO's model
     persistState(get());
   },
 
-  recordAgentEvent: () => {
-    // Updates lastAgentEventAt only. agentPresence is computed on render in
-    // StatusBadge from lastAgentEventAt + Date.now() — not stored as state.
-    set({ lastAgentEventAt: Date.now() });
-  },
+  recordAgentEvent: () => set({ lastAgentEventAt: Date.now() }),
+
+  resetConnectionState: () => set({ channelStateReceived: false }),
 }));

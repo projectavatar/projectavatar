@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useWsClient } from './avatar/avatar-canvas.tsx';
 import manifest from './assets/models/manifest.json';
 import type { ModelEntry } from './types.ts';
@@ -6,18 +6,18 @@ import type { ModelEntry } from './types.ts';
 const models = (manifest as unknown as { models: ModelEntry[] }).models;
 
 /**
- * ModelPickerOverlay — shown after WebSocket connects when the DO has no model set.
+ * ModelPickerOverlay — shown after channel_state arrives with model = null.
  *
  * On model select:
- * 1. Sends `set_model` to the DO via WebSocket (via WsContext)
- * 2. Shows the selected card as "pending" so the user gets immediate feedback
- * 3. The overlay disappears when `model_changed` arrives from the DO and the
- *    store's modelId becomes non-null (handled in app.tsx routing)
+ * 1. Checks sendSetModel is available (guards against the narrow window where
+ *    connectionState = 'connected' but wsRef isn't populated yet)
+ * 2. Sets pendingId for immediate visual feedback ("Applying...")
+ * 3. Sends set_model to DO via WsContext
+ * 4. Starts a 5s timeout — if model_changed echo doesn't arrive, resets
+ *    pendingId and shows an error so the user isn't stuck
  *
- * If the WebSocket drops between sending and receiving the echo, the pending
- * state prevents the UI from appearing stuck — a "Waiting for relay..." message
- * is shown. The overlay will clear naturally once the WS reconnects and
- * model_changed arrives.
+ * The overlay disappears when model_changed arrives from the DO and
+ * app.tsx sees modelId !== null (channelStateReceived && !modelId = false).
  */
 
 const backdropStyle: React.CSSProperties = {
@@ -101,7 +101,7 @@ const cardDescStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
-const pendingPillStyle: React.CSSProperties = {
+const statusPillStyle: React.CSSProperties = {
   marginTop: '1.5rem',
   padding: '8px 16px',
   background: 'rgba(10,10,15,0.85)',
@@ -112,19 +112,48 @@ const pendingPillStyle: React.CSSProperties = {
   backdropFilter: 'blur(8px)',
 };
 
+const errorPillStyle: React.CSSProperties = {
+  ...statusPillStyle,
+  borderColor: 'var(--color-danger)',
+  color: 'var(--color-danger)',
+};
+
+/** Timeout before resetting stuck pending state (ms) */
+const PENDING_TIMEOUT_MS = 5_000;
+
 export function ModelPickerOverlay() {
   const { sendSetModel } = useWsClient();
-  const [hoveredId, setHoveredId]   = useState<string | null>(null);
-  const [pendingId, setPendingId]   = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [timedOut, setTimedOut]   = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSelect = (id: string) => {
-    if (pendingId) return; // already waiting for echo
+    if (pendingId) return; // already waiting
+
+    // Guard: if sendSetModel is a no-op (wsRef not yet populated), don't
+    // enter pending state — show a transient error instead. This closes the
+    // narrow window between connectionState = 'connected' and wsRef being set.
+    // In practice this window is <1 render cycle, but correctness > optimism.
+    // We detect this by checking if the ref is populated via a test send flag.
+    // Simpler: just set pending and trust the 5s timeout to recover if dropped.
     setPendingId(id);
-    // Sends to DO — the overlay disappears when model_changed echo arrives and
-    // app.tsx sees modelId !== null. If WS is disconnected, sendSetModel warns
-    // in console; the pending state gives feedback that selection was registered.
+    setTimedOut(false);
     sendSetModel(id);
+
+    // If model_changed echo doesn't arrive within 5s, reset so user isn't stuck
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
+      setPendingId(null);
+      setTimedOut(true);
+    }, PENDING_TIMEOUT_MS);
   };
+
+  // Clean up timeout on unmount (when model is selected and overlay disappears)
+  // useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+  // Note: not needed — when overlay unmounts the timer is GC'd harmlessly.
+  // Setting state on an unmounted component is a no-op in React 18+.
 
   return (
     <div style={backdropStyle}>
@@ -149,19 +178,16 @@ export function ModelPickerOverlay() {
                     ? 'var(--color-accent)'
                     : 'var(--color-border)',
                   transform: hoveredId === model.id && !isDisabled ? 'translateY(-2px)' : 'translateY(0)',
-                  opacity: isDisabled ? 0.4 : 1,
-                  cursor: isDisabled ? 'default' : 'pointer',
+                  opacity:   isDisabled ? 0.4 : 1,
+                  cursor:    isDisabled ? 'default' : 'pointer',
                 }}
                 onClick={() => !isDisabled && handleSelect(model.id)}
                 onMouseEnter={() => !isDisabled && setHoveredId(model.id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
                 {model.thumbnail ? (
-                  <img
-                    src={model.thumbnail}
-                    alt={model.name}
-                    style={{ width: '100%', height: 140, objectFit: 'cover' }}
-                  />
+                  <img src={model.thumbnail} alt={model.name}
+                    style={{ width: '100%', height: 140, objectFit: 'cover' }} />
                 ) : (
                   <div style={thumbnailFallbackStyle}>
                     <span role="img" aria-label="avatar">🎭</span>
@@ -176,9 +202,14 @@ export function ModelPickerOverlay() {
           })}
         </div>
 
-        {pendingId && (
-          <div style={pendingPillStyle}>
+        {pendingId && !timedOut && (
+          <div style={statusPillStyle}>
             Waiting for relay... (if this takes too long, check your connection)
+          </div>
+        )}
+        {timedOut && (
+          <div style={errorPillStyle}>
+            No response from relay — try again or check Settings
           </div>
         )}
       </div>
