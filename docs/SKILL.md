@@ -2,7 +2,7 @@
 
 The skill layer teaches your AI agent to emit avatar signals via response tags. It works with **any agent** — not just OpenClaw — by adding a prompt template and an output filter to your setup.
 
-**If you use OpenClaw:** install the `@projectavatar/openclaw-avatar` plugin instead. It's hook-driven, requires no prompt changes, and reacts in real-time to tool calls — not just response output. See [the plugin docs](../packages/openclaw-plugin/README.md) or run:
+**If you use OpenClaw:** install the `@projectavatar/openclaw-avatar` plugin instead. It's hook-driven, requires no prompt changes, and reacts in real-time to tool calls — not just response output. See [the plugin docs](../packages/openclaw-avatar/README.md) or run:
 ```bash
 openclaw plugins install @projectavatar/openclaw-avatar
 openclaw secrets set AVATAR_TOKEN <your-token>
