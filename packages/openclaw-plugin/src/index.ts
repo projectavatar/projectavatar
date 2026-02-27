@@ -28,11 +28,9 @@ const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focus
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
 
 const plugin: OpenClawPluginDefinition = {
-  // Explicit id keeps the config key stable regardless of package name.
-  // @projectavatar/openclaw-avatar would normalize to "openclaw-avatar" by default,
-  // but "projectavatar" is shorter, matches openclaw.plugin.json, and is what
-  // users reference in plugins.entries.projectavatar.config.
-  id: 'projectavatar',
+  // id matches the unscoped package name so OpenClaw's idHint derivation
+  // produces no mismatch warning. Users reference this as plugins.entries.openclaw-avatar.
+  id: 'openclaw-avatar',
   name: 'Project Avatar',
   description: 'Real-time 3D avatar driven by agent lifecycle hooks.',
 
@@ -205,8 +203,8 @@ const plugin: OpenClawPluginDefinition = {
             } catch (err) {
               const isAbort = err instanceof Error && err.name === 'AbortError';
               return isAbort
-                ? '[Avatar] Relay timed out — check plugins.entries.projectavatar.config.relayUrl'
-                : '[Avatar] Could not reach relay — check plugins.entries.projectavatar.config.relayUrl and network.';
+                ? '[Avatar] Relay timed out — check plugins.entries.openclaw-avatar.config.relayUrl'
+                : '[Avatar] Could not reach relay — check plugins.entries.openclaw-avatar.config.relayUrl and network.';
             }
           }
 

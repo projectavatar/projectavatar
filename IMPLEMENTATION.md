@@ -1669,8 +1669,8 @@ openclaw plugins enable projectavatar
 openclaw secrets set AVATAR_TOKEN <your-token>
 
 # Optional config
-openclaw config set plugins.entries.projectavatar.config.relayUrl https://relay.projectavatar.io
-openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
+openclaw config set plugins.entries.openclaw-avatar.config.relayUrl https://relay.projectavatar.io
+openclaw config set plugins.entries.openclaw-avatar.config.enableAvatarTool true
 ```
 
 **No build step required for local development.** OpenClaw loads plugins via jiti, which executes TypeScript directly at runtime. The `package.json` `main` field points to `src/index.ts`. The build script (`tsc`) is only needed when publishing to npm.
