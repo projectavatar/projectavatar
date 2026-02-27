@@ -1,20 +1,15 @@
 /**
- * Optional "avatar" agent tool.
+ * Avatar signal tool — always registered.
  *
- * When `enableAvatarTool: true`, this registers a tool the LLM can call
- * explicitly to set avatar state. Useful for expressions that aren't tied
- * to specific tool calls — e.g. "I'm thinking hard about this" during a
- * long reasoning block.
- *
- * The tool is marked optional so it doesn't appear in the default tool list
- * and doesn't consume token budget unless enabled.
+ * The agent calls this to set avatar emotion/action. Tool calls are
+ * invisible to the user on Discord (no output shown), so the avatar
+ * reacts silently. Works with streaming — no output filtering needed.
  */
 
 import type { AvatarStateMachine } from './state-machine.js';
 import type { Emotion, Action, Prop, Intensity } from './types.js';
 import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from './types.js';
 
-// Derived sets for runtime validation — same source of truth as types.ts
 const EMOTION_SET   = new Set<string>(EMOTIONS);
 const ACTION_SET    = new Set<string>(ACTIONS);
 const PROP_SET      = new Set<string>(PROPS);
@@ -22,15 +17,8 @@ const INTENSITY_SET = new Set<string>(INTENSITIES);
 
 export function createAvatarTool(stateMachine: AvatarStateMachine) {
   return {
-    name: 'avatar',
-    description: [
-      'Set your avatar state explicitly. Use this when your emotional state',
-      'or current task is not captured by an automatic tool-call hook.',
-      'Available emotions: idle, thinking, focused, excited, confused, satisfied, concerned.',
-      'Available actions: responding, searching, coding, reading, waiting, error, celebrating.',
-      'Optional: prop (keyboard, magnifying_glass, coffee_cup, book, phone, scroll, none),',
-      'intensity (low, medium, high).',
-    ].join(' '),
+    name: 'avatar_signal',
+    description: 'Set your avatar expression. Call silently before replying — the user never sees it. Match emotion+action to your response tone.',
     inputSchema: {
       type: 'object' as const,
       required: ['emotion', 'action'],
@@ -39,52 +27,45 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
         emotion: {
           type: 'string',
           enum: [...EMOTIONS],
-          description: 'Your current emotional state.',
+          description: 'Facial expression: ' + EMOTIONS.join(', '),
         },
         action: {
           type: 'string',
           enum: [...ACTIONS],
-          description: 'What you are currently doing.',
+          description: 'Body animation: ' + ACTIONS.join(', '),
         },
         prop: {
           type: 'string',
           enum: [...PROPS],
-          description: "Optional prop to hold in your avatar's hand. Omitting inherits the current prop.",
+          description: 'Optional hand prop.',
         },
         intensity: {
           type: 'string',
           enum: [...INTENSITIES],
-          description: 'Optional intensity of the expression. Omitting inherits the current avatar intensity.',
+          description: 'Expression intensity.',
         },
       },
     },
-    async execute(params: Record<string, unknown>): Promise<{ ok: true } | { ok: false; error: string }> {
+    async execute(params: Record<string, unknown>): Promise<string> {
       const emotion   = params.emotion   as string | undefined;
       const action    = params.action    as string | undefined;
       const prop      = params.prop      as string | undefined;
       const intensity = params.intensity as string | undefined;
 
-      // Validate — LLMs can emit invalid enum values despite the schema
       if (!emotion || !EMOTION_SET.has(emotion)) {
-        return { ok: false, error: `Invalid emotion: ${String(emotion)}` };
+        return 'ok';  // fail silently — don't waste tokens on error handling
       }
       if (!action || !ACTION_SET.has(action)) {
-        return { ok: false, error: `Invalid action: ${String(action)}` };
-      }
-      if (prop !== undefined && !PROP_SET.has(prop)) {
-        return { ok: false, error: `Invalid prop: ${String(prop)}` };
-      }
-      if (intensity !== undefined && !INTENSITY_SET.has(intensity)) {
-        return { ok: false, error: `Invalid intensity: ${String(intensity)}` };
+        return 'ok';
       }
 
       stateMachine.transition({
         emotion:   emotion   as Emotion,
         action:    action    as Action,
-        prop:      prop      as Prop      | undefined,
-        intensity: intensity as Intensity | undefined,
+        prop:      (prop && PROP_SET.has(prop)) ? prop as Prop : undefined,
+        intensity: (intensity && INTENSITY_SET.has(intensity)) ? intensity as Intensity : undefined,
       });
-      return { ok: true };
+      return 'ok';
     },
   };
 }

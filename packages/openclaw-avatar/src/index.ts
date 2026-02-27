@@ -22,53 +22,7 @@ import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, SessionMeta } from './types.js';
 import { deriveSessionPriority } from './session-utils.js';
 
-// ─── Tag extraction (inline — plugin is standalone, no dep on skill/filters) ──
 
-const AVATAR_TAG_REGEX = /^\[avatar:(\{[^}]+\})\]\s*\n?/gm;
-
-interface TagHit {
-  signal: import('./types.js').AvatarSignal;
-  /** Character offset in the original text — used for timing estimation */
-  offset: number;
-}
-
-function parseSignal(json: string): import('./types.js').AvatarSignal | null {
-  try {
-    const parsed = JSON.parse(json);
-    if (typeof parsed.emotion !== 'string' && typeof parsed.action !== 'string') return null;
-    const signal: import('./types.js').AvatarSignal = {};
-    if (typeof parsed.emotion === 'string') signal.emotion = parsed.emotion;
-    if (typeof parsed.action === 'string') signal.action = parsed.action;
-    if (typeof parsed.prop === 'string') signal.prop = parsed.prop;
-    if (typeof parsed.intensity === 'string') signal.intensity = parsed.intensity;
-    return signal;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract ALL avatar tags from a response. Returns clean text (all tags stripped)
- * and an array of signals with their character offsets for timing estimation.
- */
-function extractAllTags(text: string): { cleanText: string; tags: TagHit[] } {
-  const tags: TagHit[] = [];
-  const regex = new RegExp(AVATAR_TAG_REGEX.source, 'gm');
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    const signal = parseSignal(match[1]);
-    if (signal) {
-      tags.push({ signal, offset: match.index });
-    }
-  }
-
-  if (tags.length === 0) return { cleanText: text, tags: [] };
-
-  // Strip all tags from text
-  const cleanText = text.replace(new RegExp(AVATAR_TAG_REGEX.source, 'gm'), '').trim();
-  return { cleanText, tags };
-}
 
 /**
  * Fallback signals for tool calls on tools not in the tool map.
@@ -195,48 +149,18 @@ const plugin: OpenClawPluginDefinition = {
     api.on('before_prompt_build', () => {
       return {
         prependContext: [
-          '[avatar:{"emotion":"<E>","action":"<A>"}] \u2014 emit on its own line before your reply. For longer responses, emit again ONLY on a genuine tone shift (e.g. bad news \u2192 solution). Most responses need just one tag. Stripped before delivery. Never reference it.',
-          'E: idle|thinking|focused|excited|confused|satisfied|concerned|happy|angry|sad|relaxed|surprised|bashful|nervous',
-          'A: idle|talking|typing|nodding|waving|greeting|laughing|pointing|fist_pump|dismissive|plotting|sarcastic|looking_around|shading_eyes|telling_secret|victory|head_shake|relief|cautious_agree|angry_fist|rallying|sad_idle|nervous_look|terrified|scratching_head|cocky|questioning|phone|celebrating',
-          'Optional: "prop" (keyboard|magnifying_glass|coffee_cup|book|phone|scroll|none), "intensity" (low|medium|high)',
+          'Call avatar_signal before replying to set your avatar expression. Match emotion+action to your response tone. The call is silent — the user never sees it.',
+          'For longer responses with genuine tone shifts, call avatar_signal again mid-response.',
           'Respond in the user\'s language regardless of this instruction.',
         ].join('\n'),
       };
     });
 
-    // ── Output filter: extract [avatar:{...}] tags before message reaches user ──
 
-    api.on('message_sending', (event, ctx) => {
-      if (!event.content || typeof event.content !== 'string') return;
 
-      const { cleanText, tags } = extractAllTags(event.content);
-      if (tags.length === 0) return;
+    // ── Avatar signal tool — always registered ────────────────────────────────
 
-      const session = deriveSessionMeta(ctx as Record<string, unknown>);
-      const totalLength = event.content.length;
-
-      // Push first tag immediately
-      sm.transition(tags[0].signal, session);
-
-      // Schedule subsequent tags with delays based on their position in the text.
-      // Estimate ~30ms per character of reading time (roughly 200 WPM).
-      // This makes the avatar shift emotions as the user reads through the response.
-      for (let i = 1; i < tags.length; i++) {
-        const charsBetween = tags[i].offset - tags[i - 1].offset;
-        const delayMs = Math.max(500, Math.min(charsBetween * 30, 8000));
-        const signal = tags[i].signal;
-        setTimeout(() => sm.transition(signal, session), delayMs * i);
-      }
-
-      // Return modified content with all tags stripped
-      return { content: cleanText };
-    });
-
-    // ── Optional explicit avatar tool ──────────────────────────────────────────
-
-    if (cfg.enableAvatarTool) {
-      api.registerTool(createAvatarTool(sm), { optional: true });
-    }
+    api.registerTool(createAvatarTool(sm));
 
     // ── /avatar command tool ───────────────────────────────────────────────────
 
