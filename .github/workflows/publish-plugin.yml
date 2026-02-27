@@ -49,11 +49,21 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          # registry-url omitted intentionally: setting it causes setup-node to inject
-          # NODE_AUTH_TOKEN into .npmrc which overwrites the OIDC token from changesets/action
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
+
+      # Exchange GitHub OIDC token for a scoped npm access token before publish.
+      # This step only runs when changesets would publish (i.e. no pending changesets).
+      # The token is written to .npmrc by setup-node via NODE_AUTH_TOKEN.
+      - name: Get npm OIDC token
+        id: npm-token
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r '.value')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       # changesets/action does two things depending on state:
       #   1. No pending changesets → opens (or updates) a "Version Packages" PR
@@ -68,3 +78,4 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.npm-token.outputs.token }}
