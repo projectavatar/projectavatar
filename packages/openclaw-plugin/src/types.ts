@@ -30,21 +30,19 @@ export interface AvatarEvent {
 export type AvatarSignal = Partial<AvatarEvent>;
 
 export interface PluginConfig {
-  relayUrl:          string;
-  enabled:           boolean;
-  idleTimeoutMs:     number;
-  debounceMs:        number;
-  enableAvatarTool:  boolean;
-  suppressSkillTags: boolean;
+  relayUrl:         string;
+  enabled:          boolean;
+  idleTimeoutMs:    number;
+  debounceMs:       number;
+  enableAvatarTool: boolean;
 }
 
 export const DEFAULT_CONFIG: PluginConfig = {
-  relayUrl:          'https://relay.projectavatar.io',
-  enabled:           true,
-  idleTimeoutMs:     30_000,
-  debounceMs:        300,
-  enableAvatarTool:  false,
-  suppressSkillTags: true,
+  relayUrl:         'https://relay.projectavatar.io',
+  enabled:          true,
+  idleTimeoutMs:    30_000,
+  debounceMs:       300,
+  enableAvatarTool: false,
 };
 
 export const IDLE_EVENT: AvatarEvent = {
@@ -108,11 +106,6 @@ export function validatePluginConfig(
   if ('enableAvatarTool' in cfg) {
     if (typeof cfg.enableAvatarTool !== 'boolean') errors.push('enableAvatarTool must be a boolean');
     else sanitized.enableAvatarTool = cfg.enableAvatarTool;
-  }
-
-  if ('suppressSkillTags' in cfg) {
-    if (typeof cfg.suppressSkillTags !== 'boolean') errors.push('suppressSkillTags must be a boolean');
-    else sanitized.suppressSkillTags = cfg.suppressSkillTags;
   }
 
   return { errors, sanitized };

@@ -34,15 +34,7 @@ export type MessageReceivedEvent = {
   timestamp?: number;
 };
 
-export type MessageSendingEvent = {
-  to: string;
-  content: string;
-};
 
-export type MessageSendingResult = {
-  content?: string;
-  cancel?: boolean;
-};
 
 export type BeforeToolCallEvent = {
   toolName: string;
@@ -70,15 +62,7 @@ export type AgentEndEvent = {
   durationMs?: number;
 };
 
-export type BeforePromptBuildEvent = {
-  prompt: string;
-  messages: unknown[];
-};
 
-export type BeforePromptBuildResult = {
-  systemPrompt?: string;
-  prependContext?: string;
-};
 
 export type SessionEndEvent = {
   sessionId: string;
@@ -92,11 +76,9 @@ type AnyCtx = Record<string, unknown>;
 
 export type PluginHookHandlerMap = {
   message_received:    (event: MessageReceivedEvent,    ctx: AnyCtx) => void | Promise<void>;
-  message_sending:     (event: MessageSendingEvent,     ctx: AnyCtx) => MessageSendingResult | void | Promise<MessageSendingResult | void>;
   before_tool_call:    (event: BeforeToolCallEvent,     ctx: AnyCtx) => BeforeToolCallResult | void | Promise<BeforeToolCallResult | void>;
   after_tool_call:     (event: AfterToolCallEvent,      ctx: AnyCtx) => void | Promise<void>;
   agent_end:           (event: AgentEndEvent,           ctx: AnyCtx) => void | Promise<void>;
-  before_prompt_build: (event: BeforePromptBuildEvent,  ctx: AnyCtx) => BeforePromptBuildResult | void | Promise<BeforePromptBuildResult | void>;
   session_end:         (event: SessionEndEvent,         ctx: AnyCtx) => void | Promise<void>;
 };
 

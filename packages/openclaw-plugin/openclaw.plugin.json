@@ -29,10 +29,6 @@
       "enableAvatarTool": {
         "type": "boolean",
         "default": false
-      },
-      "suppressSkillTags": {
-        "type": "boolean",
-        "default": true
       }
     }
   },
@@ -54,11 +50,6 @@
     "enableAvatarTool": {
       "label": "Avatar Tool",
       "help": "Register an 'avatar' tool the LLM can call to explicitly set avatar state",
-      "advanced": true
-    },
-    "suppressSkillTags": {
-      "label": "Suppress Skill Tags",
-      "help": "Strip [avatar:{...}] tags from output — the plugin handles signaling instead",
       "advanced": true
     }
   }
