@@ -1,7 +1,7 @@
 /**
  * avatar-command-tool.ts tests.
  *
- * Tests the avatar_link tool that powers the /avatar Discord slash command.
+ * Tests the avatar_commands tool that powers the /avatar Discord slash command.
  * Covers: link generation, status fetch (success + errors), unknown subcommand,
  * missing token, and the lazy getToken() behaviour.
  */
@@ -29,7 +29,7 @@ function textOf(result: { content: Array<{ type: string; text: string }> }) {
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
-describe('avatar_link tool', () => {
+describe('avatar_commands tool', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -38,7 +38,7 @@ describe('avatar_link tool', () => {
 
   it('has correct name and parameters schema', () => {
     const tool = createAvatarCommandTool(makeCfg(), () => 'tok');
-    expect(tool.name).toBe('avatar_link');
+    expect(tool.name).toBe('avatar_commands');
     expect(tool.parameters.type).toBe('object');
     expect(tool.parameters.properties).toHaveProperty('command');
     expect(tool.parameters.properties).toHaveProperty('commandName');

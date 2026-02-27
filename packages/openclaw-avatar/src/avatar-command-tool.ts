@@ -1,5 +1,5 @@
 /**
- * avatar_link tool — handles /avatar [link|status] command dispatch.
+ * avatar_commands tool — handles /avatar [link|status] command dispatch.
  *
  * Registered via the plugin and invoked by the skill's command-dispatch:tool
  * so /avatar works as a native Discord slash command without going through
@@ -19,7 +19,7 @@ function reply(text: string) {
 
 export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => string) {
   return {
-    name: 'avatar_link',
+    name: 'avatar_commands',
     description: 'Returns the avatar share link or channel status. Used internally by the /avatar slash command.',
     parameters: {
       type: 'object' as const,
