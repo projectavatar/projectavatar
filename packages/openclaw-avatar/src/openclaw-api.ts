@@ -70,6 +70,17 @@ export type SessionEndEvent = {
   durationMs?: number;
 };
 
+export type MessageSendingEvent = {
+  to: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type MessageSendingResult = {
+  content?: string;
+  cancel?: boolean;
+};
+
 // ── Hook map ────────────────────────────────────────────────────────────────
 
 type AnyCtx = Record<string, unknown>;
@@ -80,6 +91,7 @@ export type PluginHookHandlerMap = {
   after_tool_call:     (event: AfterToolCallEvent,      ctx: AnyCtx) => void | Promise<void>;
   agent_end:           (event: AgentEndEvent,           ctx: AnyCtx) => void | Promise<void>;
   session_end:         (event: SessionEndEvent,         ctx: AnyCtx) => void | Promise<void>;
+  message_sending:     (event: MessageSendingEvent,     ctx: AnyCtx) => MessageSendingResult | void | Promise<MessageSendingResult | void>;
 };
 
 export type PluginHookName = keyof PluginHookHandlerMap;

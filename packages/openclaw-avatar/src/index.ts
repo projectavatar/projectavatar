@@ -22,6 +22,33 @@ import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, SessionMeta } from './types.js';
 import { deriveSessionPriority } from './session-utils.js';
 
+// ─── Tag extraction (inline — plugin is standalone, no dep on skill/filters) ──
+
+const AVATAR_TAG_REGEX = /^\[avatar:(\{[^}]+\})\]\s*\n?/m;
+
+function extractAndStripTag(text: string): { cleanText: string; tagEvent: import('./types.js').AvatarSignal | null } {
+  try {
+    const match = text.match(AVATAR_TAG_REGEX);
+    if (!match) return { cleanText: text, tagEvent: null };
+
+    const parsed = JSON.parse(match[1]);
+    if (typeof parsed.emotion !== 'string' && typeof parsed.action !== 'string') {
+      return { cleanText: text, tagEvent: null };
+    }
+
+    const cleanText = text.replace(match[0], '').trimStart();
+    const tagEvent: import('./types.js').AvatarSignal = {};
+    if (typeof parsed.emotion === 'string') tagEvent.emotion = parsed.emotion;
+    if (typeof parsed.action === 'string') tagEvent.action = parsed.action;
+    if (typeof parsed.prop === 'string') tagEvent.prop = parsed.prop;
+    if (typeof parsed.intensity === 'string') tagEvent.intensity = parsed.intensity;
+
+    return { cleanText, tagEvent };
+  } catch {
+    return { cleanText: text, tagEvent: null };
+  }
+}
+
 /**
  * Fallback signals for tool calls on tools not in the tool map.
  * The avatar should always react to tool activity, even for unknown tools.
@@ -140,6 +167,22 @@ const plugin: OpenClawPluginDefinition = {
     api.on('session_end', (_event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.reset(session);
+    });
+
+    // ── Output filter: extract [avatar:{...}] tags before message reaches user ──
+
+    api.on('message_sending', (event, ctx) => {
+      if (!event.content || typeof event.content !== 'string') return;
+
+      const { cleanText, tagEvent } = extractAndStripTag(event.content);
+      if (!tagEvent) return;
+
+      // Push the tag event to the relay
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      sm.transition(tagEvent, session);
+
+      // Return modified content with the tag stripped
+      return { content: cleanText };
     });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────
