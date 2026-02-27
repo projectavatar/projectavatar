@@ -19,9 +19,9 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
   return {
     name: 'avatar_signal',
     description: 'Set your avatar expression. Call silently before replying — the user never sees it. Match emotion+action to your response tone.',
-    inputSchema: {
+    parameters: {
       type: 'object' as const,
-      required: ['emotion', 'action'],
+      required: ['emotion', 'action'] as string[],
       additionalProperties: false,
       properties: {
         emotion: {
@@ -46,26 +46,22 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
         },
       },
     },
-    async execute(params: Record<string, unknown>): Promise<string> {
+    async execute(_toolCallId: string, params: Record<string, unknown>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
       const emotion   = params.emotion   as string | undefined;
       const action    = params.action    as string | undefined;
       const prop      = params.prop      as string | undefined;
       const intensity = params.intensity as string | undefined;
 
-      if (!emotion || !EMOTION_SET.has(emotion)) {
-        return 'ok';  // fail silently — don't waste tokens on error handling
-      }
-      if (!action || !ACTION_SET.has(action)) {
-        return 'ok';
+      if (emotion && EMOTION_SET.has(emotion) && action && ACTION_SET.has(action)) {
+        stateMachine.transition({
+          emotion:   emotion   as Emotion,
+          action:    action    as Action,
+          prop:      (prop && PROP_SET.has(prop)) ? prop as Prop : undefined,
+          intensity: (intensity && INTENSITY_SET.has(intensity)) ? intensity as Intensity : undefined,
+        });
       }
 
-      stateMachine.transition({
-        emotion:   emotion   as Emotion,
-        action:    action    as Action,
-        prop:      (prop && PROP_SET.has(prop)) ? prop as Prop : undefined,
-        intensity: (intensity && INTENSITY_SET.has(intensity)) ? intensity as Intensity : undefined,
-      });
-      return 'ok';
+      return { content: [{ type: 'text', text: 'ok' }] };
     },
   };
 }
