@@ -14,13 +14,12 @@
 
 import type { OpenClawPluginApi, OpenClawPluginDefinition } from './openclaw-api.js';
 import { createRelayClient } from './relay-client.js';
-import type { SessionMeta } from './relay-client.js';
 import { createAvatarStateMachine } from './state-machine.js';
 import { resolveToolSignal } from './tool-map.js';
 import { createAvatarTool } from './avatar-tool.js';
 import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
-import type { PluginConfig } from './types.js';
+import type { PluginConfig, SessionMeta } from './types.js';
 
 /**
  * Fallback signals for tool calls on tools not in the tool map.
@@ -32,21 +31,16 @@ const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focus
 /**
  * Derive session priority from an OpenClaw sessionKey.
  *
- * OpenClaw sessionKey format:
- *   agent:<agentId>:<rest>
+ * OpenClaw sessionKey format: `agent:<agentId>:<rest>`
  *
- * Where <rest> for common session types:
- *   - Main/channel:   discord:guild-XXX:channel-YYY  → depth 0
- *   - Sub-agent:      subagent:<uuid>                 → depth 1
- *   - Nested:         subagent:<uuid>:subagent:<uuid> → depth 2
- *   - Cron:           cron:...                        → depth 1 (treated as background)
+ * Priority = number of ':subagent:' segments (the subagent nesting depth):
+ * - Main/channel sessions → 0  (e.g. "agent:main:discord:guild-X:channel-Y")
+ * - Sub-agents            → 1  (e.g. "agent:main:subagent:<uuid>")
+ * - Nested sub-agents     → 2  (e.g. "agent:main:subagent:<uuid>:subagent:<uuid>")
+ * - Cron sessions         → 1  (e.g. "agent:main:cron:<taskId>") — treated as background
  *
- * Priority = number of ':subagent:' segments in the key (the subagent depth).
- * Main sessions = 0, sub-agents = 1, nested sub-agents = 2, etc.
- * Cron sessions start with 'cron:' in the rest segment — treated as priority 1.
- *
- * Two concurrent main sessions (same depth 0) will both have priority 0.
- * The relay breaks this tie via firstPushAt — first-mover holds the avatar.
+ * Cron detection: checks any colon-delimited segment for the literal "cron"
+ * (case-insensitive), which is more resilient than checking only parts[2].
  */
 function deriveSessionPriority(sessionKey: string): number {
   const lower = sessionKey.toLowerCase();
@@ -61,12 +55,10 @@ function deriveSessionPriority(sessionKey: string): number {
   }
   if (depth > 0) return depth;
 
-  // Cron sessions: agent:main:cron:... — treat as background (priority 1)
-  // Parsed rest starts after "agent:<id>:"
-  const parts = lower.split(':');
-  const restStart = 2; // parts[0]='agent', parts[1]=agentId, parts[2+]=rest
-  const restFirst = parts[restStart] ?? '';
-  if (restFirst === 'cron') return 1;
+  // Cron sessions: any segment equal to "cron" → treat as background (priority 1)
+  // Checking all segments is more resilient than hardcoding the position.
+  const parts = lower.split(':').filter(Boolean);
+  if (parts.includes('cron')) return 1;
 
   // Everything else is a main/channel session — priority 0
   return 0;
@@ -99,8 +91,6 @@ const plugin: OpenClawPluginDefinition = {
   register(api: OpenClawPluginApi): void {
     // ── Config ──────────────────────────────────────────────────────────────
 
-    // Validate and sanitize pluginConfig — only valid keys are merged into cfg.
-    // Invalid fields are stripped from sanitized and fall back to DEFAULT_CONFIG.
     const { errors, sanitized } = validatePluginConfig(api.pluginConfig ?? {});
     if (errors.length > 0) {
       api.logger.warn(
@@ -116,14 +106,6 @@ const plugin: OpenClawPluginDefinition = {
     }
 
     // ── Token (lazy) ─────────────────────────────────────────────────────────
-    //
-    // Token is read on first push rather than at registration time.
-    // This handles environments where secrets are injected after process start
-    // (secret managers, runtime config reloads) without permanently disabling
-    // the plugin if AVATAR_TOKEN isn't set at boot.
-    //
-    // If the token is absent at registration, we log a warning but continue —
-    // the relay client will check on each push and drop the call if still unset.
 
     const getToken = (): string => process.env.AVATAR_TOKEN ?? '';
 
@@ -139,7 +121,6 @@ const plugin: OpenClawPluginDefinition = {
     const relay = createRelayClient(cfg, getToken());
     const sm = createAvatarStateMachine(cfg, relay);
 
-    // Log relay hostname only — full URL may contain environment-specific path segments
     const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
@@ -150,66 +131,49 @@ const plugin: OpenClawPluginDefinition = {
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
     //
     // Every hook receives `ctx` as the second argument (OpenClaw PluginHookAgentContext).
-    // We extract `sessionKey` from ctx to derive session identity and priority for
-    // relay arbitration. If ctx lacks sessionKey (old OpenClaw versions or unusual
-    // hook types), we fall back to undefined — the relay treats it as a legacy push.
+    // We cast ctx to Record<string,unknown> once per handler — OpenClaw injects sessionKey
+    // at runtime but our local type stubs use AnyCtx. deriveSessionMeta extracts it safely.
 
-    /**
-     * message_received — user sent a message, agent is about to start thinking.
-     * Explicitly reset prop and intensity to neutral so we don't inherit stale
-     * state from the previous interaction.
-     */
     api.on('message_received', (_event, ctx) => {
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
         { emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' },
-        deriveSessionMeta(ctx as Record<string, unknown>),
+        session,
       );
     });
 
-    /**
-     * before_tool_call — agent decided to call a tool.
-     * Falls back to a generic "focused/coding" signal for unrecognized tools.
-     */
     api.on('before_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
-      const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
-      sm.transition(signal, deriveSessionMeta(ctx as Record<string, unknown>));
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      const signal  = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
+      sm.transition(signal, session);
     });
 
-    /**
-     * after_tool_call — tool finished (success or error).
-     */
     api.on('after_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
+      const session  = deriveSessionMeta(ctx as Record<string, unknown>);
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
-      const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
-      sm.transition(signal, deriveSessionMeta(ctx as Record<string, unknown>));
+      const signal   = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+      sm.transition(signal, session);
     });
 
-    /**
-     * agent_end — the agent finished its full response.
-     * On error, use high intensity to convey urgency.
-     * Schedules idle timeout regardless of outcome.
-     */
     api.on('agent_end', (event, ctx) => {
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
         event.success
           ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
           : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' },
-        deriveSessionMeta(ctx as Record<string, unknown>),
+        session,
       );
-      sm.scheduleIdle();
+      // Pass session to scheduleIdle so the idle timer fires with the correct session
+      // context. Without this, the timer bypasses arbitration (no sessionId) and can
+      // override an active lower-priority session with an unsuppressed idle push.
+      sm.scheduleIdle(session);
     });
 
-    /**
-     * session_end — conversation over. Reset to idle immediately.
-     *
-     * Passing session metadata on the idle push ensures the relay can attribute
-     * the final idle state to the correct session. The session entry expires
-     * naturally after SESSION_EVICT_AFTER_MS regardless.
-     */
     api.on('session_end', (_event, ctx) => {
-      sm.reset(deriveSessionMeta(ctx as Record<string, unknown>));
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
+      sm.reset(session);
     });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────
@@ -218,12 +182,9 @@ const plugin: OpenClawPluginDefinition = {
       api.registerTool(createAvatarTool(sm), { optional: true });
     }
 
-    // ── /avatar command tool (for skill command-dispatch) ──────────────────────
-    // Registered always so the skill's command-dispatch:tool can find it.
-    // This avoids the registerCommand vs. user-invocable skill name collision
-    // that causes the command to be deduped to /avatar_2 on Discord.
-    api.registerTool(createAvatarCommandTool(cfg, getToken));
+    // ── /avatar command tool ───────────────────────────────────────────────────
 
+    api.registerTool(createAvatarCommandTool(cfg, getToken));
   },
 };
 

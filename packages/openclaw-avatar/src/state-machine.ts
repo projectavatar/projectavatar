@@ -11,9 +11,9 @@
  *  5. Pass session metadata to the relay for multi-session arbitration
  */
 
-import type { AvatarEvent, AvatarSignal, PluginConfig } from './types.js';
+import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './types.js';
 import { IDLE_EVENT } from './types.js';
-import type { RelayClient, SessionMeta } from './relay-client.js';
+import type { RelayClient } from './relay-client.js';
 
 /** Higher number = higher priority. Errors and excitement beat idle/focused. */
 const EMOTION_PRIORITY: Record<string, number> = {
@@ -47,8 +47,14 @@ export type AvatarStateMachine = {
    *                 If omitted, the relay treats the push as a legacy push.
    */
   transition: (signal: AvatarSignal, session?: SessionMeta) => void;
-  /** Schedule a return to idle after idleTimeoutMs. Call after agent_end. */
-  scheduleIdle: () => void;
+  /**
+   * Schedule a return to idle after idleTimeoutMs. Call after agent_end.
+   * @param session  The session that triggered agent_end — captured in the timer
+   *                 closure so the idle push is correctly attributed for arbitration.
+   *                 Without this, a session's idle timer could bypass arbitration
+   *                 and override an active lower-priority session.
+   */
+  scheduleIdle: (session?: SessionMeta) => void;
   /**
    * Immediately reset to idle and cancel all pending timers. Call on session_end.
    * @param session  Optional session metadata so the relay can attribute the idle push.
@@ -144,14 +150,16 @@ export function createAvatarStateMachine(
     emit(next, session);
   }
 
-  function scheduleIdle(): void {
+  function scheduleIdle(session?: SessionMeta): void {
     clearIdle();
+    // Capture the session in the closure so the idle push is attributed to the
+    // correct session. Without this, the timer fires without sessionId/priority,
+    // bypasses relay arbitration, and can override an active lower-priority session.
+    const idleSession = session;
     idleTimer = setTimeout(() => {
       idleTimer = null;
       if (!eventsEqual(current, IDLE_EVENT)) {
-        // Idle timeout fires without session context — it's a timer, not a hook.
-        // The relay will attribute it to whichever session last pushed, which is fine.
-        emit({ ...IDLE_EVENT });
+        emit({ ...IDLE_EVENT }, idleSession);
       }
     }, cfg.idleTimeoutMs);
   }

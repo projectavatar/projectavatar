@@ -32,12 +32,37 @@ export interface AvatarEvent {
   /**
    * Session priority for relay arbitration. Lower = higher priority.
    * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
+   * When absent, the relay defaults to 0 (highest priority) — but this default
+   * lives in the relay's handlePush, not here. The schema validates the shape only.
    */
   priority?: number;
 }
 
-/** A partial update — only the fields you want to change. */
+/** A partial update — only the display fields. sessionId/priority are relay concerns. */
 export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotion' | 'action' | 'prop' | 'intensity'>>;
+
+/**
+ * Session metadata attached to each relay push.
+ * Enables the relay to perform multi-session arbitration — suppressing lower-priority
+ * sessions while a higher-priority session is active.
+ *
+ * Defined here (types.ts) rather than relay-client.ts because it is used by
+ * relay-client, state-machine, and index — and types.ts is the canonical home
+ * for shared plugin types.
+ */
+export interface SessionMeta {
+  /**
+   * Stable identifier for this session, derived from the OpenClaw sessionKey.
+   * Passed as-is to the relay — opaque from the relay's perspective.
+   */
+  sessionId: string;
+  /**
+   * Priority for relay arbitration. Lower = higher priority.
+   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
+   * Derived from the number of ':subagent:' segments in the sessionKey.
+   */
+  priority: number;
+}
 
 /**
  * Default app URL for share link generation.
@@ -103,10 +128,8 @@ export function validatePluginConfig(
     if (typeof cfg.relayUrl !== 'string') {
       errors.push('relayUrl must be a string');
     } else {
-      // Validate as a proper URL — a non-URL string produces silent fetch failures
       try {
         new URL(cfg.relayUrl);
-        // Strip trailing slash to prevent double-slash in constructed paths
         sanitized.relayUrl = cfg.relayUrl.replace(/\/+$/, '');
       } catch {
         errors.push(`relayUrl must be a valid URL (got: ${cfg.relayUrl})`);

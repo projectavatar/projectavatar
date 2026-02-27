@@ -19,8 +19,11 @@
  * Critical: this must NEVER throw or block.
  */
 
-import type { AvatarEvent, AvatarSignal, PluginConfig } from './types.js';
+import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './types.js';
 import { EMOTIONS, ACTIONS, PROPS, INTENSITIES, IDLE_EVENT } from './types.js';
+
+// Re-export SessionMeta so callers that imported it from relay-client.ts continue to work.
+export type { SessionMeta } from './types.js';
 
 // Derived from the canonical arrays — never duplicated.
 const EMOTION_SET   = new Set<string>(EMOTIONS);
@@ -35,24 +38,6 @@ function isValidEvent(event: AvatarEvent): boolean {
     PROP_SET.has(event.prop) &&
     INTENSITY_SET.has(event.intensity)
   );
-}
-
-/**
- * Session metadata attached to each push.
- * Derived from the OpenClaw hook context (sessionKey) and used by the relay
- * for multi-session arbitration.
- */
-export interface SessionMeta {
-  /**
-   * Stable identifier for this session, derived from the OpenClaw sessionKey.
-   * Passed as-is to the relay — opaque from the relay's perspective.
-   */
-  sessionId: string;
-  /**
-   * Priority for relay arbitration. Lower = higher priority.
-   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
-   */
-  priority: number;
 }
 
 export type RelayClient = {

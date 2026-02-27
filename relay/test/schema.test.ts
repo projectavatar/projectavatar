@@ -116,4 +116,64 @@ describe('validateAvatarEvent', () => {
   it('prop is optional — undefined is fine', () => {
     expect(validateAvatarEvent({ emotion: 'idle', action: 'waiting', prop: undefined })).toEqual({ ok: true });
   });
+
+  // ── sessionId and priority validation ─────────────────────────────────────
+
+  it('accepts event with valid sessionId', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 'agent:main:discord:channel-1' }),
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts event with valid priority 0', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 'sess', priority: 0 }),
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts event with valid priority > 0', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 'sess', priority: 2 }),
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts event with sessionId but no priority (priority is optional)', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 'sess' }),
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts event with neither sessionId nor priority (legacy single-session)', () => {
+    expect(validateAvatarEvent({ emotion: 'focused', action: 'coding' })).toEqual({ ok: true });
+  });
+
+  it('rejects non-string sessionId', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 42 }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('rejects priority: -1 (negative)', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', priority: -1 }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('rejects priority: 1.5 (non-integer)', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', priority: 1.5 }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('rejects priority: "high" (non-number)', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', priority: 'high' }),
+    ).toMatchObject({ ok: false });
+  });
+
+  it('still rejects truly unknown extra fields alongside sessionId/priority', () => {
+    expect(
+      validateAvatarEvent({ emotion: 'focused', action: 'coding', sessionId: 'sess', foo: 'bar' }),
+    ).toMatchObject({ ok: false });
+  });
 });
