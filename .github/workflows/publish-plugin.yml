@@ -60,7 +60,7 @@ jobs:
       #   2. Version PR is merged → publishes to npm and creates a GitHub release
       - name: Create Version PR or Publish
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v1.7.0
         with:
           publish: npx changeset publish --provenance
           title: 'chore: version packages'
