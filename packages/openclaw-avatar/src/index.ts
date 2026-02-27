@@ -195,7 +195,7 @@ const plugin: OpenClawPluginDefinition = {
     api.on('before_prompt_build', () => {
       return {
         prependContext: [
-          '[avatar:{"emotion":"<E>","action":"<A>"}] \u2014 emit before your reply AND whenever your tone shifts mid-response. Match emotion+action to what you are saying. Stripped before delivery. Never reference it.',
+          '[avatar:{"emotion":"<E>","action":"<A>"}] \u2014 emit on its own line before your reply. For longer responses, emit again ONLY on a genuine tone shift (e.g. bad news \u2192 solution). Most responses need just one tag. Stripped before delivery. Never reference it.',
           'E: idle|thinking|focused|excited|confused|satisfied|concerned|happy|angry|sad|relaxed|surprised|bashful|nervous',
           'A: idle|talking|typing|nodding|waving|greeting|laughing|pointing|fist_pump|dismissive|plotting|sarcastic|looking_around|shading_eyes|telling_secret|victory|head_shake|relief|cautious_agree|angry_fist|rallying|sad_idle|nervous_look|terrified|scratching_head|cocky|questioning|phone|celebrating',
           'Optional: "prop" (keyboard|magnifying_glass|coffee_cup|book|phone|scroll|none), "intensity" (low|medium|high)',
