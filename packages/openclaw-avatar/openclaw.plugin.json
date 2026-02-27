@@ -2,7 +2,8 @@
   "id": "openclaw-avatar",
   "name": "Project Avatar",
   "description": "Real-time 3D avatar driven by agent lifecycle hooks. Your agent gets a face.",
-  "version": "1.1.0",
+  "version": "1.2.0",
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -60,7 +61,7 @@
     },
     "debounceMs": {
       "label": "Debounce (ms)",
-      "help": "Minimum time between relay pushes \u2014 prevents flooding during rapid tool calls",
+      "help": "Minimum time between relay pushes — prevents flooding during rapid tool calls",
       "advanced": true
     },
     "enableAvatarTool": {
