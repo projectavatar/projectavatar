@@ -10,20 +10,66 @@ import type {
 } from '../../packages/shared/src/schema.js';
 import type { Env } from './types.js';
 
-const LAST_EVENT_KEY        = 'lastEvent';
-const MODEL_KEY             = 'model';
+const LAST_EVENT_KEY          = 'lastEvent';
+const MODEL_KEY               = 'model';
 const LAST_AGENT_EVENT_AT_KEY = 'lastAgentEventAt';
+
+/**
+ * How long (ms) a session remains "active" after its last push.
+ * A higher-priority session that has been silent for this window is considered
+ * idle, and the next push from any lower-priority session will win arbitration.
+ *
+ * 10s is intentionally generous — a main session that pauses between tool calls
+ * should still hold the avatar. Sub-agents only surface when the main session is
+ * genuinely idle, not just between steps.
+ */
+const SESSION_ACTIVE_WINDOW_MS = 10_000;
+
+/**
+ * How long (ms) before a session entry is evicted from the in-memory registry.
+ * Lazy cleanup: pruning happens on each push, not on a timer.
+ * Sessions that stop pushing (crash, end) are removed after this window.
+ */
+const SESSION_EVICT_AFTER_MS = 60_000;
+
+/**
+ * In-memory registry entry for a single session.
+ * The registry is ephemeral — not persisted to DO storage. If the DO hibernates
+ * and wakes, the registry starts empty and sessions re-announce on their next push.
+ */
+interface SessionEntry {
+  priority:    number;    // Lower = higher priority (0 = main session)
+  lastPushAt:  number;    // Unix ms of last push from this session
+  lastEvent:   AvatarEvent; // Last event from this session (for replay on handoff)
+}
 
 /**
  * Channel Durable Object — one instance per token.
  *
  * Responsibilities:
  * - Holds the set of connected WebSocket clients (via hibernation API)
- * - Receives pushed avatar events and fans them out to all connected clients
+ * - Receives pushed avatar events and fans them out to connected clients
+ * - Arbitrates between multiple concurrent sessions — only the highest-priority
+ *   active session's events are broadcast; lower-priority events are absorbed
  * - Persists the last known event, model, and lastAgentEventAt to DO storage
  * - Sends full channel state to new clients on WebSocket connect
  * - Handles `set_model` messages from clients and broadcasts `model_changed`
  * - Exposes GET /state for the plugin's share-link generation
+ *
+ * ## Multi-session arbitration
+ * Sessions declare their priority in each push event (optional field).
+ * The DO maintains an in-memory session registry keyed by sessionId.
+ * On each push:
+ *   1. Register/update the pushing session's entry
+ *   2. Prune stale session entries (> SESSION_EVICT_AFTER_MS since last push)
+ *   3. Find the "active winner" — lowest priority number among sessions that
+ *      pushed within SESSION_ACTIVE_WINDOW_MS
+ *   4. Fan out the event only if the pushing session IS the active winner
+ *   5. If the pushing session just became winner (higher-priority session went
+ *      idle), replay this event — the avatar transitions naturally
+ *
+ * Legacy events (no sessionId) are treated as priority 0 and always fan out
+ * immediately (same as pre-arbitration behavior for single-session setups).
  *
  * ## Source of truth
  * The DO owns channel identity state: model selection and agent activity
@@ -40,6 +86,8 @@ const LAST_AGENT_EVENT_AT_KEY = 'lastAgentEventAt';
  * The DO uses the WebSocket Hibernation API (`state.acceptWebSocket`). This
  * means the DO can sleep when idle (zero cost) and wake on the next request.
  * All persistent state is stored in DO storage so it survives eviction.
+ * The session registry is in-memory only and resets on hibernation — sessions
+ * re-announce naturally on their next push, so this is safe.
  */
 export class Channel implements DurableObject {
   private state: DurableObjectState;
@@ -49,6 +97,13 @@ export class Channel implements DurableObject {
   private lastEventCache: AvatarEvent | null | undefined = undefined;
   private modelCache: string | null | undefined = undefined;
   private lastAgentEventAtCache: number | null | undefined = undefined;
+
+  /**
+   * In-memory session registry. Keyed by sessionId.
+   * Ephemeral — resets on DO hibernation. Sessions re-register on next push.
+   * Only populated when events include sessionId — legacy events bypass this entirely.
+   */
+  private sessions: Map<string, SessionEntry> = new Map();
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
@@ -103,15 +158,67 @@ export class Channel implements DurableObject {
     }
 
     const event = body as AvatarEvent;
-    const now = Date.now();
+    const now   = Date.now();
+
+    // ── Multi-session arbitration ──────────────────────────────────────────
+    //
+    // Legacy events (no sessionId) bypass arbitration entirely — they fan out
+    // immediately. This preserves backward compatibility for skill-based agents
+    // and single-session setups that don't set sessionId.
+    //
+    // For session-aware events:
+    //   1. Register/update the session entry
+    //   2. Prune stale entries (lazy GC — no timers)
+    //   3. Determine the active winner (lowest priority with recent push)
+    //   4. Only fan out if this session IS the winner
+
+    let shouldFanOut = true;
+
+    if (event.sessionId !== undefined) {
+      const sessionId = event.sessionId;
+      const priority  = event.priority ?? 0;
+
+      // Update this session's entry
+      this.sessions.set(sessionId, {
+        priority,
+        lastPushAt: now,
+        lastEvent:  event,
+      });
+
+      // Lazy prune: remove sessions silent for > SESSION_EVICT_AFTER_MS
+      for (const [id, entry] of this.sessions) {
+        if (now - entry.lastPushAt > SESSION_EVICT_AFTER_MS) {
+          this.sessions.delete(id);
+        }
+      }
+
+      // Find the active winner: lowest priority number among recently active sessions
+      let winnerPriority = Infinity;
+      for (const entry of this.sessions.values()) {
+        if (now - entry.lastPushAt <= SESSION_ACTIVE_WINDOW_MS) {
+          if (entry.priority < winnerPriority) {
+            winnerPriority = entry.priority;
+          }
+        }
+      }
+
+      // Fan out only if this session's priority matches the winner
+      shouldFanOut = priority === winnerPriority;
+    }
+
+    if (!shouldFanOut) {
+      // Suppressed: a higher-priority session is currently active.
+      // Return 200 so the plugin doesn't retry — this is intentional suppression.
+      return jsonResponse({ ok: true, clients: 0, suppressed: true }, 200);
+    }
 
     // Persist event + activity timestamp in a single atomic write
     await this.state.storage.put({
       [LAST_EVENT_KEY]:          event,
       [LAST_AGENT_EVENT_AT_KEY]: now,
     });
-    this.lastEventCache          = event;
-    this.lastAgentEventAtCache   = now;
+    this.lastEventCache        = event;
+    this.lastAgentEventAtCache = now;
 
     // Fan out to all connected WebSocket clients
     const sockets = this.state.getWebSockets();
@@ -163,9 +270,9 @@ export class Channel implements DurableObject {
     // reflects the accurate post-connect count (including this client). This is
     // intentional: the client sees itself counted among the viewers immediately.
     const channelStateMsg: ChannelStateMessage = {
-      type:      'channel_state',
-      version:   PROTOCOL_VERSION,
-      data:      {
+      type:    'channel_state',
+      version: PROTOCOL_VERSION,
+      data:    {
         model,
         lastAgentEventAt,
         connectedClients: this.state.getWebSockets().length,

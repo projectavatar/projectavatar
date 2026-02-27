@@ -24,10 +24,20 @@ export interface AvatarEvent {
   action:    Action;
   prop:      Prop;
   intensity: Intensity;
+  /**
+   * Opaque session identifier. Included in every push so the relay can
+   * perform multi-session arbitration. Derived from the OpenClaw sessionKey.
+   */
+  sessionId?: string;
+  /**
+   * Session priority for relay arbitration. Lower = higher priority.
+   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
+   */
+  priority?: number;
 }
 
 /** A partial update — only the fields you want to change. */
-export type AvatarSignal = Partial<AvatarEvent>;
+export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotion' | 'action' | 'prop' | 'intensity'>>;
 
 /**
  * Default app URL for share link generation.

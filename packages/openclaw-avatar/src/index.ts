@@ -14,6 +14,7 @@
 
 import type { OpenClawPluginApi, OpenClawPluginDefinition } from './openclaw-api.js';
 import { createRelayClient } from './relay-client.js';
+import type { SessionMeta } from './relay-client.js';
 import { createAvatarStateMachine } from './state-machine.js';
 import { resolveToolSignal } from './tool-map.js';
 import { createAvatarTool } from './avatar-tool.js';
@@ -27,6 +28,34 @@ import type { PluginConfig } from './types.js';
  */
 const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'coding', prop: 'none', intensity: 'medium' };
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
+
+/**
+ * Derive a SessionMeta from an OpenClaw hook context object.
+ *
+ * sessionKey format (from OpenClaw internals):
+ *   - Main session:  "agent:main:<channel-type>:..."
+ *   - Sub-agent:     "agent:main:subagent:<uuid>"
+ *   - Cron/isolated: "agent:main:subagent:<uuid>" or similar
+ *
+ * Priority rules:
+ *   - No sessionKey → no session metadata (legacy/single-session behavior)
+ *   - sessionKey contains ":subagent:" → priority 1 (background)
+ *   - All other session keys → priority 0 (main/interactive)
+ *
+ * The sessionKey is used as the sessionId directly — it's already opaque and
+ * stable for the lifetime of a session.
+ */
+function deriveSessionMeta(ctx: Record<string, unknown>): SessionMeta | undefined {
+  const sessionKey = typeof ctx['sessionKey'] === 'string' ? ctx['sessionKey'] : undefined;
+  if (!sessionKey) return undefined;
+
+  // Sub-agents have ":subagent:" in their sessionKey
+  const isSubagent = sessionKey.includes(':subagent:');
+  return {
+    sessionId: sessionKey,
+    priority:  isSubagent ? 1 : 0,
+  };
+}
 
 const plugin: OpenClawPluginDefinition = {
   // id matches the unscoped package name so OpenClaw's idHint derivation
@@ -87,6 +116,11 @@ const plugin: OpenClawPluginDefinition = {
     );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
+    //
+    // Every hook receives `ctx` as the second argument (OpenClaw PluginHookAgentContext).
+    // We extract `sessionKey` from ctx to derive session identity and priority for
+    // relay arbitration. If ctx lacks sessionKey (old OpenClaw versions or unusual
+    // hook types), we fall back to undefined — the relay treats it as a legacy push.
 
     /**
      * message_received — user sent a message, agent is about to start thinking.
@@ -94,8 +128,11 @@ const plugin: OpenClawPluginDefinition = {
      * state from the previous interaction (e.g. coffee_cup + high intensity
      * carrying over from a previous excited/celebrating state).
      */
-    api.on('message_received', () => {
-      sm.transition({ emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' });
+    api.on('message_received', (_event, ctx) => {
+      sm.transition(
+        { emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' },
+        deriveSessionMeta(ctx as Record<string, unknown>),
+      );
     });
 
     /**
@@ -103,23 +140,23 @@ const plugin: OpenClawPluginDefinition = {
      * Falls back to a generic "focused/coding" signal for unrecognized tools
      * so the avatar always reacts to tool activity.
      */
-    api.on('before_tool_call', (event) => {
+    api.on('before_tool_call', (event, ctx) => {
       // Defensive: guard against unexpected event shapes from future API versions
       if (typeof event.toolName !== 'string') return;
       const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
-      sm.transition(signal);
+      sm.transition(signal, deriveSessionMeta(ctx as Record<string, unknown>));
     });
 
     /**
      * after_tool_call — tool finished (success or error).
      * Falls back to a generic "focused/responding" signal for unrecognized tools.
      */
-    api.on('after_tool_call', (event) => {
+    api.on('after_tool_call', (event, ctx) => {
       // Defensive: guard against unexpected event shapes from future API versions
       if (typeof event.toolName !== 'string') return;
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
       const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
-      sm.transition(signal);
+      sm.transition(signal, deriveSessionMeta(ctx as Record<string, unknown>));
     });
 
     /**
@@ -127,11 +164,12 @@ const plugin: OpenClawPluginDefinition = {
      * On error, use high intensity to convey urgency.
      * Schedules idle timeout regardless of outcome.
      */
-    api.on('agent_end', (event) => {
+    api.on('agent_end', (event, ctx) => {
       sm.transition(
         event.success
           ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
           : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' },
+        deriveSessionMeta(ctx as Record<string, unknown>),
       );
       sm.scheduleIdle();
     });
@@ -142,9 +180,13 @@ const plugin: OpenClawPluginDefinition = {
      * reset() cancels all pending timers (debounce + idle), sets current = IDLE,
      * and pushes IDLE to the relay. The relay client is stateless (no keep-alive,
      * no retry queue) so no additional cleanup is needed.
+     *
+     * Passing session metadata on the idle push ensures the relay can clean up its
+     * session registry entry (it expires naturally after SESSION_EVICT_AFTER_MS,
+     * but the explicit idle push signals that this session is done).
      */
-    api.on('session_end', () => {
-      sm.reset();
+    api.on('session_end', (_event, ctx) => {
+      sm.reset(deriveSessionMeta(ctx as Record<string, unknown>));
     });
 
     // ── Optional explicit avatar tool ──────────────────────────────────────────

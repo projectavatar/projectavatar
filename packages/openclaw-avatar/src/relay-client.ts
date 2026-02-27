@@ -37,12 +37,35 @@ function isValidEvent(event: AvatarEvent): boolean {
   );
 }
 
+/**
+ * Session metadata attached to each push.
+ * Derived from the OpenClaw hook context (sessionKey) and used by the relay
+ * for multi-session arbitration.
+ */
+export interface SessionMeta {
+  /**
+   * Stable identifier for this session, derived from the OpenClaw sessionKey.
+   * Passed as-is to the relay — opaque from the relay's perspective.
+   */
+  sessionId: string;
+  /**
+   * Priority for relay arbitration. Lower = higher priority.
+   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
+   */
+  priority: number;
+}
+
 export type RelayClient = {
   /**
    * Push an avatar signal to the relay. Fire-and-forget: never throws, never blocks.
    * Invalid events are silently dropped. Network failures are silently swallowed.
+   *
+   * @param signal  The state delta to apply (merged with current to form a full event)
+   * @param current The last known full event (used as base for partial signal merging)
+   * @param session Optional session metadata for multi-session arbitration.
+   *                If omitted, the relay treats the push as a legacy single-session push.
    */
-  push: (signal: AvatarSignal, current?: AvatarEvent) => void;
+  push: (signal: AvatarSignal, current?: AvatarEvent, session?: SessionMeta) => void;
 };
 
 export function createRelayClient(cfg: PluginConfig, token: string): RelayClient {
@@ -51,7 +74,11 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
   const baseUrl = cfg.relayUrl.replace(/\/+$/, '');
   const pushUrl = `${baseUrl}/push/${encodeURIComponent(token)}`;
 
-  function push(signal: AvatarSignal, current: AvatarEvent = IDLE_EVENT): void {
+  function push(
+    signal:  AvatarSignal,
+    current: AvatarEvent  = IDLE_EVENT,
+    session?: SessionMeta,
+  ): void {
     // Merge signal onto current state to get a complete event
     const event: AvatarEvent = {
       emotion:   signal.emotion   ?? current.emotion,
@@ -62,6 +89,12 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
 
     if (!isValidEvent(event)) {
       return; // Silently drop invalid events — state machine should never produce these
+    }
+
+    // Attach session metadata if provided — enables relay arbitration
+    if (session !== undefined) {
+      event.sessionId = session.sessionId;
+      event.priority  = session.priority;
     }
 
     // Fire and forget — see failure strategy in module header
