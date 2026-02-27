@@ -1,6 +1,6 @@
 {
   "name": "@projectavatar/openclaw-avatar",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Real-time 3D avatar driven by OpenClaw agent lifecycle hooks. Your agent gets a face.",
   "type": "module",
   "main": "src/index.ts",
