@@ -3,10 +3,11 @@
  *
  * The core orchestrator that replaces Three.js AnimationMixer entirely.
  * Every frame it:
- * 1. Evaluates the idle layer (always running)
- * 2. Evaluates the active recipe (if any)
- * 3. Blends them based on recipe fade weight
- * 4. Writes final bone rotations to the VRM skeleton
+ * 1. Applies base standing pose (T-pose → natural)
+ * 2. Evaluates the idle layer (always running)
+ * 3. Evaluates the active recipe (if any)
+ * 4. Blends them based on recipe fade weight
+ * 5. Writes final bone rotations to the VRM skeleton
  *
  * No FBX files. No mixer. No retargeting. Just math → bones.
  */
@@ -21,6 +22,7 @@ import type {
   SpringState,
 } from './types.ts';
 import { RECIPES } from './recipes.ts';
+import { BASE_POSE } from './base-pose.ts';
 import { evaluateIdleLayer } from './idle-layer.ts';
 import {
   evalOscillate,
@@ -313,13 +315,14 @@ export class ProceduralEngine {
     for (const [boneName, node] of this.boneNodes) {
       const rest = this.restPoses.get(boneName);
       const state = this.frameBuffer.get(boneName);
+      const base = BASE_POSE[boneName];
 
       if (rest) {
-        // Reset to rest pose, then add procedural offsets
+        // Rest pose (T-pose) + base standing pose + procedural offsets
         node.rotation.set(
-          rest.x + (state?.rx ?? 0),
-          rest.y + (state?.ry ?? 0),
-          rest.z + (state?.rz ?? 0),
+          rest.x + (base?.x ?? 0) + (state?.rx ?? 0),
+          rest.y + (base?.y ?? 0) + (state?.ry ?? 0),
+          rest.z + (base?.z ?? 0) + (state?.rz ?? 0),
         );
       }
 
