@@ -1,5 +1,12 @@
 # @projectavatar/openclaw-avatar
 
+## 1.1.2
+
+### Patch Changes
+
+- b02fffb: Change plugin manifest id from `"projectavatar"` to `"openclaw-avatar"` to match the unscoped package name. This eliminates the "plugin id mismatch" warning on every gateway start. Config key changes from `plugins.entries.projectavatar` to `plugins.entries.openclaw-avatar`.
+- 0f467c8: Fix `registerCommand` call to use the object API (`{ name, description, handler }`) instead of positional arguments. The old three-argument signature caused a `TypeError: Cannot read properties of undefined (reading 'trim')` crash during plugin registration.
+
 ## 1.1.1
 
 ### Patch Changes
