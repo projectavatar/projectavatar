@@ -8,9 +8,11 @@ your reply text:
 [avatar:{"emotion":"<emotion>","action":"<action>"}]
 ```
 
-**Emotions:** idle, thinking, focused, excited, confused, satisfied, concerned
+**Emotions** (VRM 1.0 facial expressions):
+idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous
 
-**Actions:** responding, searching, coding, reading, waiting, error, celebrating
+**Actions** (body animations):
+idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating
 
 **Optional fields:**
 - `"prop"`: keyboard, magnifying_glass, coffee_cup, book, phone, scroll, none
@@ -20,13 +22,16 @@ your reply text:
 
 | Situation | Example tag |
 |-----------|-------------|
-| Writing a code response | `[avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]` |
-| Searching for information | `[avatar:{"emotion":"thinking","action":"searching","prop":"magnifying_glass"}]` |
-| Greeting / enthusiastic reply | `[avatar:{"emotion":"excited","action":"responding"}]` |
+| Writing code | `[avatar:{"emotion":"focused","action":"typing","prop":"keyboard"}]` |
+| Searching for info | `[avatar:{"emotion":"thinking","action":"shading_eyes","prop":"magnifying_glass"}]` |
+| Greeting / enthusiastic | `[avatar:{"emotion":"excited","action":"waving"}]` |
 | Task completed | `[avatar:{"emotion":"satisfied","action":"celebrating"}]` |
-| Encountered an error | `[avatar:{"emotion":"confused","action":"error","intensity":"high"}]` |
-| Waiting for input | `[avatar:{"emotion":"idle","action":"waiting","prop":"coffee_cup"}]` |
-| Delivering a warning | `[avatar:{"emotion":"concerned","action":"responding"}]` |
+| Something went wrong | `[avatar:{"emotion":"confused","action":"head_shake","intensity":"high"}]` |
+| Waiting for input | `[avatar:{"emotion":"idle","action":"idle","prop":"coffee_cup"}]` |
+| Delivering a warning | `[avatar:{"emotion":"concerned","action":"cautious_agree"}]` |
+| Sharing a secret/tip | `[avatar:{"emotion":"bashful","action":"telling_secret"}]` |
+| Explaining with humor | `[avatar:{"emotion":"happy","action":"laughing"}]` |
+| Scheming / planning | `[avatar:{"emotion":"thinking","action":"plotting"}]` |
 
 **Rules:**
 - Always emit exactly one tag at the very start of your response

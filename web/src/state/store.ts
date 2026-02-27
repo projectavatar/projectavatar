@@ -123,7 +123,7 @@ export const useStore = create<AppState>((set, get) => ({
   connectionState:      'disconnected',
   reconnectAttempt:     0,
 
-  avatar: { emotion: 'idle', action: 'waiting', prop: 'none', intensity: 'medium' },
+  avatar: { emotion: 'idle', action: 'idle', prop: 'none', intensity: 'medium' },
 
   settingsOpen:  false,
   theme:         persisted.theme ?? 'dark',

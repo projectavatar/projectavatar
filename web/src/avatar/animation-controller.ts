@@ -10,22 +10,48 @@ const ANIMATIONS_BASE = '/animations';
 
 /** Map from Action state to the FBX filename served from /animations/ */
 const ACTION_TO_FILE: Record<Action, string> = {
-  waiting: 'idle.fbx',
-  responding: 'responding.fbx',
-  searching: 'searching.fbx',
-  coding: 'coding.fbx',
-  reading: 'reading.fbx',
-  error: 'error.fbx',
-  celebrating: 'celebrating.fbx',
+  idle:            'standing-idle.fbx',
+  talking:         'happy-forward-hand-gesture.fbx',
+  typing:          'sitting-at-a-computer-and-typing.fbx',
+  nodding:         'nodding-head-yes.fbx',
+  waving:          'emotional-waving-forward.fbx',
+  greeting:        'greeting-while-standing.fbx',
+  laughing:        'talking-finding-something-funny.fbx',
+  pointing:        'pointing-behind-with-thumb.fbx',
+  fist_pump:       'high-enthusiasm-fist-pump.fbx',
+  dismissive:      'dismissing-with-back-hand.fbx',
+  plotting:        'evil-plotting.fbx',
+  sarcastic:       'sarcastically-looking-away.fbx',
+  looking_around:  'standing-up-and-looking-around.fbx',
+  shading_eyes:    'looking-with-hand-shading-eyes.fbx',
+  telling_secret:  'telling-a-secret.fbx',
+  victory:         'big-vegas-victory-idle.fbx',
+  head_shake:      'gesturing-head-side-to-side.fbx',
+  relief:          'shaking-it-off-in-relief.fbx',
+  cautious_agree:  'step-back-cautiously-agreeing.fbx',
+  angry_fist:      'vexed-shaking-of-the-fist.fbx',
+  rallying:        'rallying-the-crowd-to-make-them-cheer.fbx',
+  sad_idle:        'standing-in-a-sad-disposition.fbx',
+  nervous_look:    'nervously-looking-around-left-to-right-loop.fbx',
+  terrified:       'being-terrified-while-standing.fbx',
+  scratching_head: 'right-hand-behind-head.fbx',
+  cocky:           'cocky-lean-back.fbx',
+  questioning:     'asking-a-question-with-one-hand.fbx',
+  phone:           'female-standing-talking-on-phone.fbx',
+  celebrating:     'victory-from-a-boxing-win.fbx',
 };
 
 /** Actions that loop continuously. Everything else plays once and clamps. */
 const LOOPING_ACTIONS: ReadonlySet<Action> = new Set<Action>([
-  'waiting',
-  'responding',
-  'coding',
-  'reading',
-  'searching',
+  'idle',
+  'talking',
+  'typing',
+  'plotting',
+  'looking_around',
+  'sad_idle',
+  'nervous_look',
+  'phone',
+  'cocky',
 ]);
 
 const INTENSITY_SPEED: Record<Intensity, number> = {
@@ -44,7 +70,7 @@ const FADE_DURATION = 0.6;
  * Usage:
  *   const ctrl = new AnimationController(vrm);
  *   await ctrl.loadAnimations();          // non-blocking; idle plays when ready
- *   ctrl.playAction('coding', 'high');    // crossfade to new animation
+ *   ctrl.playAction('typing', 'high');    // crossfade to new animation
  *   ctrl.update(delta);                   // call every frame
  *   ctrl.dispose();                       // cleanup
  */
@@ -52,7 +78,7 @@ export class AnimationController {
   private vrm: VRM;
   private mixer: THREE.AnimationMixer | null = null;
   private actions = new Map<Action, THREE.AnimationAction>();
-  private currentAction: Action = 'waiting';
+  private currentAction: Action = 'idle';
   private loaded = false;
 
   constructor(vrm: VRM) {
@@ -111,7 +137,7 @@ export class AnimationController {
       const finishedAction = (e as THREE.AnimationMixerEventMap['finished']).action;
       // Only auto-return if this was the active play-once action
       if (finishedAction === this.actions.get(this.currentAction)) {
-        this.playAction('waiting', 'medium');
+        this.playAction('idle', 'medium');
       }
     });
 
@@ -121,13 +147,13 @@ export class AnimationController {
 
     // Apply any action that was requested before animations finished loading
     const pendingAction = this.currentAction;
-    const idleAction = this.actions.get('waiting');
+    const idleAction = this.actions.get('idle');
     if (idleAction) {
       idleAction.play();
-      this.currentAction = 'waiting';
+      this.currentAction = 'idle';
     }
     // Replay pending action if it was set before load completed
-    if (pendingAction !== 'waiting') {
+    if (pendingAction !== 'idle') {
       this.playAction(pendingAction, 'medium');
     }
   }
@@ -178,7 +204,7 @@ export class AnimationController {
    * Stop all animations and return to idle.
    */
   stopAll(): void {
-    this.playAction('waiting', 'medium');
+    this.playAction('idle', 'medium');
   }
 
   /**

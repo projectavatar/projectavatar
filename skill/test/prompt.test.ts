@@ -97,9 +97,9 @@ describe('prompt.md', () => {
   it('filter can extract tags when prepended to real text', () => {
     // Simulate what an LLM would actually output
     const examples = [
-      '[avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]\nHere is the code:',
-      '[avatar:{"emotion":"thinking","action":"searching"}]\nLet me look that up.',
-      '[avatar:{"emotion":"excited","action":"responding"}]\nGreat question!',
+      '[avatar:{"emotion":"focused","action":"typing","prop":"keyboard"}]\nHere is the code:',
+      '[avatar:{"emotion":"thinking","action":"shading_eyes"}]\nLet me look that up.',
+      '[avatar:{"emotion":"excited","action":"waving"}]\nGreat question!',
     ];
 
     for (const example of examples) {

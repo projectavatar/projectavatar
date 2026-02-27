@@ -72,11 +72,13 @@ your reply text:
 
 **Examples:**
 \`\`\`
-[avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]
-[avatar:{"emotion":"thinking","action":"searching","prop":"magnifying_glass"}]
-[avatar:{"emotion":"excited","action":"responding"}]
-[avatar:{"emotion":"confused","action":"error","intensity":"high"}]
+[avatar:{"emotion":"focused","action":"typing","prop":"keyboard"}]
+[avatar:{"emotion":"thinking","action":"shading_eyes","prop":"magnifying_glass"}]
+[avatar:{"emotion":"excited","action":"waving"}]
+[avatar:{"emotion":"confused","action":"head_shake","intensity":"high"}]
 [avatar:{"emotion":"satisfied","action":"celebrating"}]
+[avatar:{"emotion":"bashful","action":"telling_secret"}]
+[avatar:{"emotion":"happy","action":"laughing"}]
 \`\`\`
 
 ## Rules

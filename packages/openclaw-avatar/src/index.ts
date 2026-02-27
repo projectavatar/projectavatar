@@ -26,8 +26,8 @@ import { deriveSessionPriority } from './session-utils.js';
  * Fallback signals for tool calls on tools not in the tool map.
  * The avatar should always react to tool activity, even for unknown tools.
  */
-const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'coding', prop: 'none', intensity: 'medium' };
-const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
+const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'typing', prop: 'none', intensity: 'medium' };
+const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'nodding', prop: 'none', intensity: 'medium' };
 
 
 /**
@@ -103,7 +103,7 @@ const plugin: OpenClawPluginDefinition = {
     api.on('message_received', (_event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
-        { emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' },
+        { emotion: 'thinking', action: 'looking_around', prop: 'none', intensity: 'medium' },
         session,
       );
     });
@@ -127,8 +127,8 @@ const plugin: OpenClawPluginDefinition = {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
         event.success
-          ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
-          : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' },
+          ? { emotion: 'satisfied', action: 'nodding', prop: 'none', intensity: 'medium' }
+          : { emotion: 'concerned', action: 'head_shake',  prop: 'none', intensity: 'high' },
         session,
       );
       // Pass session to scheduleIdle so the idle timer fires with the correct session

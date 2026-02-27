@@ -25,7 +25,7 @@ describe('resolveToolSignal', () => {
     const signal = resolveToolSignal('web_search', 'before');
     expect(signal).not.toBeNull();
     expect(signal?.emotion).toBe('thinking');
-    expect(signal?.action).toBe('searching');
+    expect(signal?.action).toBe('shading_eyes');
   });
 
   it('returns after signal for known tools', () => {
@@ -38,7 +38,7 @@ describe('resolveToolSignal', () => {
     const signal = resolveToolSignal('exec', 'after', 'Command failed');
     expect(signal).not.toBeNull();
     expect(signal?.emotion).toBe('confused');
-    expect(signal?.action).toBe('error');
+    expect(signal?.action).toBe('terrified');
   });
 
   it('returns after (success) signal when no error', () => {

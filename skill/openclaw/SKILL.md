@@ -42,9 +42,9 @@ your reply text:
 [avatar:{"emotion":"<emotion>","action":"<action>"}]
 ```
 
-**Available emotions:** idle, thinking, focused, excited, confused, satisfied, concerned
+**Available emotions:** idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous
 
-**Available actions:** responding, searching, coding, reading, waiting, error, celebrating
+**Available actions:** idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating
 
 **Optional fields:**
 - `"prop"`: keyboard, magnifying_glass, coffee_cup, book, phone, scroll, none
@@ -52,10 +52,10 @@ your reply text:
 
 **Examples:**
 ```
-[avatar:{"emotion":"focused","action":"coding","prop":"keyboard"}]
-[avatar:{"emotion":"thinking","action":"searching","prop":"magnifying_glass"}]
-[avatar:{"emotion":"excited","action":"responding"}]
-[avatar:{"emotion":"confused","action":"error","intensity":"high"}]
+[avatar:{"emotion":"focused","action":"typing","prop":"keyboard"}]
+[avatar:{"emotion":"thinking","action":"shading_eyes","prop":"magnifying_glass"}]
+[avatar:{"emotion":"excited","action":"waving"}]
+[avatar:{"emotion":"confused","action":"head_shake","intensity":"high"}]
 [avatar:{"emotion":"satisfied","action":"celebrating"}]
 ```
 

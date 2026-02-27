@@ -20,16 +20,16 @@ const mockConfig: FilterConfig = {
 
 describe('extractAvatarTag', () => {
   it('extracts a minimal valid tag', () => {
-    const input = '[avatar:{"emotion":"idle","action":"waiting"}]\nHello world';
+    const input = '[avatar:{"emotion":"idle","action":"idle"}]\nHello world';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(cleanText).toBe('Hello world');
     expect(avatarEvent).not.toBeNull();
     expect(avatarEvent?.emotion).toBe('idle');
-    expect(avatarEvent?.action).toBe('waiting');
+    expect(avatarEvent?.action).toBe('idle');
   });
 
   it('extracts a full tag with prop and intensity', () => {
-    const input = '[avatar:{"emotion":"focused","action":"coding","prop":"keyboard","intensity":"high"}]\nHere is the code:';
+    const input = '[avatar:{"emotion":"focused","action":"typing","prop":"keyboard","intensity":"high"}]\nHere is the code:';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(cleanText).toBe('Here is the code:');
     expect(avatarEvent?.prop).toBe('keyboard');
@@ -51,7 +51,7 @@ describe('extractAvatarTag', () => {
   });
 
   it('handles a tag missing required "emotion" field', () => {
-    const input = '[avatar:{"action":"coding"}]\nCode stuff';
+    const input = '[avatar:{"action":"typing"}]\nCode stuff';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(cleanText).toBe(input);
     expect(avatarEvent).toBeNull();
@@ -73,20 +73,20 @@ describe('extractAvatarTag', () => {
   });
 
   it('strips trailing whitespace and newline after tag', () => {
-    const input = '[avatar:{"emotion":"idle","action":"waiting"}]   \nActual response';
+    const input = '[avatar:{"emotion":"idle","action":"idle"}]   \nActual response';
     const { cleanText } = extractAvatarTag(input);
     expect(cleanText).toBe('Actual response');
   });
 
   it('handles tag without trailing newline', () => {
-    const input = '[avatar:{"emotion":"idle","action":"waiting"}]Immediate text';
+    const input = '[avatar:{"emotion":"idle","action":"idle"}]Immediate text';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(avatarEvent).not.toBeNull();
     expect(cleanText).toBe('Immediate text');
   });
 
   it('only extracts the FIRST tag when multiple exist', () => {
-    const input = '[avatar:{"emotion":"idle","action":"waiting"}]\nFirst\n[avatar:{"emotion":"excited","action":"celebrating"}]\nSecond';
+    const input = '[avatar:{"emotion":"idle","action":"idle"}]\nFirst\n[avatar:{"emotion":"excited","action":"celebrating"}]\nSecond';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(avatarEvent?.emotion).toBe('idle');
     // Second tag should remain in the clean text (unusual case, but documented)
@@ -96,7 +96,7 @@ describe('extractAvatarTag', () => {
   it('handles a tag in the middle of multi-line text (multiline flag)', () => {
     // The MULTILINE flag means ^ matches start of any line, not just string start
     // In practice tags should be at the start, but the regex supports mid-text
-    const input = 'Preamble\n[avatar:{"emotion":"thinking","action":"reading"}]\nThe actual response';
+    const input = 'Preamble\n[avatar:{"emotion":"thinking","action":"looking_around"}]\nThe actual response';
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(avatarEvent).not.toBeNull();
     expect(cleanText).not.toContain('[avatar:');
@@ -125,7 +125,7 @@ describe('extractAvatarTag', () => {
 
   it('handles very long response text correctly', () => {
     const longText = 'x'.repeat(10_000);
-    const input = `[avatar:{"emotion":"idle","action":"waiting"}]\n${longText}`;
+    const input = `[avatar:{"emotion":"idle","action":"idle"}]\n${longText}`;
     const { cleanText, avatarEvent } = extractAvatarTag(input);
     expect(avatarEvent).not.toBeNull();
     expect(cleanText).toHaveLength(10_000);
@@ -138,7 +138,7 @@ describe('extractAvatarTag', () => {
   });
 
   it('trims leading whitespace from clean text', () => {
-    const input = '[avatar:{"emotion":"idle","action":"waiting"}]\n   leading spaces';
+    const input = '[avatar:{"emotion":"idle","action":"idle"}]\n   leading spaces';
     const { cleanText } = extractAvatarTag(input);
     expect(cleanText).toBe('leading spaces');
   });
@@ -148,13 +148,13 @@ describe('extractAvatarTag', () => {
 
 describe('AVATAR_TAG_REGEX', () => {
   it('does not match a tag missing the closing bracket', () => {
-    const result = '[avatar:{"emotion":"idle","action":"waiting"}]'.slice(0, -1).match(AVATAR_TAG_REGEX);
+    const result = '[avatar:{"emotion":"idle","action":"idle"}]'.slice(0, -1).match(AVATAR_TAG_REGEX);
     expect(result).toBeNull();
   });
 
   it('does not match a tag with wrong prefix casing', () => {
-    const result1 = '[Avatar:{"emotion":"idle","action":"waiting"}]'.match(AVATAR_TAG_REGEX);
-    const result2 = '[AVATAR:{"emotion":"idle","action":"waiting"}]'.match(AVATAR_TAG_REGEX);
+    const result1 = '[Avatar:{"emotion":"idle","action":"idle"}]'.match(AVATAR_TAG_REGEX);
+    const result2 = '[AVATAR:{"emotion":"idle","action":"idle"}]'.match(AVATAR_TAG_REGEX);
     expect(result1).toBeNull();
     expect(result2).toBeNull();
   });
@@ -187,7 +187,7 @@ describe('StreamingAvatarFilter', () => {
 
   it('extracts tag when it arrives in a single chunk', () => {
     const result = collectChunks([
-      '[avatar:{"emotion":"idle","action":"waiting"}]\nHello',
+      '[avatar:{"emotion":"idle","action":"idle"}]\nHello',
     ]);
     expect(result).toBe('Hello');
   });
@@ -195,14 +195,14 @@ describe('StreamingAvatarFilter', () => {
   it('extracts tag split across multiple chunks', () => {
     const result = collectChunks([
       '[avatar:{"emot',
-      'ion":"idle","action":"waiting"}]\n',
+      'ion":"idle","action":"idle"}]\n',
       'Hello world',
     ]);
     expect(result).toBe('Hello world');
   });
 
   it('handles tag arriving one character at a time', () => {
-    const tag = '[avatar:{"emotion":"idle","action":"waiting"}]\nHello';
+    const tag = '[avatar:{"emotion":"idle","action":"idle"}]\nHello';
     const chars = tag.split('');
     const result = collectChunks(chars);
     expect(result).toBe('Hello');
@@ -241,7 +241,7 @@ describe('StreamingAvatarFilter', () => {
   it('correctly reports resolved state', () => {
     const filter = new StreamingAvatarFilter(mockConfig, { onChunk: () => {} });
     expect(filter.resolved).toBe(false);
-    filter.processChunk('[avatar:{"emotion":"idle","action":"waiting"}]\nHi');
+    filter.processChunk('[avatar:{"emotion":"idle","action":"idle"}]\nHi');
     expect(filter.resolved).toBe(true);
   });
 
@@ -256,7 +256,7 @@ describe('StreamingAvatarFilter', () => {
   });
 
   it('extracts tag even when followed by no content', () => {
-    const result = collectChunks(['[avatar:{"emotion":"idle","action":"waiting"}]']);
+    const result = collectChunks(['[avatar:{"emotion":"idle","action":"idle"}]']);
     expect(result).toBe('');
   });
 
@@ -266,7 +266,7 @@ describe('StreamingAvatarFilter', () => {
       onChunk: () => {},
       onTagExtracted: (found) => extracted.push(found),
     });
-    filter.processChunk('[avatar:{"emotion":"idle","action":"waiting"}]\nHi');
+    filter.processChunk('[avatar:{"emotion":"idle","action":"idle"}]\nHi');
     expect(extracted).toEqual([true]);
   });
 
@@ -298,7 +298,7 @@ describe('filterResponse (relay push safety)', () => {
     // filterResponse should never throw even with unreachable relay
     const { filterResponse } = await import('../filters/node/filter.js');
     const result = await filterResponse(
-      '[avatar:{"emotion":"idle","action":"waiting"}]\nHello from filter',
+      '[avatar:{"emotion":"idle","action":"idle"}]\nHello from filter',
       badConfig,
     );
     expect(result).toBe('Hello from filter');
