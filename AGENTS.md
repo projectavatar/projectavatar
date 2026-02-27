@@ -82,3 +82,19 @@ Phases complete:
 - Phase 4.3: WebSocket keepalive ✅
 
 Next: Phase 5 (Polish + Desktop).
+
+## Animation System (v1.1.1)
+
+Real Mixamo FBX animations via Three.js AnimationMixer. No more procedural bone manipulation.
+
+### Files
+- `web/src/avatar/mixamo-loader.ts` — loads FBX, retargets to VRM 0.x. Uses `mixamoVRMRigMap` + VRM 0.x coordinate flip (negate X/Z quaternion components, negate X/Z position components).
+- `web/src/avatar/animation-controller.ts` — AnimationMixer wrapper. `loadAnimations()` loads all 7 FBX clips in parallel. `playAction()` fades between clips (0.6s).
+- `web/public/animations/` — 7 Mixamo FBX files (downloaded "without skin", 30fps).
+
+### Action → file mapping
+waiting→idle.fbx, responding→responding.fbx, searching→searching.fbx, coding→coding.fbx, reading→reading.fbx, error→error.fbx, celebrating→celebrating.fbx
+
+### VRM model
+- `web/public/models/potato.vrm` — CC0 model from open-source-avatars registry
+- `web/src/assets/models/manifest.json` — model registry for the picker
