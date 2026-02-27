@@ -65,12 +65,12 @@ const BASE_FILE = 'idle.fbx';
  */
 const POSTURE_FILES: Record<Action, string | null> = {
   waiting: null,
-  responding: 'responding.fbx',
-  searching: 'searching.fbx',
-  coding: 'coding.fbx',
-  reading: 'reading.fbx',
+  responding: 'activity-phone.fbx',
+  searching: 'activity-looking-distance.fbx',
+  coding: 'activity-typing.fbx',
+  reading: 'activity-looking-forward.fbx',
   error: 'error.fbx',
-  celebrating: 'celebrating.fbx',
+  celebrating: 'celebrate-fist-pump.fbx',
 };
 
 /**
