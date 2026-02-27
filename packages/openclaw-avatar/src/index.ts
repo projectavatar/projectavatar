@@ -92,7 +92,7 @@ const plugin: OpenClawPluginDefinition = {
     const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
-      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms` +
+      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms`
     );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
