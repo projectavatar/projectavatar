@@ -1,0 +1,65 @@
+{
+  "id": "projectavatar",
+  "name": "Project Avatar",
+  "description": "Real-time 3D avatar driven by agent lifecycle hooks. Your agent gets a face.",
+  "version": "1.1.0",
+  "skills": ["skill/"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "relayUrl": {
+        "type": "string",
+        "default": "https://relay.projectavatar.io"
+      },
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "idleTimeoutMs": {
+        "type": "number",
+        "default": 30000,
+        "minimum": 5000
+      },
+      "debounceMs": {
+        "type": "number",
+        "default": 300,
+        "minimum": 50
+      },
+      "enableAvatarTool": {
+        "type": "boolean",
+        "default": false
+      },
+      "suppressSkillTags": {
+        "type": "boolean",
+        "default": true
+      }
+    }
+  },
+  "uiHints": {
+    "relayUrl": {
+      "label": "Relay URL",
+      "placeholder": "https://relay.projectavatar.io"
+    },
+    "idleTimeoutMs": {
+      "label": "Idle Timeout (ms)",
+      "help": "Return avatar to idle state after this many milliseconds of no events",
+      "advanced": true
+    },
+    "debounceMs": {
+      "label": "Debounce (ms)",
+      "help": "Minimum time between relay pushes — prevents flooding during rapid tool calls",
+      "advanced": true
+    },
+    "enableAvatarTool": {
+      "label": "Avatar Tool",
+      "help": "Register an 'avatar' tool the LLM can call to explicitly set avatar state",
+      "advanced": true
+    },
+    "suppressSkillTags": {
+      "label": "Suppress Skill Tags",
+      "help": "Strip [avatar:{...}] tags from output — the plugin handles signaling instead",
+      "advanced": true
+    }
+  }
+}

@@ -254,10 +254,10 @@ The OpenClaw skill handles:
 
 ### Coming Next: OpenClaw Plugin
 
-An upcoming `@projectavatar/openclaw` plugin will replace this manual setup for OpenClaw users:
+An upcoming `@projectavatar/openclaw-avatar` plugin will replace this manual setup for OpenClaw users:
 
 ```bash
-openclaw plugins install @projectavatar/openclaw
+openclaw plugins install @projectavatar/openclaw-avatar
 openclaw secrets set AVATAR_TOKEN <your-token>
 ```
 

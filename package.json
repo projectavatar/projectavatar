@@ -15,9 +15,15 @@
     "gen:skill": "npx tsx scripts/gen-skill-md.ts",
     "relay:test": "cd relay && npm run test",
     "skill:test": "cd skill && npm run test",
-    "test": "npm run relay:test && npm run skill:test"
+    "plugin:test": "cd packages/openclaw-plugin && npm run test",
+    "plugin:build": "cd packages/openclaw-plugin && npm run build",
+    "test": "npm run relay:test && npm run skill:test && npm run plugin:test",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.8",
     "@types/node": "^25.3.2",
     "tsx": "^4.21.0"
   }

@@ -1321,7 +1321,7 @@ Comprehensive tests for the filter:
 
 ### Goal
 
-A first-class OpenClaw plugin (`@projectavatar/openclaw`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users while shipping the skill as a bundled fallback for cross-platform use.
+A first-class OpenClaw plugin (`@projectavatar/openclaw-avatar`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users while shipping the skill as a bundled fallback for cross-platform use.
 
 **Why a plugin, not just a skill?** The skill approach works everywhere but has a fundamental limitation: the agent must *finish generating text* before the output filter can extract and forward the avatar tag. A plugin hooks into `before_tool_call` — the avatar reacts the instant the agent decides to search, code, or read, *before* the tool returns. This is the difference between "avatar reacts to what the agent said" and "avatar reacts to what the agent is doing."
 
@@ -1339,7 +1339,7 @@ The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are n
 ```
 packages/openclaw-plugin/
 ├── openclaw.plugin.json          # Plugin manifest (OpenClaw discovers this)
-├── package.json                  # npm: @projectavatar/openclaw
+├── package.json                  # npm: @projectavatar/openclaw-avatar
 ├── src/
 │   ├── index.ts                  # Plugin entry: exports register(api)
 │   ├── tool-map.ts               # Tool name → avatar signal mapping table
@@ -1733,7 +1733,7 @@ export function createRelayClient(relayUrl: string, token: string) {
 
 ```bash
 # Install
-openclaw plugins install @projectavatar/openclaw
+openclaw plugins install @projectavatar/openclaw-avatar
 
 # Local dev
 openclaw plugins install --link ./packages/openclaw-plugin
@@ -1753,7 +1753,7 @@ openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 
 ### Acceptance Criteria
 
-- [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw` and shows in `openclaw plugins list`
+- [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw-avatar` and shows in `openclaw plugins list`
 - [ ] `before_tool_call` fires and pushes correct signal for each tool in `TOOL_SIGNAL_MAP`
 - [ ] `after_tool_call` fires and updates state (success vs error paths)
 - [ ] `before_prompt_build` injects avatar context when `suppressSkillTags: true`
