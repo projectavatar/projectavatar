@@ -65,30 +65,30 @@ export function evaluateIdleLayer(
   // ── Breathing ──
   const breathPhase = Math.sin((t / BREATHE_PERIOD) * TAU);
   // Inhale: spine extends back, chest opens
-  addRotation(output, 'spine',      'x', breathPhase * BREATHE_SPINE * influence);
-  addRotation(output, 'chest',      'x', breathPhase * BREATHE_CHEST * influence);
-  addRotation(output, 'upperChest', 'x', breathPhase * BREATHE_CHEST * 0.5 * influence);
+  addRotation(output, 'spine',      'x', -breathPhase * BREATHE_SPINE * influence);
+  addRotation(output, 'chest',      'x', -breathPhase * BREATHE_CHEST * influence);
+  addRotation(output, 'upperChest', 'x', -breathPhase * BREATHE_CHEST * 0.5 * influence);
   // Shoulders rise slightly on inhale
-  addRotation(output, 'leftShoulder',  'z',  -(breathPhase * BREATHE_SHOULDERS * influence));
-  addRotation(output, 'rightShoulder', 'z', breathPhase * BREATHE_SHOULDERS * influence);
+  addRotation(output, 'leftShoulder',  'z',  breathPhase * BREATHE_SHOULDERS * influence);
+  addRotation(output, 'rightShoulder', 'z', -breathPhase * BREATHE_SHOULDERS * influence);
 
   // ── Weight shift ──
   const weightPhase = Math.sin((t / WEIGHT_PERIOD) * TAU);
-  addPosition(output, 'hips', 'x', -(weightPhase * WEIGHT_HIP_X * influence));
-  addRotation(output, 'hips',  'z', -(weightPhase * WEIGHT_HIP_ROT * influence));
-  addRotation(output, 'spine', 'z', weightPhase * WEIGHT_SPINE_COMP * influence);
+  addPosition(output, 'hips', 'x', weightPhase * WEIGHT_HIP_X * influence);
+  addRotation(output, 'hips',  'z', weightPhase * WEIGHT_HIP_ROT * influence);
+  addRotation(output, 'spine', 'z', -weightPhase * WEIGHT_SPINE_COMP * influence);
 
   // ── Micro-sway (noise) ──
   const swayT = t * SWAY_SPEED;
-  addRotation(output, 'spine', 'z', -(noise1D(swayT, 0) * SWAY_AMP_SPINE * influence));
-  addRotation(output, 'spine', 'x', -(noise1D(swayT, 1) * SWAY_AMP_SPINE * 0.5 * influence));
-  addRotation(output, 'chest', 'z', -(noise1D(swayT, 2) * SWAY_AMP_CHEST * influence));
-  addRotation(output, 'neck',  'z', -(noise1D(swayT, 3) * SWAY_AMP_NECK * influence));
+  addRotation(output, 'spine', 'z', noise1D(swayT, 0) * SWAY_AMP_SPINE * influence);
+  addRotation(output, 'spine', 'x', noise1D(swayT, 1) * SWAY_AMP_SPINE * 0.5 * influence);
+  addRotation(output, 'chest', 'z', noise1D(swayT, 2) * SWAY_AMP_CHEST * influence);
+  addRotation(output, 'neck',  'z', noise1D(swayT, 3) * SWAY_AMP_NECK * influence);
 
   // ── Head drift ──
   const headT = t * HEAD_DRIFT_SPEED;
   addRotation(output, 'head', 'y', noise1D(headT, 10) * HEAD_DRIFT_YAW * influence);
-  addRotation(output, 'head', 'x', -(noise1D(headT, 11) * HEAD_DRIFT_PITCH * influence));
+  addRotation(output, 'head', 'x', noise1D(headT, 11) * HEAD_DRIFT_PITCH * influence);
 
   // ── Shoulder settle ──
   const shoulderPhase = (t / SHOULDER_PERIOD) * TAU;

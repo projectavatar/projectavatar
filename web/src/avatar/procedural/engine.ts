@@ -64,8 +64,6 @@ export class ProceduralEngine {
   private restPoses = new Map<AnimBone, THREE.Euler>();
   private restPositions = new Map<AnimBone, THREE.Vector3>();
 
-
-
   /** Global elapsed time (never resets). */
   private elapsed = 0;
 
@@ -314,17 +312,13 @@ export class ProceduralEngine {
    * Applies as REST POSE + accumulated offsets.
    */
   private _writeBones(): void {
-    // Normalized bones (from getNormalizedBoneNode) have identity rest orientation
-    // regardless of VRM version (0.x or 1.0). The normalization layer in three-vrm
-    // handles coordinate system differences internally. VRMUtils.rotateVRM0() in
-    // vrm-manager.ts handles the facing direction difference.
-    // Result: same base pose + recipe values work on all VRM models.
     for (const [boneName, node] of this.boneNodes) {
       const rest = this.restPoses.get(boneName);
       const state = this.frameBuffer.get(boneName);
       const base = BASE_POSE[boneName];
 
       if (rest) {
+        // Rest pose (T-pose) + base standing pose + procedural offsets
         node.rotation.set(
           rest.x + (base?.x ?? 0) + (state?.rx ?? 0),
           rest.y + (base?.y ?? 0) + (state?.ry ?? 0),
