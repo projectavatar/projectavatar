@@ -149,3 +149,36 @@ export async function loadMixamoAnimation(
 
   return new THREE.AnimationClip('vrmAnimation', clip.duration, tracks);
 }
+
+/**
+ * Load a Mixamo FBX, retarget it to the VRM skeleton, then convert it into
+ * an additive clip relative to a reference pose (typically the idle clip).
+ *
+ * ORDER MATTERS: retarget FIRST, makeClipAdditive SECOND.
+ * makeClipAdditive() subtracts the reference clip's track values from the
+ * source clip's values. Both clips must share the same bone names and
+ * coordinate space (VRM skeleton). If you reversed the order — made the raw
+ * Mixamo clip additive against a retargeted reference — the track names
+ * wouldn't match and THREE.js would silently produce garbage.
+ *
+ * @param url           URL to a Mixamo FBX file
+ * @param vrm           Loaded VRM instance to retarget onto
+ * @param referenceClip Retargeted clip to use as the zero-pose (frame 0)
+ * @returns             An additive THREE.AnimationClip
+ */
+export async function loadAdditiveAnimation(
+  url: string,
+  vrm: VRM,
+  referenceClip: THREE.AnimationClip,
+): Promise<THREE.AnimationClip> {
+  // Step 1: Load and retarget — same pipeline as loadMixamoAnimation
+  const retargetedClip = await loadMixamoAnimation(url, vrm);
+
+  // Step 2: Convert to additive relative to the reference clip at frame 0.
+  // This subtracts referenceClip's pose at time 0 from every keyframe,
+  // leaving only the delta. When played at weight 1.0, it applies that
+  // delta on top of whatever the base layer is doing.
+  THREE.AnimationUtils.makeClipAdditive(retargetedClip, 0, referenceClip);
+
+  return retargetedClip;
+}

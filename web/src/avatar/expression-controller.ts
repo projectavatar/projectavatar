@@ -68,11 +68,6 @@ const HEAD_INTENSITY_SCALE: Record<Intensity, number> = {
   medium: 1.0,
   high: 1.15,
 };
-
-// Breathing micro-animation constants
-const BREATHE_AMPLITUDE = 0.008; // radians — barely perceptible, makes idle feel alive
-const BREATHE_PERIOD    = 1 / 0.18; // seconds per cycle (~11 breaths/min)
-
 export class ExpressionController {
   private vrm: VRM;
   private targetWeights = new Map<string, number>();
@@ -85,10 +80,7 @@ export class ExpressionController {
   private headBlendSpeed = 2.5;
 
   /**
-   * Elapsed time for breathing, wrapped to BREATHE_PERIOD to avoid
-   * float precision loss over long sessions (2^23 / 60fps ≈ 39h).
    */
-  private breatheElapsed = 0;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
@@ -121,8 +113,6 @@ export class ExpressionController {
    * AnimationMixer.update() so the offset applies on top of the mixer's pose.
    */
   update(delta: number): void {
-    // Wrap elapsed to avoid float precision loss at large values
-    this.breatheElapsed = (this.breatheElapsed + delta) % BREATHE_PERIOD;
 
     this._updateBlendShapes(delta);
     this._updateHeadBone(delta);
@@ -158,13 +148,10 @@ export class ExpressionController {
     this.headCurrentOffset.x += (this.headTargetOffset.x - this.headCurrentOffset.x) * decay;
     this.headCurrentOffset.y += (this.headTargetOffset.y - this.headCurrentOffset.y) * decay;
     this.headCurrentOffset.z += (this.headTargetOffset.z - this.headCurrentOffset.z) * decay;
-
-    const breathe = Math.sin(this.breatheElapsed * Math.PI * 2 / BREATHE_PERIOD) * BREATHE_AMPLITUDE;
-
     // Apply ADDITIVELY on top of whatever the AnimationMixer wrote this frame.
     // StateMachine calls animationCtrl.update() before expressionCtrl.update()
     // so the mixer's bone values are already set when we add our delta here.
-    this.headBone.rotation.x += this.headCurrentOffset.x + breathe;
+    this.headBone.rotation.x += this.headCurrentOffset.x;
     this.headBone.rotation.y += this.headCurrentOffset.y;
     this.headBone.rotation.z += this.headCurrentOffset.z;
   }
