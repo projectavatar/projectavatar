@@ -1,17 +1,18 @@
 {
   "models": [
     {
-      "id": "placeholder",
-      "name": "Default Avatar",
-      "description": "Standard anime-style avatar",
-      "url": null,
+      "id": "summer",
+      "name": "Summer",
+      "description": "Humanoid VRM with full expression set — happy, sad, relaxed, angry, surprised. Good test model for expressions.",
+      "url": "/models/summer.vrm",
       "thumbnail": null,
-      "license": "CC0"
+      "license": "CC0",
+      "author": "NeonGlitch86"
     },
     {
       "id": "potato",
       "name": "Potato",
-      "description": "A potato. It reacts to events. Don't question it.",
+      "description": "A potato. Only has mouth/blink shapes — no emotion expressions. Kept for animation testing.",
       "url": "/models/potato.vrm",
       "thumbnail": null,
       "license": "CC0"
