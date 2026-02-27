@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useStore } from './state/store.ts';
-import { SetupWizard } from './setup-wizard.tsx';
-import { AvatarCanvas } from './avatar/avatar-canvas.tsx';
+import { TokenSetup } from './token-setup.tsx';
+import { ModelPickerOverlay } from './model-picker-overlay.tsx';
+import { AvatarCanvas, WsContext } from './avatar/avatar-canvas.tsx';
+import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
 
@@ -31,37 +33,119 @@ const avatarContainerStyle: React.CSSProperties = {
   position: 'relative',
 };
 
-export function App() {
-  const token = useStore((s) => s.token);
-  const modelId = useStore((s) => s.modelId);
-  const theme = useStore((s) => s.theme);
-  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
+const connectingStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  pointerEvents: 'none',
+  zIndex: 50,
+};
 
-  // Apply theme to body
+const connectingPillStyle: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'rgba(10,10,15,0.85)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 20,
+  fontSize: '0.85rem',
+  fontWeight: 500,
+  color: 'var(--color-text-muted)',
+  backdropFilter: 'blur(8px)',
+};
+
+/**
+ * App routing logic:
+ *
+ * 1. No token → TokenSetup
+ * 2. Token present → always mount AvatarCanvas (WS connects immediately)
+ *    a. No channel_state yet (connecting or just connected) → canvas + "Connecting..." pill
+ *    b. channel_state received + no model → ModelPickerOverlay
+ *    c. channel_state received + model set → full avatar
+ *
+ * WsContext.Provider lives here — above BOTH AvatarCanvas and ModelPickerOverlay —
+ * so siblings share the same sendSetModel. Do NOT move it into AvatarCanvas.
+ *
+ * Context value is memoized with [] (stable for App lifetime) — sendSetModel
+ * reads from sendSetModelRef at call time, so the function identity is constant
+ * even across WS reconnects. No wsReady state needed; the ref is the source
+ * of truth and the warning covers the not-ready case.
+ */
+export function App() {
+  const token                  = useStore((s) => s.token);
+  const modelId                = useStore((s) => s.modelId);
+  const theme                  = useStore((s) => s.theme);
+  const channelStateReceived   = useStore((s) => s.channelStateReceived);
+  const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
+
+  // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
+  // Reading the ref at call time means the context value never needs to change.
+  const sendSetModelRef = useRef<((modelId: string | null) => void) | null>(null);
+
+  const handleSendSetModelReady = useCallback(
+    (fn: ((modelId: string | null) => void) | null) => {
+      sendSetModelRef.current = fn;
+    },
+    [],
+  );
+
+  // Stable for App lifetime — reads ref at call time, never recreated.
+  // No wsReady dependency needed; the warning covers the not-connected case.
+  const wsContextValue = useMemo<WsContextValue>(
+    () => ({
+      sendSetModel: (id) => {
+        if (!sendSetModelRef.current) {
+          console.warn('[WsContext] sendSetModel called but WS client is not ready');
+          return;
+        }
+        sendSetModelRef.current(id);
+      },
+    }),
+    [], // stable for App lifetime
+  );
+
   useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }, [theme]);
 
-  // Onboarding: show wizard when missing token or model
-  const needsOnboarding = !token || !modelId;
+  if (!token) return <TokenSetup />;
 
-  if (needsOnboarding) {
-    return <SetupWizard />;
-  }
+  // Gate picker on channelStateReceived, not just connectionState === 'connected'.
+  // This prevents the picker from flashing open between onopen (connectionState flips
+  // to 'connected') and the first message event (channel_state arrives).
+  const showPicker   = channelStateReceived && !modelId;
+  const showLoading  = !channelStateReceived;
 
-  // Token + model present → show avatar with controls
   return (
-    <div style={avatarContainerStyle}>
-      <AvatarCanvas />
-      <StatusBadge />
-      <button
-        style={settingsBtnStyle}
-        onClick={() => setSettingsOpen(true)}
-        title="Settings"
-      >
-        ⚙
-      </button>
-      <SettingsDrawer />
-    </div>
+    <WsContext.Provider value={wsContextValue}>
+      <div style={avatarContainerStyle}>
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} />
+
+        {showPicker && <ModelPickerOverlay />}
+
+        {showLoading && (
+          <div style={connectingStyle}>
+            <div style={connectingPillStyle}>Connecting...</div>
+          </div>
+        )}
+
+        {/* StatusBadge always shown — user can see connection state during onboarding */}
+        <StatusBadge />
+
+        {modelId && (
+          <>
+            <button
+              style={settingsBtnStyle}
+              onClick={() => setSettingsOpen(true)}
+              title="Settings"
+              aria-label="Open settings"
+            >
+              ⚙
+            </button>
+            <SettingsDrawer />
+          </>
+        )}
+      </div>
+    </WsContext.Provider>
   );
 }

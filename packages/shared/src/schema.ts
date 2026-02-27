@@ -1,3 +1,14 @@
+// ─── Model ID ─────────────────────────────────────────────────────────────────
+
+/** Valid model ID: alphanumeric, hyphens, underscores, 1–128 chars */
+export const MODEL_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
+
+export function isValidModelId(id: unknown): id is string {
+  return typeof id === 'string' && MODEL_ID_REGEX.test(id);
+}
+
+// ─── Avatar event types ────────────────────────────────────────────────────────
+
 export const EMOTIONS = [
   'idle',
   'thinking',
@@ -95,3 +106,66 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
 
   return { ok: true };
 }
+
+// ─── Channel state ─────────────────────────────────────────────────────────────
+
+/**
+ * The persistent state of a relay channel (Durable Object).
+ * Sent to WebSocket clients on connect, and returned by the HTTP state endpoint.
+ * The DO is the source of truth — clients treat this as authoritative.
+ */
+export interface ChannelState {
+  /** Currently selected VRM model ID, or null if not yet chosen */
+  model: string | null;
+  /** Unix timestamp (ms) of the last agent push event, or null if never pushed */
+  lastAgentEventAt: number | null;
+  /** Number of currently connected WebSocket clients */
+  connectedClients: number;
+}
+
+// ─── WebSocket message types (server → client) ─────────────────────────────────
+
+/** Sent once on WebSocket connect — full channel state + optional last event */
+export interface ChannelStateMessage {
+  type: 'channel_state';
+  version: string;
+  data: ChannelState & { lastEvent: AvatarEvent | null };
+  timestamp: number;
+}
+
+/** Sent to all clients when any client changes the model */
+export interface ModelChangedMessage {
+  type: 'model_changed';
+  version: string;
+  data: { model: string | null };
+  timestamp: number;
+}
+
+/** Existing avatar event message (unchanged) */
+export interface AvatarEventMessage {
+  type: 'avatar_event';
+  version: string;
+  data: AvatarEvent;
+  timestamp: number;
+  replay: boolean;
+}
+
+export type WebSocketServerMessage =
+  | ChannelStateMessage
+  | ModelChangedMessage
+  | AvatarEventMessage;
+
+// ─── WebSocket message types (client → server) ─────────────────────────────────
+
+/** Client requests a model change — broadcasts to all connected clients */
+export interface SetModelMessage {
+  type: 'set_model';
+  model: string | null;
+}
+
+export type WebSocketClientMessage = SetModelMessage;
+
+// ─── HTTP response types ────────────────────────────────────────────────────────
+
+/** Response from GET /channel/:token/state */
+export type ChannelStateResponse = ChannelState;

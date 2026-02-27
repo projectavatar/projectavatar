@@ -1,9 +1,18 @@
-import { validateAvatarEvent } from '../../packages/shared/src/schema.js';
+import { validateAvatarEvent, isValidModelId } from '../../packages/shared/src/schema.js';
 import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS } from '../../packages/shared/src/constants.js';
-import type { AvatarEvent } from '../../packages/shared/src/schema.js';
-import type { Env, WebSocketMessage } from './types.js';
+import type {
+  AvatarEvent,
+  ChannelState,
+  ChannelStateMessage,
+  ModelChangedMessage,
+  AvatarEventMessage,
+  WebSocketClientMessage,
+} from '../../packages/shared/src/schema.js';
+import type { Env } from './types.js';
 
-const LAST_EVENT_KEY = 'lastEvent';
+const LAST_EVENT_KEY        = 'lastEvent';
+const MODEL_KEY             = 'model';
+const LAST_AGENT_EVENT_AT_KEY = 'lastAgentEventAt';
 
 /**
  * Channel Durable Object — one instance per token.
@@ -11,8 +20,15 @@ const LAST_EVENT_KEY = 'lastEvent';
  * Responsibilities:
  * - Holds the set of connected WebSocket clients (via hibernation API)
  * - Receives pushed avatar events and fans them out to all connected clients
- * - Persists the last known event to DO storage so it survives hibernation eviction
- * - Replays the last event to new connections immediately on join
+ * - Persists the last known event, model, and lastAgentEventAt to DO storage
+ * - Sends full channel state to new clients on WebSocket connect
+ * - Handles `set_model` messages from clients and broadcasts `model_changed`
+ * - Exposes GET /state for the plugin's share-link generation
+ *
+ * ## Source of truth
+ * The DO owns channel identity state: model selection and agent activity
+ * timestamp. Clients (web app, plugin) derive their state from the DO.
+ * localStorage in the web app is a cache only — DO always wins on conflict.
  *
  * ## Token security model
  * This DO instance is identified by SHA-256(token), derived in the Worker
@@ -23,13 +39,16 @@ const LAST_EVENT_KEY = 'lastEvent';
  * ## Hibernation
  * The DO uses the WebSocket Hibernation API (`state.acceptWebSocket`). This
  * means the DO can sleep when idle (zero cost) and wake on the next request.
- * `lastEvent` is persisted to DO storage so replay works correctly even after
- * the DO has been evicted from memory.
+ * All persistent state is stored in DO storage so it survives eviction.
  */
 export class Channel implements DurableObject {
   private state: DurableObjectState;
-  // In-memory cache of last event — populated lazily from storage on first push/stream
-  private lastEventCache: AvatarEvent | null | undefined = undefined; // undefined = not yet loaded
+
+  // In-memory caches — populated lazily from storage on first use.
+  // `undefined` means "not yet loaded from storage".
+  private lastEventCache: AvatarEvent | null | undefined = undefined;
+  private modelCache: string | null | undefined = undefined;
+  private lastAgentEventAtCache: number | null | undefined = undefined;
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
@@ -46,15 +65,20 @@ export class Channel implements DurableObject {
       return this.handleStream(request);
     }
 
+    if (url.pathname === '/state' && request.method === 'GET') {
+      return this.handleGetState();
+    }
+
     return new Response('Not Found', { status: 404 });
   }
 
   // ─── Push Handler ──────────────────────────────────────────────────────────
 
   private async handlePush(request: Request): Promise<Response> {
-    // Read the full body with a hard byte cap.
-    // Note: content-length is client-supplied and unreliable — it is NOT used
-    // as a security boundary. The actual limit is enforced on the raw text length.
+    if (request.method !== 'POST') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
     let text: string;
     try {
       text = await request.text();
@@ -62,8 +86,6 @@ export class Channel implements DurableObject {
       return jsonResponse({ error: 'Failed to read request body' }, 400);
     }
 
-    // Use byte length, not UTF-16 code unit length, to match the maxPayloadBytes semantic.
-    // Practically identical for ASCII JSON, but correct for any Unicode input.
     if (new TextEncoder().encode(text).length > RATE_LIMITS.maxPayloadBytes) {
       return jsonResponse({ error: 'Payload too large' }, 413);
     }
@@ -81,19 +103,24 @@ export class Channel implements DurableObject {
     }
 
     const event = body as AvatarEvent;
+    const now = Date.now();
 
-    // Persist to DO storage so replay survives hibernation eviction
-    await this.state.storage.put(LAST_EVENT_KEY, event);
-    this.lastEventCache = event;
+    // Persist event + activity timestamp in a single atomic write
+    await this.state.storage.put({
+      [LAST_EVENT_KEY]:          event,
+      [LAST_AGENT_EVENT_AT_KEY]: now,
+    });
+    this.lastEventCache          = event;
+    this.lastAgentEventAtCache   = now;
 
     // Fan out to all connected WebSocket clients
     const sockets = this.state.getWebSockets();
-    const message: WebSocketMessage = {
-      type: 'avatar_event',
-      version: PROTOCOL_VERSION,
-      data: event,
-      timestamp: Date.now(),
-      replay: false,
+    const message: AvatarEventMessage = {
+      type:      'avatar_event',
+      version:   PROTOCOL_VERSION,
+      data:      event,
+      timestamp: now,
+      replay:    false,
     };
     const payload = JSON.stringify(message);
 
@@ -103,7 +130,7 @@ export class Channel implements DurableObject {
         ws.send(payload);
         delivered++;
       } catch {
-        // Dead connection — DO hibernation API handles cleanup automatically
+        // Dead connection — hibernation API handles cleanup automatically
       }
     }
 
@@ -118,44 +145,89 @@ export class Channel implements DurableObject {
       return new Response('Expected WebSocket upgrade', { status: 426 });
     }
 
-    // Explicit property access — Object.values() order is not guaranteed
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
-    // Accept via hibernation API — the DO can sleep when no connections are active
     this.state.acceptWebSocket(server);
 
-    // Send last known state immediately on connect (state replay)
-    // Load from storage if not in memory (handles post-eviction wake)
-    const lastEvent = await this.getLastEvent();
-    if (lastEvent) {
-      const replayMessage: WebSocketMessage = {
-        type: 'avatar_event',
-        version: PROTOCOL_VERSION,
-        data: lastEvent,
-        timestamp: Date.now(),
-        replay: true,
-      };
-      server.send(JSON.stringify(replayMessage));
-    }
+    // Load all state in parallel — may hit storage if cache is cold
+    const [model, lastAgentEventAt, lastEvent] = await Promise.all([
+      this.getModel(),
+      this.getLastAgentEventAt(),
+      this.getLastEvent(),
+    ]);
+
+    // Send channel_state FIRST — client needs model before rendering avatar
+    // getWebSockets() includes the newly accepted socket — so connectedClients
+    // reflects the accurate post-connect count (including this client). This is
+    // intentional: the client sees itself counted among the viewers immediately.
+    const channelStateMsg: ChannelStateMessage = {
+      type:      'channel_state',
+      version:   PROTOCOL_VERSION,
+      data:      {
+        model,
+        lastAgentEventAt,
+        connectedClients: this.state.getWebSockets().length,
+        lastEvent,
+      },
+      timestamp: Date.now(),
+    };
+    server.send(JSON.stringify(channelStateMsg));
 
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  // ─── WebSocket Lifecycle (Hibernation API) ─────────────────────────────────
+  // ─── HTTP State Handler ────────────────────────────────────────────────────
 
-  webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): void {
-    // Clients may send pings — no application messages expected from clients in v1.
-    // Cloudflare handles WebSocket ping/pong at the protocol level automatically.
+  private async handleGetState(): Promise<Response> {
+    const [model, lastAgentEventAt] = await Promise.all([
+      this.getModel(),
+      this.getLastAgentEventAt(),
+    ]);
+
+    const body: ChannelState = {
+      model,
+      lastAgentEventAt,
+      connectedClients: this.state.getWebSockets().length,
+    };
+
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
   }
 
-  webSocketClose(_ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): void {
+  // ─── WebSocket Lifecycle (Hibernation API) ─────────────────────────────────
+
+  webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): void {
+    if (typeof message !== 'string') return; // Binary frames not supported
+
+    let msg: unknown;
+    try {
+      msg = JSON.parse(message);
+    } catch {
+      return; // Malformed JSON — ignore silently
+    }
+
+    const m = msg as Record<string, unknown>;
+    if (m['type'] === 'set_model') {
+      const model = m['model'] ?? null;
+      // Validate: must be a valid model ID string or explicit null (to clear model)
+      if (model !== null && !isValidModelId(model)) return;
+      void this.handleSetModel(model as string | null);
+    } else {
+      // Unknown message type — log at debug level for easier diagnostics
+      console.debug('[Channel] Unknown WebSocket message type:', m['type']);
+    }
+  }
+
+  webSocketClose(_ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
     // Hibernation API removes the socket from state.getWebSockets() automatically.
+    console.debug('[Channel] WebSocket closed:', code, reason || '(no reason)');
   }
 
   webSocketError(ws: WebSocket, error: unknown): void {
-    // Log the error for debugging. The hibernation API will clean up the socket.
     console.error('[Channel] WebSocket error:', error);
     try {
       ws.close(1011, 'WebSocket error');
@@ -164,20 +236,62 @@ export class Channel implements DurableObject {
     }
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ─── Model Management ─────────────────────────────────────────────────────
 
-  /**
-   * Returns the last known avatar event, loading from DO storage if needed.
-   * Uses an in-memory cache to avoid repeated storage reads within a single
-   * DO instance lifetime.
-   */
-  private async getLastEvent(): Promise<AvatarEvent | null> {
-    if (this.lastEventCache !== undefined) {
-      return this.lastEventCache;
+  private async handleSetModel(model: string | null): Promise<void> {
+    // Deduplicate: skip storage write + broadcast if the model hasn't changed.
+    // Prevents storage churn if a client spams set_model with the same value.
+    // modelCache uses the sentinel pattern: undefined = not yet loaded from storage.
+    // A loaded null and a loaded 'some-model' are both valid values.
+    if (this.modelCache !== undefined && this.modelCache === model) return;
+
+    this.modelCache = model;
+    await this.state.storage.put(MODEL_KEY, model);
+
+    const broadcast: ModelChangedMessage = {
+      type:      'model_changed',
+      version:   PROTOCOL_VERSION,
+      data:      { model },
+      timestamp: Date.now(),
+    };
+    const payload = JSON.stringify(broadcast);
+
+    for (const ws of this.state.getWebSockets()) {
+      try {
+        ws.send(payload);
+      } catch {
+        // Dead socket — hibernation API cleans up
+      }
     }
+  }
+
+  // ─── Storage Helpers (lazy cache pattern) ─────────────────────────────────
+  //
+  // Sentinel convention: `undefined` means "not yet loaded from storage".
+  // `null` means "loaded but no value stored". Both `undefined` and `null`
+  // from storage.get() are collapsed to `null` via `?? null` — they represent
+  // the same thing: no value. Never assign `undefined` to a cache field after
+  // initialization; doing so would bypass the cache on every subsequent call.
+
+  private async getLastEvent(): Promise<AvatarEvent | null> {
+    if (this.lastEventCache !== undefined) return this.lastEventCache;
     const stored = await this.state.storage.get<AvatarEvent>(LAST_EVENT_KEY);
     this.lastEventCache = stored ?? null;
     return this.lastEventCache;
+  }
+
+  private async getModel(): Promise<string | null> {
+    if (this.modelCache !== undefined) return this.modelCache;
+    const stored = await this.state.storage.get<string | null>(MODEL_KEY);
+    this.modelCache = stored ?? null;
+    return this.modelCache;
+  }
+
+  private async getLastAgentEventAt(): Promise<number | null> {
+    if (this.lastAgentEventAtCache !== undefined) return this.lastAgentEventAtCache;
+    const stored = await this.state.storage.get<number>(LAST_AGENT_EVENT_AT_KEY);
+    this.lastAgentEventAtCache = stored ?? null;
+    return this.lastAgentEventAtCache;
   }
 }
 

@@ -1,0 +1,69 @@
+name: Publish Plugin
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/openclaw-plugin/**'
+      - '.changeset/**'
+      - '.github/workflows/publish-plugin.yml'
+
+concurrency:
+  group: publish-plugin
+  cancel-in-progress: false   # never cancel a publish mid-flight
+
+jobs:
+  # ── CI: always runs on matching pushes ────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: cd packages/openclaw-plugin && npm run test
+
+  # ── Release: create Version PR or publish ─────────────────────────────────
+  release:
+    name: Release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push version bump commits
+      pull-requests: write  # open the Version PR
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # changesets needs full history to detect what changed
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # changesets/action does two things depending on state:
+      #   1. No pending changesets → opens (or updates) a "Version Packages" PR
+      #      that bumps package.json versions + updates CHANGELOG.md
+      #   2. Version PR is merged → publishes to npm and creates a GitHub release
+      - name: Create Version PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npx changeset publish
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

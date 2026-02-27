@@ -21,7 +21,20 @@
 
 import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from './schema.js';
 
-export const SKILL_TEMPLATE = `# Avatar Skill
+export const SKILL_TEMPLATE = `---
+name: avatar
+description: "Real-time 3D avatar that reacts to your emotional state and actions. Emit one [avatar:{...}] tag per response."
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🧿",
+        "requires": { "env": ["AVATAR_TOKEN"] },
+      },
+  }
+---
+
+# Avatar Skill
 
 ## Configuration
 \`\`\`

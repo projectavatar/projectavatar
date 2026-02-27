@@ -4,7 +4,9 @@
 
 Project Avatar is a web app that renders a 3D anime-style avatar reacting in real-time to what your AI agent is doing. When the agent is thinking, the avatar thinks. When it's coding, the avatar types. When it's confused, you'll see it on her face.
 
-It works with **any** AI agent — OpenClaw, ChatGPT, Claude, your custom LLM pipeline — without modifying the agent platform. One URL sent to your agent installs the skill automatically. Those tags drive the avatar. The user never sees them.
+It works with **any** AI agent — OpenClaw, ChatGPT, Claude, your custom LLM pipeline — without modifying the agent platform.
+
+For OpenClaw users, the `@projectavatar/openclaw-avatar` plugin hooks directly into the agent lifecycle — the avatar reacts the moment a tool call *starts*, not after the response is complete.
 
 Your agent finally has a body.
 
@@ -34,8 +36,6 @@ Your agent finally has a body.
 
 The user sees clean text. The avatar sees everything.
 
-**Coming next: OpenClaw Plugin** — for OpenClaw users, an upcoming plugin (`@projectavatar/openclaw`) hooks directly into the agent lifecycle via `before_tool_call` and `after_tool_call` events. The avatar reacts the moment the agent *starts* a tool call — not after the response is complete. The skill remains the universal cross-platform path.
-
 ---
 
 ## Quick Start
@@ -46,7 +46,7 @@ The user sees clean text. The avatar sees everything.
 
 Go to **[app.projectavatar.io](https://app.projectavatar.io)**
 
-A token is generated automatically on first visit and saved to your browser. Choose your VRM model. You're ready.
+A token is generated automatically on first visit. Open the app, connect to the relay, and pick your VRM model. That choice is saved to the relay — any other screen you open with the same token picks it up automatically.
 
 ### 2. Install the Skill — One URL, That's It
 
@@ -65,6 +65,23 @@ The agent fetches the URL, gets a pre-configured SKILL.md with your token alread
 ### 3. Done
 
 Start chatting with your agent. Watch the avatar react.
+
+---
+
+## Quick Start (OpenClaw Plugin)
+
+The fastest path for OpenClaw users — no skill install, no output filter, direct lifecycle hooks:
+
+```bash
+openclaw plugins install @projectavatar/openclaw-avatar
+openclaw secrets set AVATAR_TOKEN YOUR_TOKEN
+```
+
+Then open your avatar URL and start chatting. The avatar reacts to every tool call in real-time.
+
+**Commands:**
+- `/avatar link` — get your share URL
+- `/avatar status` — show model, viewer count, last event age
 
 ---
 
@@ -139,13 +156,17 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - [x] **OBS Browser Source** — transparent background, URL-based token
 - [x] **Shared schema** — `@project-avatar/shared` with types, validation, skill template generation
 
-### v1.1 (Next: OpenClaw Plugin)
-- [ ] **`@projectavatar/openclaw` plugin** — deep lifecycle integration via OpenClaw plugin API
+### v1.1 (OpenClaw Plugin) ✅
+- [x] **`@projectavatar/openclaw-avatar` plugin** — deep lifecycle integration via OpenClaw plugin API
   - `before_tool_call` / `after_tool_call` hooks — avatar reacts the instant a tool call starts
-  - `before_prompt_build` — automatic skill injection, no manual install needed
   - Optional `avatar` agent tool for explicit LLM-driven state control
   - Plugin-internal state machine with debouncing and priority
-- [ ] **Token dashboard** — usage stats, rotation, expiry
+- [x] **Identity persistence** — model selection stored in Durable Object, survives page refresh
+- [x] **Multi-screen sync** — model change on one screen propagates to all connected instances in real-time
+- [x] **Agent presence indicator** — status badge shows active/idle/away based on last event timestamp
+- [x] **`/avatar` command** — `/avatar link` for share URL, `/avatar status` for channel info
+- [x] **WebSocket keepalive** — 60s dead-connection detection, auto-reconnect
+- [x] **No-build plugin** — OpenClaw loads TypeScript directly via jiti, no compile step
 
 ### v1.2 (Polish)
 - [ ] Tauri desktop app — always-on-top, system tray (optional)
@@ -177,7 +198,7 @@ project-avatar/
 │   │       ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
 │   │       ├── constants.ts# Protocol version, defaults, rate limits, token utils
 │   │       └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
-│   └── openclaw-plugin/    # [v1.1] @projectavatar/openclaw — OpenClaw plugin
+│   └── openclaw-plugin/    # @projectavatar/openclaw-avatar — OpenClaw plugin
 ├── web/                    # Browser app — PRIMARY (Cloudflare Pages → app.projectavatar.io)
 │   └── src/
 │       ├── avatar/         # Three.js + VRM renderer
@@ -186,8 +207,9 @@ project-avatar/
 │       │   ├── prop-manager.ts, state-machine.ts
 │       ├── ws/             # WebSocket client (exponential backoff reconnect)
 │       ├── state/          # Zustand store
-│       ├── components/     # model-picker, settings-drawer, status-badge
-│       └── setup-wizard.tsx
+│       ├── components/     # settings-drawer, status-badge (WS + agent presence)
+│       ├── model-picker-overlay.tsx  # post-connect model selection
+│       └── token-setup.tsx           # first-visit token generation
 ├── relay/                  # Cloudflare Workers relay server (→ relay.projectavatar.io)
 │   └── src/
 │       ├── index.ts        # Worker entry + routing

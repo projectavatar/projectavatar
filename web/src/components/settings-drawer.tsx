@@ -1,6 +1,13 @@
 import { useState, useCallback } from 'react';
 import { useStore } from '../state/store.ts';
+import { useWsClient } from '../avatar/avatar-canvas.tsx';
 import { isValidToken } from '@project-avatar/shared';
+import manifest from '../assets/models/manifest.json';
+import type { ModelEntry } from '../types.ts';
+
+const models = (manifest as unknown as { models: ModelEntry[] }).models;
+
+// ─── Styles ────────────────────────────────────────────────────────────────────
 
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
@@ -47,7 +54,6 @@ const closeBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
   background: 'transparent',
   border: 'none',
-  transition: 'background 0.15s',
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -82,7 +88,6 @@ const btnStyle: React.CSSProperties = {
   fontWeight: 500,
   borderRadius: 6,
   cursor: 'pointer',
-  transition: 'background 0.15s',
 };
 
 const selectStyle: React.CSSProperties = {
@@ -91,13 +96,21 @@ const selectStyle: React.CSSProperties = {
   appearance: 'auto' as const,
 };
 
+const hintStyle: React.CSSProperties = {
+  fontSize: '0.75rem',
+  color: 'var(--color-text-muted)',
+  lineHeight: 1.4,
+};
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(value).then(
-      () => { setCopied(true); setTimeout(() => setCopied(false), 1500); },
-      () => {},
-    );
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   }, [value]);
   return (
     <button
@@ -117,7 +130,7 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function UrlField({ label, value }: { label: string; value: string }) {
+function UrlField({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div style={sectionStyle}>
       <label style={labelStyle}>{label}</label>
@@ -139,9 +152,12 @@ function UrlField({ label, value }: { label: string; value: string }) {
         </div>
         <CopyButton value={value} />
       </div>
+      {hint && <div style={hintStyle}>{hint}</div>}
     </div>
   );
 }
+
+// ─── Main Drawer ───────────────────────────────────────────────────────────────
 
 export function SettingsDrawer() {
   const {
@@ -150,6 +166,7 @@ export function SettingsDrawer() {
     relayUrl,
     theme,
     settingsOpen,
+    connectionState,
     setToken,
     setRelayUrl,
     setTheme,
@@ -157,16 +174,16 @@ export function SettingsDrawer() {
     generateAndSetToken,
   } = useStore();
 
+  const { sendSetModel } = useWsClient();
+
   const [tokenInput, setTokenInput] = useState(token ?? '');
   const [relayInput, setRelayInput] = useState(relayUrl);
-  const [error, setError] = useState('');
+  const [tokenError, setTokenError] = useState('');
 
-  const avatarUrl = token && modelId
-    ? `${window.location.origin}/?token=${token}&model=${modelId}`
-    : null;
-  const skillUrl = token
-    ? `${relayUrl}/skill/install?token=${token}${modelId ? `&model=${modelId}` : ''}`
-    : null;
+  // Share link: token only — model is owned by the DO, not the URL
+  const avatarUrl  = token ? `${window.location.origin}/?token=${token}` : null;
+  const skillUrl   = token ? `${relayUrl}/skill/install?token=${token}` : null;
+  const isConnected = connectionState === 'connected';
 
   if (!settingsOpen) return null;
 
@@ -178,10 +195,10 @@ export function SettingsDrawer() {
       return;
     }
     if (!isValidToken(trimmed)) {
-      setError('Invalid token format');
+      setTokenError('Invalid token format');
       return;
     }
-    setError('');
+    setTokenError('');
     setToken(trimmed);
   };
 
@@ -192,7 +209,14 @@ export function SettingsDrawer() {
   const handleGenerate = () => {
     const t = generateAndSetToken();
     setTokenInput(t);
-    setError('');
+    setTokenError('');
+  };
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value || null;
+    if (!isConnected) return; // Silently ignore if not connected
+    sendSetModel(id);
+    // Store updates when model_changed echo arrives from DO
   };
 
   return (
@@ -200,16 +224,54 @@ export function SettingsDrawer() {
       <div style={drawerStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <span style={titleStyle}>Settings</span>
-          <button style={closeBtnStyle} onClick={() => setSettingsOpen(false)}>
-            ×
-          </button>
+          <button style={closeBtnStyle} onClick={() => setSettingsOpen(false)}>×</button>
         </div>
 
-        {/* Skill install URL — most important, show first */}
-        {skillUrl && <UrlField label="Skill Install URL" value={skillUrl} />}
-        {avatarUrl && <UrlField label="Avatar URL" value={avatarUrl} />}
+        {/* Share links */}
+        {skillUrl && (
+          <UrlField
+            label="Skill Install URL"
+            value={skillUrl}
+            hint="Give this URL to your AI agent to connect it to your avatar."
+          />
+        )}
+        {avatarUrl && (
+          <UrlField
+            label="Avatar URL"
+            value={avatarUrl}
+            hint="Open this on any screen or add to OBS as a browser source."
+          />
+        )}
 
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.25rem' }} />
+        <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+        {/* Model picker */}
+        <div style={sectionStyle}>
+          <label style={labelStyle}>Avatar Model</label>
+          <select
+            value={modelId ?? ''}
+            onChange={handleModelChange}
+            style={{ ...selectStyle, opacity: isConnected ? 1 : 0.5 }}
+            disabled={!isConnected}
+          >
+            <option value="" disabled>Select a model...</option>
+            {models.map((m: ModelEntry) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          {!isConnected && (
+            <div style={{ ...hintStyle, color: 'var(--color-warning)' }}>
+              Connect to the relay to change the model.
+            </div>
+          )}
+          {isConnected && (
+            <div style={hintStyle}>
+              Model change syncs to all connected screens instantly.
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
         {/* Token */}
         <div style={sectionStyle}>
@@ -217,15 +279,12 @@ export function SettingsDrawer() {
           <input
             type="text"
             value={tokenInput}
-            onChange={(e) => {
-              setTokenInput(e.target.value);
-              setError('');
-            }}
+            onChange={(e) => { setTokenInput(e.target.value); setTokenError(''); }}
             placeholder="Enter or generate a token"
             style={inputStyle}
           />
-          {error && (
-            <span style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}>{error}</span>
+          {tokenError && (
+            <span style={{ color: 'var(--color-danger)', fontSize: '0.8rem' }}>{tokenError}</span>
           )}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
@@ -244,7 +303,7 @@ export function SettingsDrawer() {
               }}
               onClick={handleGenerate}
             >
-              Generate
+              New token
             </button>
           </div>
         </div>
@@ -280,10 +339,9 @@ export function SettingsDrawer() {
           </select>
         </div>
 
-        {/* Info */}
         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-            Project Avatar v1.0.0
+            Project Avatar v1.1.0
             <br />
             Relay: {relayUrl}
           </p>

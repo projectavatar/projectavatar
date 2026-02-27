@@ -1,0 +1,73 @@
+{
+  "id": "projectavatar",
+  "name": "Project Avatar",
+  "description": "Real-time 3D avatar driven by agent lifecycle hooks. Your agent gets a face.",
+  "version": "1.1.0",
+
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "relayUrl": {
+        "type": "string",
+        "default": "https://relay.projectavatar.io"
+      },
+      "appUrl": {
+        "type": "string",
+        "default": "https://app.projectavatar.io"
+      },
+      "enabled": {
+        "type": "boolean",
+        "default": true
+      },
+      "idleTimeoutMs": {
+        "type": "number",
+        "default": 30000,
+        "minimum": 5000
+      },
+      "debounceMs": {
+        "type": "number",
+        "default": 300,
+        "minimum": 50
+      },
+      "enableAvatarTool": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "commands": [
+    {
+      "name": "avatar",
+      "description": "Get your avatar share link or check channel status",
+      "usage": "/avatar [link|status]"
+    }
+  ],
+  "uiHints": {
+    "relayUrl": {
+      "label": "Relay URL",
+      "placeholder": "https://relay.projectavatar.io"
+    },
+    "appUrl": {
+      "label": "App URL",
+      "placeholder": "https://app.projectavatar.io",
+      "help": "Only set this if self-hosting the avatar web app at a custom domain",
+      "advanced": true
+    },
+    "idleTimeoutMs": {
+      "label": "Idle Timeout (ms)",
+      "help": "Return avatar to idle state after this many milliseconds of no events",
+      "advanced": true
+    },
+    "debounceMs": {
+      "label": "Debounce (ms)",
+      "help": "Minimum time between relay pushes — prevents flooding during rapid tool calls",
+      "advanced": true
+    },
+    "enableAvatarTool": {
+      "label": "Avatar Tool",
+      "help": "Register an 'avatar' tool the LLM can call to explicitly set avatar state",
+      "advanced": true
+    }
+  }
+}

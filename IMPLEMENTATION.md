@@ -11,11 +11,14 @@ This document is the complete technical blueprint for Project Avatar. A develope
 3. [Phase 1: Relay Server](#phase-1-relay-server-week-1) ✅
 4. [Phase 2: Web App + Avatar Core](#phase-2-web-app--avatar-core-week-2) ✅
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
-6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ← next
-7. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
-8. [Technical Deep Dives](#technical-deep-dives)
-9. [Error Handling & Resilience](#error-handling--resilience)
-10. [Testing Strategy](#testing-strategy)
+6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ✅
+7. [Phase 4.1: Identity Persistence + Multi-Screen Sync](#phase-41-identity-persistence--multi-screen-sync-v11) ✅
+8. [Phase 4.2: Agent Presence + Plugin Share Link](#phase-42-agent-presence--plugin-share-link-v11) ✅
+9. [Phase 4.3: WebSocket Keepalive](#phase-43-websocket-keepalive-v11) ✅
+10. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
+11. [Technical Deep Dives](#technical-deep-dives)
+12. [Error Handling & Resilience](#error-handling--resilience)
+13. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -1321,14 +1324,14 @@ Comprehensive tests for the filter:
 
 ### Goal
 
-A first-class OpenClaw plugin (`@projectavatar/openclaw`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users while shipping the skill as a bundled fallback for cross-platform use.
+A first-class OpenClaw plugin (`@projectavatar/openclaw-avatar`) that hooks into the agent lifecycle for real-time avatar state transitions. The plugin replaces the skill+filter pattern for OpenClaw users. The skill remains available separately for non-OpenClaw platforms.
 
 **Why a plugin, not just a skill?** The skill approach works everywhere but has a fundamental limitation: the agent must *finish generating text* before the output filter can extract and forward the avatar tag. A plugin hooks into `before_tool_call` — the avatar reacts the instant the agent decides to search, code, or read, *before* the tool returns. This is the difference between "avatar reacts to what the agent said" and "avatar reacts to what the agent is doing."
 
 **How OpenClaw hooks work (important distinction):** OpenClaw has two separate hook systems:
 
 - **Internal hooks** (`/automation/hooks`) — file-based scripts triggered by message/command/gateway events (`message:received`, `command:new`, `gateway:startup`). No agent-turn internals.
-- **Plugin hooks** (plugin API only) — registered via `api.on()` inside `register(api)`. These run *inside* the agent loop: `before_tool_call`, `after_tool_call`, `before_prompt_build`, `agent_end`, `session_start/end`, etc.
+- **Plugin hooks** (plugin API only) — registered via `api.on()` inside `register(api)`. These run *inside* the agent loop: `before_tool_call`, `after_tool_call`, `agent_end`, `session_start/end`, etc.
 
 The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are not available to standalone hook scripts.
 
@@ -1339,7 +1342,7 @@ The `before_tool_call` / `after_tool_call` hooks are **plugin-only**. They are n
 ```
 packages/openclaw-plugin/
 ├── openclaw.plugin.json          # Plugin manifest (OpenClaw discovers this)
-├── package.json                  # npm: @projectavatar/openclaw
+├── package.json                  # npm: @projectavatar/openclaw-avatar
 ├── src/
 │   ├── index.ts                  # Plugin entry: exports register(api)
 │   ├── tool-map.ts               # Tool name → avatar signal mapping table
@@ -1374,13 +1377,13 @@ packages/openclaw-plugin/
       "idleTimeoutMs": { "type": "number", "default": 30000, "minimum": 5000 },
       "debounceMs": { "type": "number", "default": 300, "minimum": 50 },
       "enableAvatarTool": { "type": "boolean", "default": false },
-      "suppressSkillTags": { "type": "boolean", "default": true }
+      "enableAvatarTool": { "type": "boolean", "default": false }
     }
   },
   "uiHints": {
     "relayUrl": { "label": "Relay URL", "placeholder": "https://relay.projectavatar.io" },
     "enableAvatarTool": { "label": "Avatar Tool", "help": "Register an 'avatar' tool the LLM can call explicitly", "advanced": true },
-    "suppressSkillTags": { "label": "Suppress Skill Tags", "help": "Strip [avatar:{...}] tags from output — plugin handles signaling instead", "advanced": true }
+    "enableAvatarTool": { "label": "Avatar Tool", "help": "Register an 'avatar' tool the LLM can call to explicitly set avatar state", "advanced": true }
   }
 }
 ```
@@ -1392,113 +1395,35 @@ packages/openclaw-plugin/
 ### Plugin Entry Point
 
 ```typescript
-// src/index.ts
-import type { OpenClawPluginApi } from 'openclaw/plugin-sdk';
-import { createRelayClient } from './relay-client.js';
-import { createAvatarStateMachine } from './state-machine.js';
-import { resolveToolSignal } from './tool-map.js';
-import { createAvatarTool } from './avatar-tool.js';
+// src/index.ts — see packages/openclaw-plugin/src/index.ts for the full implementation
+// Key hooks registered:
 
-export default function register(api: OpenClawPluginApi): void {
-  const cfg = {
-    relayUrl: 'https://relay.projectavatar.io',
-    enabled: true,
-    idleTimeoutMs: 30_000,
-    debounceMs: 300,
-    enableAvatarTool: false,
-    suppressSkillTags: true,
-    ...(api.pluginConfig as Record<string, unknown>),
-  };
+api.on('message_received', () =>
+  sm.transition({ emotion: 'thinking', action: 'reading', prop: 'none', intensity: 'medium' }));
 
-  const token = process.env.AVATAR_TOKEN;
-  if (!token) {
-    api.logger.warn(
-      'AVATAR_TOKEN not set — plugin loaded but will not push events. ' +
-      'Set via: openclaw secrets set AVATAR_TOKEN <your-token>'
-    );
-    return;
-  }
+api.on('before_tool_call', (event) => {
+  if (typeof event.toolName !== 'string') return;
+  const signal = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
+  sm.transition(signal);
+});
 
-  if (!cfg.enabled) return;
+api.on('after_tool_call', (event) => {
+  if (typeof event.toolName !== 'string') return;
+  const errorStr = typeof event.error === 'string' ? event.error : undefined;
+  const signal = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+  sm.transition(signal);
+});
 
-  const relay = createRelayClient(cfg.relayUrl as string, token);
-  const stateMachine = createAvatarStateMachine({
-    debounceMs: cfg.debounceMs as number,
-    idleTimeoutMs: cfg.idleTimeoutMs as number,
-    onEmit: (event) => relay.push(event),
-  });
+api.on('agent_end', (event) => {
+  sm.transition(event.success
+    ? { emotion: 'satisfied', action: 'responding', prop: 'none', intensity: 'medium' }
+    : { emotion: 'concerned', action: 'error',      prop: 'none', intensity: 'high' });
+  sm.scheduleIdle();
+});
 
-  // ── Tool lifecycle (the core feature) ─────────────────────────────────────
+api.on('session_end', () => sm.reset()); // reset() cancels all timers + pushes IDLE
 
-  api.on('before_tool_call', (event) => {
-    const signal = resolveToolSignal(event.toolName, 'before', event.params);
-    if (signal) stateMachine.transition(signal);
-  });
-
-  api.on('after_tool_call', (event) => {
-    const signal = resolveToolSignal(event.toolName, 'after', event.params, event.error);
-    if (signal) stateMachine.transition(signal);
-  });
-
-  // ── Prompt injection: no manual skill install needed ───────────────────────
-
-  api.on('before_prompt_build', (event) => {
-    if (!cfg.suppressSkillTags) return;
-    // Guard: skip if the skill prompt (which mentions [avatar:...] tags) is already
-    // in the system context — avoids contradictory instructions when both skill and
-    // plugin are active. The message_sending hook handles stripping any emitted tags.
-    const alreadyHasSkill = event.systemPrompt?.includes('[avatar:');
-    if (alreadyHasSkill) return;
-    return {
-      prependContext: [
-        '## Avatar Presence',
-        'You have a visual avatar that reacts to your state in real-time.',
-        'Avatar state is managed automatically by a plugin via your tool calls.',
-        'Do NOT emit [avatar:...] tags — the plugin handles this.',
-        'Use the `avatar` tool only if you want to express something explicit.',
-      ].join('\n'),
-    };
-  });
-
-  // ── Bookend hooks ─────────────────────────────────────────────────────────
-
-  api.on('message_received', () => {
-    stateMachine.transition({ emotion: 'thinking', action: 'reading' });
-  });
-
-  api.on('agent_end', (event) => {
-    stateMachine.transition(
-      event.success
-        ? { emotion: 'satisfied', action: 'responding' }
-        : { emotion: 'concerned', action: 'error' }
-    );
-    stateMachine.scheduleIdle();
-  });
-
-  api.on('session_end', () => {
-    stateMachine.reset();
-    relay.push({ emotion: 'idle', action: 'waiting' });
-  });
-
-  // ── Tag suppression: strip residual [avatar:{...}] from output ─────────────
-
-  if (cfg.suppressSkillTags) {
-    api.on('message_sending', (event) => {
-      const cleaned = event.content
-        .replace(/^\[avatar:\{[^}]+\}]\s*\n?/m, '')
-        .trimStart();
-      if (cleaned !== event.content) return { content: cleaned };
-    });
-  }
-
-  // ── Optional explicit avatar tool ─────────────────────────────────────────
-
-  if (cfg.enableAvatarTool) {
-    api.registerTool(createAvatarTool(stateMachine), { optional: true });
-  }
-
-  api.logger.info(`Project Avatar plugin active (relay: ${cfg.relayUrl})`);
-}
+if (cfg.enableAvatarTool) api.registerTool(createAvatarTool(sm), { optional: true });
 ```
 
 ---
@@ -1722,10 +1647,9 @@ export function createRelayClient(relayUrl: string, token: string) {
 
 | Scenario | What happens |
 |----------|-------------|
-| OpenClaw + plugin only | Plugin handles everything via hooks. `before_prompt_build` injects a simplified prompt telling the agent not to emit tags. `message_sending` strips any residual tags. |
-| OpenClaw + plugin + skill | Plugin takes priority. `suppressSkillTags` strips tag output. No conflict. |
-| OpenClaw + skill only | Existing behavior: agent emits tags, output filter strips and pushes. Works fine, no tool-level reactivity. |
-| Non-OpenClaw platform | Skill is the only option. Plugin ships skill files for easy access. |
+| OpenClaw + plugin only | Plugin handles everything via hooks. Pure event-driven — no tag emission, no output filtering needed. |
+| OpenClaw + skill only | Agent emits tags, output filter strips and pushes. Works fine, no tool-level reactivity. |
+| Non-OpenClaw platform | Skill is the only option. See `docs/SKILL.md`. |
 
 ---
 
@@ -1733,9 +1657,9 @@ export function createRelayClient(relayUrl: string, token: string) {
 
 ```bash
 # Install
-openclaw plugins install @projectavatar/openclaw
+openclaw plugins install @projectavatar/openclaw-avatar
 
-# Local dev
+# Local dev (no build step needed — OpenClaw loads TypeScript via jiti)
 openclaw plugins install --link ./packages/openclaw-plugin
 
 # Enable
@@ -1749,15 +1673,19 @@ openclaw config set plugins.entries.projectavatar.config.relayUrl https://relay.
 openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 ```
 
+**No build step required for local development.** OpenClaw loads plugins via jiti, which executes TypeScript directly at runtime. The `package.json` `main` field points to `src/index.ts`. The build script (`tsc`) is only needed when publishing to npm.
+
+**Commands available after install:**
+- `/avatar link` — prints your share URL (`?token=<token>`)
+- `/avatar status` — shows model, connected viewers, and last agent event age
+
 ---
 
 ### Acceptance Criteria
 
-- [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw` and shows in `openclaw plugins list`
+- [ ] Plugin installs via `openclaw plugins install @projectavatar/openclaw-avatar` and shows in `openclaw plugins list`
 - [ ] `before_tool_call` fires and pushes correct signal for each tool in `TOOL_SIGNAL_MAP`
 - [ ] `after_tool_call` fires and updates state (success vs error paths)
-- [ ] `before_prompt_build` injects avatar context when `suppressSkillTags: true`
-- [ ] `message_sending` strips `[avatar:{...}]` tags when `suppressSkillTags: true`
 - [ ] `message_received` → avatar transitions to thinking/reading
 - [ ] `agent_end` → avatar transitions to satisfied (success) or concerned (error), then schedules idle
 - [ ] `session_end` → avatar resets to idle
@@ -1765,10 +1693,316 @@ openclaw config set plugins.entries.projectavatar.config.enableAvatarTool true
 - [ ] State machine respects emotion priority (higher-priority emotion wins within debounce window)
 - [ ] Idle timeout fires after `idleTimeoutMs` of no events
 - [ ] Relay push is fire-and-forget — never blocks agent pipeline, never throws
-- [ ] Missing `AVATAR_TOKEN` → clear warning log, plugin gracefully disables
+- [ ] Missing `AVATAR_TOKEN` at startup → warning log, plugin continues (token read lazily on first push)
+- [ ] Unknown tool calls → fallback signal (`focused/coding`) emitted, avatar always reacts
 - [ ] `enableAvatarTool: true` → `avatar` tool appears in agent tool list and sets state correctly
 - [ ] Plugin config validates via JSON schema in `openclaw.plugin.json`
 - [ ] All tests pass
+
+---
+
+## Phase 4.1: Identity Persistence + Multi-Screen Sync (v1.1)
+
+### Goal
+
+The Durable Object becomes the authoritative source of truth for channel identity state. Model selection persists across sessions, syncs in real-time across all connected screens, and the web app no longer requires model in the URL.
+
+### Architecture Decision
+
+**The DO owns channel state.** Not the plugin. Not the browser. Not localStorage. The DO.
+
+- `model` — selected VRM model ID (`string | null`)
+- `lastAgentEventAt` — Unix timestamp of last agent push (`number | null`)
+- `lastEvent` — most recent avatar event (already existed)
+
+Everything else is a cache:
+- localStorage in the web app = optimistic pre-connect cache, DO overwrites on connect
+- URL = token only (`?token=abc123`), no model param
+- Plugin config = token only
+
+### Identity + Sync Flow
+
+```
+First open (no model in DO):
+  1. Token in URL or generated fresh
+  2. WebSocket connects → DO sends channel_state { model: null, ... }
+  3. App shows ModelPickerOverlay (avatar canvas running in background)
+  4. User picks model → app sends { type: 'set_model', model: 'maid-v1' } over WS
+  5. DO persists model, broadcasts model_changed to ALL clients
+  6. App receives model_changed echo → store updates → overlay disappears
+
+Return visit / new screen (model already in DO):
+  1. Open ?token=abc123
+  2. WebSocket connects → DO sends channel_state { model: 'maid-v1', ... }
+  3. App applies model immediately → avatar renders, no picker shown
+
+Multi-screen model change:
+  1. Client A sends set_model
+  2. DO persists and broadcasts model_changed to all WS clients
+  3. All clients (A, B, C, OBS) receive model_changed and reload VRM
+```
+
+### What Was Built
+
+**`packages/shared/src/schema.ts`**
+- Added `MODEL_ID_REGEX` and `isValidModelId()` validator
+- New types: `ChannelState`, `ChannelStateMessage`, `ModelChangedMessage`, `AvatarEventMessage`
+- Discriminated union `WebSocketServerMessage` covering all server→client message types
+- `SetModelMessage` and `WebSocketClientMessage` for client→server messages
+- `ChannelStateResponse` for the HTTP state endpoint
+
+**`relay/src/channel.ts`**
+- New DO storage keys: `model`, `lastAgentEventAt`
+- Lazy in-memory cache for all three storage fields (same pattern as existing `lastEventCache`)
+- `handlePush`: atomic dual-write of `lastEvent` + `lastAgentEventAt` via `storage.put(map)`
+- `handleStream`: sends `channel_state` first (model + lastAgentEventAt + lastEvent + client count), no separate replay message
+- `webSocketMessage`: handles `set_model` from clients — validates, persists, broadcasts `model_changed`
+- `handleGetState`: new HTTP GET `/state` handler returning current `ChannelState` as JSON
+
+**`relay/src/index.ts`**
+- New route: `GET /channel/:token/state` → routes to DO's `/state` handler
+
+**`web/src/ws/web-socket-client.ts`**
+- New constructor params: `onChannelState`, `onModelChanged`
+- `handleMessage()` switch: handles `channel_state`, `avatar_event`, `model_changed`
+- New public `sendSetModel(model: string | null)`: sends `set_model` over open WebSocket
+
+**`web/src/state/store.ts`**
+- Removed model from URL params entirely (only token remains in URL)
+- `updateUrlParams` strips stale `?model=` params from old URLs on load
+- Added `lastAgentEventAt: number | null` field
+- Added `applyChannelState()`: single authoritative write path for DO state, DO always wins
+- `setModelId` no longer updates URL params
+- localStorage model = optimistic cache only, overwritten by `applyChannelState` on connect
+
+**`web/src/avatar/avatar-canvas.tsx`**
+- Wires `onChannelState` → `applyChannelState`, `onModelChanged` → `setModelId`
+- Provides `WsContext` with `sendSetModel` via React context (no prop drilling)
+- `useWsClient()` hook for descendant components to access `sendSetModel`
+
+**`web/src/app.tsx`**
+- Replaced full-screen wizard gate with layered approach:
+  - No token → `<TokenSetup />`
+  - Token + no model + connecting → canvas + connecting indicator
+  - Token + no model + connected → canvas + `<ModelPickerOverlay />`
+  - Token + model → full avatar experience (no blocker)
+- Canvas always mounts as soon as token is available — WS connects immediately
+
+**`web/src/token-setup.tsx`** *(new)*
+- Handles the no-token case: auto-generates a token, shows share links
+- Token-only share URL (`?token=abc123`, no model param)
+- Existing token paste + validation
+
+**`web/src/model-picker-overlay.tsx`** *(new)*
+- Overlay rendered on top of the live canvas
+- On select: calls `sendSetModel(id)` via `useWsClient()`
+- Store updates when `model_changed` echo arrives from DO — overlay disappears naturally
+
+**`web/src/components/settings-drawer.tsx`**
+- Share links updated: `?token=abc123` only (no model param)
+- Model picker: calls `sendSetModel` on change (disabled when not connected)
+- Hint text: "Model change syncs to all connected screens instantly."
+
+### Share Link Format
+
+```
+https://app.projectavatar.io/?token=abc123
+```
+
+No model in URL. The DO holds the model. This link works for:
+- First-time setup (will show model picker after connect)
+- Re-linking lost sessions
+- Adding additional screens
+- OBS browser source
+
+### GET /channel/:token/state
+
+```
+GET /channel/:token/state
+→ 200 { model: "maid-v1", lastAgentEventAt: 1709123456789, connectedClients: 3 }
+```
+
+Used by the plugin for `/avatar link` command generation (Phase 4.2).
+
+### Old URL Migration
+
+On init, `updateUrlParams` strips any stale `?model=` param from old URLs. Users with bookmarked URLs like `?token=abc&model=maid-v1` will have the model param cleaned silently on next visit. The DO state takes over.
+
+### Acceptance Criteria
+
+- [x] DO stores model and lastAgentEventAt to persistent storage
+- [x] WebSocket connect → client receives `channel_state` with model + lastAgentEventAt + lastEvent
+- [x] App applies model from DO on connect (DO wins over localStorage)
+- [x] When DO model is null, `ModelPickerOverlay` appears after connect
+- [x] User picks model → `set_model` sent via WS → DO broadcasts `model_changed` to all clients
+- [x] All connected screens switch model when any client calls `set_model`
+- [x] Share link is `?token=abc123` only — no model param
+- [x] `GET /channel/:token/state` returns current channel state as JSON
+- [x] Settings drawer: model picker calls `sendSetModel`, disabled when disconnected
+- [x] `?model=` stripped from URL on init (backward compat with old links)
+- [x] All existing tests pass (39/39)
+- [x] All packages compile clean (web, relay, plugin)
+
+---
+
+## Phase 4.2: Agent Presence + Plugin Share Link (v1.1) ✅
+
+### Goal
+
+Surface agent activity status in the web app UI and give the plugin a `/avatar` command for generating share links and checking channel status.
+
+### What to Build
+
+**Agent Presence Indicator (web app)**
+
+The DO already stores `lastAgentEventAt` as of Phase 4.1. Phase 4.2 wires it into the UI.
+
+`StatusBadge` currently shows WebSocket connection state (connected/reconnecting/disconnected). Extend it to show two signals:
+
+- **WS connection** (existing): the pipe between app and relay
+- **Agent presence** (new): whether the agent (plugin) has pushed events recently
+
+Agent presence states derived from `lastAgentEventAt`:
+- `active` — event within last 60s (agent is currently working)
+- `recent` — event within last 5min (agent was recently active)
+- `away` — no event in 5min+ OR `lastAgentEventAt` is null (agent offline/not configured)
+
+The presence state is computed in the store as a derived value — not stored separately, just computed from `lastAgentEventAt` on read. Update `lastAgentEventAt` in the store when `avatar_event` messages arrive (not just on `channel_state`) so the presence stays live.
+
+Updated `StatusBadge`:
+```
+[● Connected]  [● Agent active]
+[● Connected]  [○ Agent away]
+```
+
+Or a combined badge if screen space is tight — designer's call. Keep it minimal.
+
+**`web/src/state/store.ts`**
+- Add computed getter `agentPresence: 'active' | 'recent' | 'away'`
+- Update `lastAgentEventAt` when an `avatar_event` arrives (in `setAvatarState` or a new `recordAgentEvent()` action)
+
+**`web/src/avatar/avatar-canvas.tsx`**
+- In the `onEvent` callback, call `recordAgentEvent()` after forwarding to the state machine
+
+**`web/src/components/status-badge.tsx`**
+- Read `agentPresence` from store
+- Render a second dot/label for agent status alongside the WS status
+
+---
+
+**Plugin `/avatar` Command (plugin)**
+
+Adds a slash command so users can get their share link and check channel status without opening the web app.
+
+`GET /channel/:token/state` was added to the relay in Phase 4.1. Phase 4.2 calls it from the plugin.
+
+**`packages/openclaw-plugin/src/index.ts`**
+Register a command in `register()`:
+
+```typescript
+api.registerCommand('avatar', async (args) => {
+  const token = getToken();
+  if (!token) return '[Avatar] AVATAR_TOKEN not set. Run: openclaw secrets set AVATAR_TOKEN <token>';
+
+  const subcommand = args[0] ?? 'link';
+
+  if (subcommand === 'link') {
+    // Optionally fetch current model from relay for status display, but link is just token
+    const url = `https://app.projectavatar.io/?token=${token}`;
+    return `[Avatar] Share link:\n${url}`;
+  }
+
+  if (subcommand === 'status') {
+    try {
+      const res = await fetch(`${cfg.relayUrl}/channel/${token}/state`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return `[Avatar] Relay returned ${res.status}`;
+      const state = await res.json() as ChannelStateResponse;
+      const model = state.model ?? 'not selected';
+      const clients = state.connectedClients;
+      const lastSeen = state.lastAgentEventAt
+        ? `${Math.round((Date.now() - state.lastAgentEventAt) / 1000)}s ago`
+        : 'never';
+      return `[Avatar] Channel status:\n- Model: ${model}\n- Viewers: ${clients}\n- Last event: ${lastSeen}`;
+    } catch {
+      return '[Avatar] Could not reach relay.';
+    }
+  }
+
+  return '[Avatar] Usage: /avatar link | /avatar status';
+});
+```
+
+**`openclaw.plugin.json`**
+- Add `commands` field listing the `avatar` command with description
+
+---
+
+### Acceptance Criteria
+
+- [x] `StatusBadge` shows agent presence alongside WS connection state
+- [x] Presence updates live as `avatar_event` messages arrive (no reconnect needed)
+- [x] `away` state shown correctly when agent hasn't pushed in 5min or `lastAgentEventAt` is null
+- [x] `/avatar link` returns correct share URL
+- [x] `/avatar status` returns model, viewer count, last event age
+- [x] `/avatar status` handles relay unreachable gracefully
+- [x] Plugin command registered and appears in OpenClaw help
+
+---
+
+## Phase 4.3: WebSocket Keepalive (v1.1) ✅
+
+### Goal
+
+Prevent silent WebSocket disconnections from Cloudflare's idle timeout (default 100s) and browser/proxy timeouts. Keep connections alive with protocol-level ping/pong.
+
+### What to Build
+
+This is a small, focused change. No new features — just reliability.
+
+**`relay/src/channel.ts`**
+
+Cloudflare's Hibernation API handles WS ping/pong automatically at the protocol level when you call `state.acceptWebSocket(server)` — Cloudflare pings connected sockets before they'd otherwise time out, and the browser responds with pong. So **the DO side may require no changes** depending on Cloudflare's current behavior.
+
+Verify: check Cloudflare Workers docs for current hibernation ping behavior. If automatic, document it and move on. If not automatic, add a periodic alarm:
+
+```typescript
+// In Channel DO — only if CF hibernation doesn't handle it automatically
+async alarm(): Promise<void> {
+  for (const ws of this.state.getWebSockets()) {
+    try { ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() })); } catch {}
+  }
+  // Reschedule
+  await this.state.storage.setAlarm(Date.now() + 30_000);
+}
+```
+
+Schedule the alarm when the first client connects; cancel when last client disconnects.
+
+**`web/src/ws/web-socket-client.ts`**
+
+Handle incoming `ping` message (if the DO sends them) and respond with `pong`. If using browser-native WebSocket ping/pong frames (not JSON messages), this is handled automatically by the browser — no app-level code needed.
+
+Add an application-level keepalive as defense-in-depth: if no message received in 60s, close and reconnect (the existing reconnect logic handles this):
+
+```typescript
+private resetKeepaliveTimer(): void {
+  if (this.keepaliveTimer) clearTimeout(this.keepaliveTimer);
+  this.keepaliveTimer = setTimeout(() => {
+    console.warn('[Avatar WS] No message in 60s — reconnecting');
+    this.ws?.close();
+  }, 60_000);
+}
+```
+
+Call `resetKeepaliveTimer()` in `onopen` and `onmessage`.
+
+### Acceptance Criteria
+
+- [x] WebSocket connections survive 5+ minutes of agent inactivity (no avatar events being pushed)
+- [x] Reconnection happens cleanly if connection does drop silently
+- [x] No visible glitch to the user when keepalive fires
 
 ---
 
