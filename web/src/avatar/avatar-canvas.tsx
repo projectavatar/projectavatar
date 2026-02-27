@@ -88,7 +88,7 @@ export function AvatarCanvas({ onSendSetModel }: {
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm);
-      // Load Mixamo animations in background — scene starts immediately
+      // Initialize procedural animation engine (instant — no FBX to load)
       animationController.loadAnimations()
         .then(() => setAnimationsLoaded(true))
         .catch((err) => {

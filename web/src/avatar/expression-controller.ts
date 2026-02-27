@@ -21,13 +21,17 @@ interface HeadOffset {
  * 2. Head bone rotation — small euler offsets per emotion for readability
  *
  * HEAD BONE CONFLICT NOTE:
- * AnimationMixer writes bone rotations every frame. ExpressionController
- * adds offsets ON TOP of whatever the mixer wrote — it reads the current
+ * The procedural engine writes bone rotations every frame. ExpressionController
+ * adds offsets ON TOP of whatever the engine wrote — it reads the current
  * bone rotation each frame and adds its delta, rather than setting an
  * absolute rotation from a stale base. This requires that ExpressionController
- * runs AFTER the AnimationMixer update in the render loop.
+ * runs AFTER the animation update in the render loop.
  * StateMachine.update() calls expressionCtrl.update() after animationCtrl.update()
  * to guarantee this ordering.
+ *
+ * NOTE: Breathing is handled by the procedural idle layer, NOT here.
+ * A previous version had an independent breathing oscillator which
+ * conflicted with the idle layer's breathing (different periods = drift).
  */
 
 const EMOTION_MAP: Record<Emotion, ExpressionTarget[]> = {
@@ -83,10 +87,6 @@ const HEAD_INTENSITY_SCALE: Record<Intensity, number> = {
   high: 1.15,
 };
 
-// Breathing micro-animation constants
-const BREATHE_AMPLITUDE = 0.008; // radians — barely perceptible, makes idle feel alive
-const BREATHE_PERIOD    = 1 / 0.18; // seconds per cycle (~11 breaths/min)
-
 export class ExpressionController {
   private vrm: VRM;
   private targetWeights = new Map<string, number>();
@@ -97,12 +97,6 @@ export class ExpressionController {
   private headTargetOffset: HeadOffset = { x: 0, y: 0, z: 0 };
   private headCurrentOffset: HeadOffset = { x: 0, y: 0, z: 0 };
   private headBlendSpeed = 2.5;
-
-  /**
-   * Elapsed time for breathing, wrapped to BREATHE_PERIOD to avoid
-   * float precision loss over long sessions (2^23 / 60fps ≈ 39h).
-   */
-  private breatheElapsed = 0;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
@@ -132,12 +126,9 @@ export class ExpressionController {
 
   /**
    * Update blend shapes and head bone offset. Call every frame, AFTER
-   * AnimationMixer.update() so the offset applies on top of the mixer's pose.
+   * animation update so the offset applies on top of the procedural engine's pose.
    */
   update(delta: number): void {
-    // Wrap elapsed to avoid float precision loss at large values
-    this.breatheElapsed = (this.breatheElapsed + delta) % BREATHE_PERIOD;
-
     this._updateBlendShapes(delta);
     this._updateHeadBone(delta);
   }
@@ -173,12 +164,9 @@ export class ExpressionController {
     this.headCurrentOffset.y += (this.headTargetOffset.y - this.headCurrentOffset.y) * decay;
     this.headCurrentOffset.z += (this.headTargetOffset.z - this.headCurrentOffset.z) * decay;
 
-    const breathe = Math.sin(this.breatheElapsed * Math.PI * 2 / BREATHE_PERIOD) * BREATHE_AMPLITUDE;
-
-    // Apply ADDITIVELY on top of whatever the AnimationMixer wrote this frame.
-    // StateMachine calls animationCtrl.update() before expressionCtrl.update()
-    // so the mixer's bone values are already set when we add our delta here.
-    this.headBone.rotation.x += this.headCurrentOffset.x + breathe;
+    // Apply ADDITIVELY on top of whatever the procedural engine wrote this frame.
+    // Breathing is handled by the idle layer — no duplicate oscillator here.
+    this.headBone.rotation.x += this.headCurrentOffset.x;
     this.headBone.rotation.y += this.headCurrentOffset.y;
     this.headBone.rotation.z += this.headCurrentOffset.z;
   }
@@ -195,6 +183,6 @@ export class ExpressionController {
 
     this.headTargetOffset  = { x: 0, y: 0, z: 0 };
     this.headCurrentOffset = { x: 0, y: 0, z: 0 };
-    // No need to reset headBone.rotation — the mixer owns the base pose.
+    // No need to reset headBone.rotation — the procedural engine owns the base pose.
   }
 }

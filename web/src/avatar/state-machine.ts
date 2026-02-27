@@ -55,6 +55,12 @@ export class StateMachine {
     this.propManager = propManager;
     this.idleTimeoutMs = opts?.idleTimeoutMs ?? DEFAULTS.idleTimeoutMs;
     this.onStateChange = opts?.onStateChange;
+
+    // When a non-looping animation finishes, return to idle
+    this.animationCtrl.onActionFinished = () => {
+      this.state.action = 'idle';
+      this.onStateChange?.(this.state);
+    };
   }
 
   /** Get current state (read-only). */
@@ -100,8 +106,9 @@ export class StateMachine {
 
   /** Update all subsystems. Call every frame with delta time. */
   update(delta: number): void {
-    // Order matters: mixer must write bone values before expression controller
-    // applies its additive head offset on top. Blink runs last (also expression-level).
+    // Order: procedural engine writes bone rotations from rest pose,
+    // then expression controller adds blend shapes + additive head offset.
+    // Blink runs last (also expression-level).
     this.animationCtrl.update(delta);
     this.expressionCtrl.update(delta);
     this.blinkCtrl.update(delta);

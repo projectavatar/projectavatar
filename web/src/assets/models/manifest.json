@@ -3,19 +3,52 @@
     {
       "id": "avatarsample_c",
       "name": "AvatarSample C",
-      "description": "Official Pixiv VRoid sample. Full expression set — happy, sad, relaxed, angry, neutral, blink. Use this for testing expressions.",
+      "description": "Official Pixiv VRoid sample. Full expression set \u2014 happy, sad, relaxed, angry, neutral, blink. Use this for testing expressions.",
       "url": "/models/avatarsample_c.vrm",
       "thumbnail": null,
       "license": "CC0",
       "author": "pixiv / VRoid"
     },
     {
+      "id": "avatarsample_a",
+      "name": "AvatarSample A",
+      "description": "Official Pixiv VRoid sample (variant A). Full expression set.",
+      "url": "/models/avatarsample_a.vrm",
+      "thumbnail": null,
+      "license": "CC0",
+      "author": "pixiv / VRoid"
+    },
+    {
+      "id": "maid",
+      "name": "Maid",
+      "description": "That's me. Handle with care.",
+      "url": "/models/maid.vrm",
+      "thumbnail": null,
+      "license": null
+    },
+    {
+      "id": "maid_0",
+      "name": "Maid (VRM 0.x)",
+      "description": "Maid exported from VRoid Studio as VRM 0.x.",
+      "url": "/models/maid_0.vrm",
+      "thumbnail": null,
+      "license": null
+    },
+    {
       "id": "potato",
       "name": "Potato",
-      "description": "Lip-sync and blink only — no emotion expressions. Good for animation testing.",
+      "description": "Lip-sync and blink only \u2014 no emotion expressions. Good for animation testing.",
       "url": "/models/potato.vrm",
       "thumbnail": null,
       "license": "CC0"
+    },
+    {
+      "id": "summer",
+      "name": "Summer",
+      "description": "Summer outfit character model.",
+      "url": "/models/summer.vrm",
+      "thumbnail": null,
+      "license": null
     }
   ]
 }
