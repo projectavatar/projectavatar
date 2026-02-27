@@ -20,6 +20,7 @@ import { createAvatarTool } from './avatar-tool.js';
 import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, SessionMeta } from './types.js';
+import { deriveSessionPriority } from './session-utils.js';
 
 /**
  * Fallback signals for tool calls on tools not in the tool map.
@@ -28,41 +29,6 @@ import type { PluginConfig, SessionMeta } from './types.js';
 const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'coding', prop: 'none', intensity: 'medium' };
 const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'responding', prop: 'none', intensity: 'medium' };
 
-/**
- * Derive session priority from an OpenClaw sessionKey.
- *
- * OpenClaw sessionKey format: `agent:<agentId>:<rest>`
- *
- * Priority = number of ':subagent:' segments (the subagent nesting depth):
- * - Main/channel sessions → 0  (e.g. "agent:main:discord:guild-X:channel-Y")
- * - Sub-agents            → 1  (e.g. "agent:main:subagent:<uuid>")
- * - Nested sub-agents     → 2  (e.g. "agent:main:subagent:<uuid>:subagent:<uuid>")
- * - Cron sessions         → 1  (e.g. "agent:main:cron:<taskId>") — treated as background
- *
- * Cron detection: checks any colon-delimited segment for the literal "cron"
- * (case-insensitive), which is more resilient than checking only parts[2].
- */
-function deriveSessionPriority(sessionKey: string): number {
-  const lower = sessionKey.toLowerCase();
-
-  // Count ':subagent:' occurrences — each nesting level adds one
-  let depth = 0;
-  let pos   = 0;
-  const marker = ':subagent:';
-  while ((pos = lower.indexOf(marker, pos)) !== -1) {
-    depth++;
-    pos += marker.length;
-  }
-  if (depth > 0) return depth;
-
-  // Cron sessions: any segment equal to "cron" → treat as background (priority 1)
-  // Checking all segments is more resilient than hardcoding the position.
-  const parts = lower.split(':').filter(Boolean);
-  if (parts.includes('cron')) return 1;
-
-  // Everything else is a main/channel session — priority 0
-  return 0;
-}
 
 /**
  * Derive a SessionMeta from an OpenClaw hook context object.

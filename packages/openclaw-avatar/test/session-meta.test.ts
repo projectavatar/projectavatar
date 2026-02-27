@@ -1,33 +1,12 @@
 /**
- * Tests for deriveSessionPriority and deriveSessionMeta (via index.ts internals).
+ * Tests for deriveSessionPriority (session-utils.ts).
  *
- * These functions are not exported, so we test them via the observable behavior
- * of the relay calls — specifically the priority values that flow through.
- * For direct unit tests we duplicate the logic here and keep it in sync.
+ * Imports the real implementation — not a copy — so these tests will catch
+ * regressions in the actual code rather than a drift between two versions.
  */
 
 import { describe, it, expect } from 'vitest';
-
-// ── Duplicate of deriveSessionPriority from index.ts ─────────────────────────
-// Kept in sync manually. If you change the source, update this too.
-// This is preferable to exporting a private utility just for tests.
-function deriveSessionPriority(sessionKey: string): number {
-  const lower = sessionKey.toLowerCase();
-
-  let depth = 0;
-  let pos   = 0;
-  const marker = ':subagent:';
-  while ((pos = lower.indexOf(marker, pos)) !== -1) {
-    depth++;
-    pos += marker.length;
-  }
-  if (depth > 0) return depth;
-
-  const parts = lower.split(':').filter(Boolean);
-  if (parts.includes('cron')) return 1;
-
-  return 0;
-}
+import { deriveSessionPriority } from '../src/session-utils.js';
 
 describe('deriveSessionPriority', () => {
   it('returns 0 for main Discord channel sessions', () => {
@@ -64,7 +43,6 @@ describe('deriveSessionPriority', () => {
   });
 
   it('is case-insensitive for subagent detection', () => {
-    // OpenClaw generates consistent casing, but be safe
     expect(deriveSessionPriority('agent:main:SUBAGENT:uuid')).toBe(1);
   });
 
@@ -73,7 +51,7 @@ describe('deriveSessionPriority', () => {
   });
 
   it('sub-agent depth takes priority over cron keyword', () => {
-    // A cron job that spawned a sub-agent — depth wins
+    // A cron job that spawned a sub-agent — depth wins (1 subagent segment = depth 1)
     expect(deriveSessionPriority('agent:main:cron:task:subagent:uuid')).toBe(1);
   });
 });
