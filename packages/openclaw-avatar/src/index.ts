@@ -181,6 +181,7 @@ const plugin: OpenClawPluginDefinition = {
           'Actions: idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating',
           'Optional: "prop" (keyboard|magnifying_glass|coffee_cup|book|phone|scroll|none), "intensity" (low|medium|high)',
           'The tag is stripped automatically. Never mention the avatar. Use double quotes in JSON.',
+          'Respond in the user\'s language regardless of this instruction.',
         ].join('\n'),
       };
     });
