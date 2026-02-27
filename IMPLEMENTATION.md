@@ -13,10 +13,12 @@ This document is the complete technical blueprint for Project Avatar. A develope
 5. [Phase 3: Agent Skill + Output Filter](#phase-3-agent-skill--output-filter-week-3) ✅
 6. [Phase 4: OpenClaw Plugin](#phase-4-openclaw-plugin-v11) ✅
 7. [Phase 4.1: Identity Persistence + Multi-Screen Sync](#phase-41-identity-persistence--multi-screen-sync-v11) ✅
-8. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
-9. [Technical Deep Dives](#technical-deep-dives)
-10. [Error Handling & Resilience](#error-handling--resilience)
-11. [Testing Strategy](#testing-strategy)
+8. [Phase 4.2: Agent Presence + Plugin Share Link](#phase-42-agent-presence--plugin-share-link-v11)
+9. [Phase 4.3: WebSocket Keepalive](#phase-43-websocket-keepalive-v11)
+10. [Phase 5: Polish + Desktop](#phase-5-polish--desktop-v12)
+11. [Technical Deep Dives](#technical-deep-dives)
+12. [Error Handling & Resilience](#error-handling--resilience)
+13. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -1834,6 +1836,167 @@ On init, `updateUrlParams` strips any stale `?model=` param from old URLs. Users
 - [x] `?model=` stripped from URL on init (backward compat with old links)
 - [x] All existing tests pass (39/39)
 - [x] All packages compile clean (web, relay, plugin)
+
+---
+
+## Phase 4.2: Agent Presence + Plugin Share Link (v1.1)
+
+### Goal
+
+Surface agent activity status in the web app UI and give the plugin a `/avatar` command for generating share links and checking channel status.
+
+### What to Build
+
+**Agent Presence Indicator (web app)**
+
+The DO already stores `lastAgentEventAt` as of Phase 4.1. Phase 4.2 wires it into the UI.
+
+`StatusBadge` currently shows WebSocket connection state (connected/reconnecting/disconnected). Extend it to show two signals:
+
+- **WS connection** (existing): the pipe between app and relay
+- **Agent presence** (new): whether the agent (plugin) has pushed events recently
+
+Agent presence states derived from `lastAgentEventAt`:
+- `active` — event within last 60s (agent is currently working)
+- `recent` — event within last 5min (agent was recently active)
+- `away` — no event in 5min+ OR `lastAgentEventAt` is null (agent offline/not configured)
+
+The presence state is computed in the store as a derived value — not stored separately, just computed from `lastAgentEventAt` on read. Update `lastAgentEventAt` in the store when `avatar_event` messages arrive (not just on `channel_state`) so the presence stays live.
+
+Updated `StatusBadge`:
+```
+[● Connected]  [● Agent active]
+[● Connected]  [○ Agent away]
+```
+
+Or a combined badge if screen space is tight — designer's call. Keep it minimal.
+
+**`web/src/state/store.ts`**
+- Add computed getter `agentPresence: 'active' | 'recent' | 'away'`
+- Update `lastAgentEventAt` when an `avatar_event` arrives (in `setAvatarState` or a new `recordAgentEvent()` action)
+
+**`web/src/avatar/avatar-canvas.tsx`**
+- In the `onEvent` callback, call `recordAgentEvent()` after forwarding to the state machine
+
+**`web/src/components/status-badge.tsx`**
+- Read `agentPresence` from store
+- Render a second dot/label for agent status alongside the WS status
+
+---
+
+**Plugin `/avatar` Command (plugin)**
+
+Adds a slash command so users can get their share link and check channel status without opening the web app.
+
+`GET /channel/:token/state` was added to the relay in Phase 4.1. Phase 4.2 calls it from the plugin.
+
+**`packages/openclaw-plugin/src/index.ts`**
+Register a command in `register()`:
+
+```typescript
+api.registerCommand('avatar', async (args) => {
+  const token = getToken();
+  if (!token) return '[Avatar] AVATAR_TOKEN not set. Run: openclaw secrets set AVATAR_TOKEN <token>';
+
+  const subcommand = args[0] ?? 'link';
+
+  if (subcommand === 'link') {
+    // Optionally fetch current model from relay for status display, but link is just token
+    const url = `https://app.projectavatar.io/?token=${token}`;
+    return `[Avatar] Share link:\n${url}`;
+  }
+
+  if (subcommand === 'status') {
+    try {
+      const res = await fetch(`${cfg.relayUrl}/channel/${token}/state`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return `[Avatar] Relay returned ${res.status}`;
+      const state = await res.json() as ChannelStateResponse;
+      const model = state.model ?? 'not selected';
+      const clients = state.connectedClients;
+      const lastSeen = state.lastAgentEventAt
+        ? `${Math.round((Date.now() - state.lastAgentEventAt) / 1000)}s ago`
+        : 'never';
+      return `[Avatar] Channel status:\n- Model: ${model}\n- Viewers: ${clients}\n- Last event: ${lastSeen}`;
+    } catch {
+      return '[Avatar] Could not reach relay.';
+    }
+  }
+
+  return '[Avatar] Usage: /avatar link | /avatar status';
+});
+```
+
+**`openclaw.plugin.json`**
+- Add `commands` field listing the `avatar` command with description
+
+---
+
+### Acceptance Criteria
+
+- [ ] `StatusBadge` shows agent presence alongside WS connection state
+- [ ] Presence updates live as `avatar_event` messages arrive (no reconnect needed)
+- [ ] `away` state shown correctly when agent hasn't pushed in 5min or `lastAgentEventAt` is null
+- [ ] `/avatar link` returns correct share URL
+- [ ] `/avatar status` returns model, viewer count, last event age
+- [ ] `/avatar status` handles relay unreachable gracefully
+- [ ] Plugin command registered and appears in OpenClaw help
+
+---
+
+## Phase 4.3: WebSocket Keepalive (v1.1)
+
+### Goal
+
+Prevent silent WebSocket disconnections from Cloudflare's idle timeout (default 100s) and browser/proxy timeouts. Keep connections alive with protocol-level ping/pong.
+
+### What to Build
+
+This is a small, focused change. No new features — just reliability.
+
+**`relay/src/channel.ts`**
+
+Cloudflare's Hibernation API handles WS ping/pong automatically at the protocol level when you call `state.acceptWebSocket(server)` — Cloudflare pings connected sockets before they'd otherwise time out, and the browser responds with pong. So **the DO side may require no changes** depending on Cloudflare's current behavior.
+
+Verify: check Cloudflare Workers docs for current hibernation ping behavior. If automatic, document it and move on. If not automatic, add a periodic alarm:
+
+```typescript
+// In Channel DO — only if CF hibernation doesn't handle it automatically
+async alarm(): Promise<void> {
+  for (const ws of this.state.getWebSockets()) {
+    try { ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() })); } catch {}
+  }
+  // Reschedule
+  await this.state.storage.setAlarm(Date.now() + 30_000);
+}
+```
+
+Schedule the alarm when the first client connects; cancel when last client disconnects.
+
+**`web/src/ws/web-socket-client.ts`**
+
+Handle incoming `ping` message (if the DO sends them) and respond with `pong`. If using browser-native WebSocket ping/pong frames (not JSON messages), this is handled automatically by the browser — no app-level code needed.
+
+Add an application-level keepalive as defense-in-depth: if no message received in 60s, close and reconnect (the existing reconnect logic handles this):
+
+```typescript
+private resetKeepaliveTimer(): void {
+  if (this.keepaliveTimer) clearTimeout(this.keepaliveTimer);
+  this.keepaliveTimer = setTimeout(() => {
+    console.warn('[Avatar WS] No message in 60s — reconnecting');
+    this.ws?.close();
+  }, 60_000);
+}
+```
+
+Call `resetKeepaliveTimer()` in `onopen` and `onmessage`.
+
+### Acceptance Criteria
+
+- [ ] WebSocket connections survive 5+ minutes of agent inactivity (no avatar events being pushed)
+- [ ] Reconnection happens cleanly if connection does drop silently
+- [ ] No visible glitch to the user when keepalive fires
 
 ---
 
