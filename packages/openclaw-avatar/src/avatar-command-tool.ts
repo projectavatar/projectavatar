@@ -6,6 +6,9 @@
  * the model (deterministic, instant response).
  *
  * Receives: { command: "<raw args>", commandName: "avatar", skillName: "avatar" }
+ *
+ * Note: getToken() is called at execute-time (not registration-time) so the
+ * tool picks up token changes without requiring a gateway restart.
  */
 
 import type { PluginConfig, ChannelStateResponse } from './types.js';
@@ -20,10 +23,11 @@ export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => strin
     description: 'Returns the avatar share link or channel status. Used internally by the /avatar slash command.',
     parameters: {
       type: 'object' as const,
+      required: [] as string[],
       properties: {
-        command: { type: 'string', description: 'Raw args after /avatar (e.g. "link", "status", or empty)' },
+        command:     { type: 'string', description: 'Raw args after /avatar (e.g. "link", "status", or empty)' },
         commandName: { type: 'string' },
-        skillName: { type: 'string' },
+        skillName:   { type: 'string' },
       },
     },
     async execute(_toolCallId: string, params: Record<string, unknown>): Promise<ReturnType<typeof reply>> {
@@ -32,9 +36,12 @@ export function createAvatarCommandTool(cfg: PluginConfig, getToken: () => strin
         return reply('[Avatar] AVATAR_TOKEN not set.\nRun: openclaw secrets set AVATAR_TOKEN <your-token>');
       }
 
+      // Empty string is coerced to 'link' so the sub === '' branch below is intentionally absent.
       const sub = ((params.command as string | undefined) ?? '').trim().toLowerCase() || 'link';
 
-      if (sub === 'link' || sub === '') {
+      if (sub === 'link') {
+        // Use cfg.appUrl — configurable for self-hosted deployments.
+        // Do NOT derive from relayUrl (separate domains).
         const appBase = cfg.appUrl.replace(/\/+$/, '');
         return reply(`[Avatar] Share link:\n${appBase}/?token=${token}`);
       }
