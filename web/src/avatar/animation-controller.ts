@@ -1,8 +1,29 @@
 import * as THREE from 'three';
-import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
+import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Intensity } from '@project-avatar/shared';
-import { PROCEDURAL_ANIMATIONS } from './procedural-animations.ts';
-import type { BonePose } from './procedural-animations.ts';
+import { loadMixamoAnimation } from './mixamo-loader.ts';
+
+// ─── Configuration ────────────────────────────────────────────────────────────
+
+/** Map from Action state to the FBX filename served from /animations/ */
+const ACTION_TO_FILE: Record<Action, string> = {
+  waiting: 'idle.fbx',
+  responding: 'responding.fbx',
+  searching: 'searching.fbx',
+  coding: 'coding.fbx',
+  reading: 'reading.fbx',
+  error: 'error.fbx',
+  celebrating: 'celebrating.fbx',
+};
+
+/** Actions that loop continuously. Everything else plays once and clamps. */
+const LOOPING_ACTIONS: ReadonlySet<Action> = new Set<Action>([
+  'waiting',
+  'responding',
+  'coding',
+  'reading',
+  'searching',
+]);
 
 const INTENSITY_SPEED: Record<Intensity, number> = {
   low: 0.7,
@@ -10,166 +31,161 @@ const INTENSITY_SPEED: Record<Intensity, number> = {
   high: 1.3,
 };
 
-const IDENTITY = Object.freeze(new THREE.Quaternion());
+const FADE_DURATION = 0.3;
 
-interface BoneTransformCache {
-  rawNode: THREE.Object3D;
-  parentWorldRotation: THREE.Quaternion;
-  invParentWorldRotation: THREE.Quaternion;
-  boneRotation: THREE.Quaternion;
-}
+// ─── AnimationController ──────────────────────────────────────────────────────
 
+/**
+ * Plays retargeted Mixamo FBX animations on a VRM model.
+ *
+ * Usage:
+ *   const ctrl = new AnimationController(vrm);
+ *   await ctrl.loadAnimations();          // non-blocking; idle plays when ready
+ *   ctrl.playAction('coding', 'high');    // crossfade to new animation
+ *   ctrl.update(delta);                   // call every frame
+ *   ctrl.dispose();                       // cleanup
+ */
 export class AnimationController {
   private vrm: VRM;
-  private elapsed = 0;
+  private mixer: THREE.AnimationMixer | null = null;
+  private actions = new Map<Action, THREE.AnimationAction>();
   private currentAction: Action = 'waiting';
-  private intensityMultiplier = 1.0;
-  private fadeFromPose: BonePose = new Map();
-  private fadeProgress = 1.0;
-  private fadeDuration = 0.2;
-  private touchedBones = new Set<VRMHumanBoneName>();
-  private readonly _qResult = new THREE.Quaternion();
-  private readonly _qWork = new THREE.Quaternion();
-  private boneCache = new Map<VRMHumanBoneName, BoneTransformCache>();
+  private loaded = false;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
-    this.buildBoneCache();
   }
 
-  private buildBoneCache(): void {
-    const humanoid = this.vrm.humanoid;
-    if (!humanoid) return;
+  /**
+   * Load all Mixamo FBX animations, retarget them to the VRM, and start idle.
+   *
+   * Safe to call in the background — if it fails, the controller simply
+   * does nothing on update() (no crashes, just a static pose).
+   */
+  async loadAnimations(): Promise<void> {
+    const mixer = new THREE.AnimationMixer(this.vrm.scene);
+    this.mixer = mixer;
 
-    const rig = (humanoid as any)._normalizedHumanBones;
-    if (!rig) return;
+    const entries = Object.entries(ACTION_TO_FILE) as [Action, string][];
 
-    const parentWorldRotations: Record<string, THREE.Quaternion> = rig._parentWorldRotations ?? {};
-    const boneRotations: Record<string, THREE.Quaternion> = rig._boneRotations ?? {};
+    // Load all animations in parallel
+    const results = await Promise.allSettled(
+      entries.map(async ([action, filename]) => {
+        const url = `/animations/${filename}`;
+        const clip = await loadMixamoAnimation(url, this.vrm);
+        // Give the clip a meaningful name for debugging
+        clip.name = action;
+        return { action, clip };
+      }),
+    );
 
-    const rawRig = (humanoid as any)._rawHumanBones;
-    if (!rawRig) return;
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { action, clip } = result.value;
+        const animAction = mixer.clipAction(clip);
 
-    for (const [boneName, pwr] of Object.entries(parentWorldRotations)) {
-      const rawNode = rawRig.getBoneNode(boneName as VRMHumanBoneName);
-      const br = boneRotations[boneName];
-      if (!rawNode || !pwr || !br) continue;
+        // Configure loop mode
+        if (LOOPING_ACTIONS.has(action)) {
+          animAction.setLoop(THREE.LoopRepeat, Infinity);
+        } else {
+          animAction.setLoop(THREE.LoopOnce, 1);
+          animAction.clampWhenFinished = true;
+        }
 
-      this.boneCache.set(boneName as VRMHumanBoneName, {
-        rawNode,
-        parentWorldRotation: (pwr as THREE.Quaternion).clone(),
-        invParentWorldRotation: (pwr as THREE.Quaternion).clone().invert(),
-        boneRotation: (br as THREE.Quaternion).clone(),
-      });
+        this.actions.set(action, animAction);
+      } else {
+        console.warn(
+          `[AnimationController] Failed to load animation for "${(result as any).reason?.message ?? 'unknown'}":`,
+          result.reason,
+        );
+      }
     }
+
+    this.loaded = true;
+
+    // Start idle immediately
+    const idleAction = this.actions.get('waiting');
+    if (idleAction) {
+      idleAction.play();
+      this.currentAction = 'waiting';
+    }
+
+    console.info(
+      `[AnimationController] Loaded ${this.actions.size}/${entries.length} animations`,
+    );
   }
 
+  /**
+   * Crossfade to a new action with the given intensity.
+   *
+   * If the same action+intensity is already playing, this is a no-op.
+   * If animations haven't loaded yet, the request is stored so it takes
+   * effect once loadAnimations() completes.
+   */
   playAction(action: Action, intensity: Intensity = 'medium'): void {
-    if (action === this.currentAction && INTENSITY_SPEED[intensity] === this.intensityMultiplier) {
+    if (!this.loaded) {
+      // Store intent — will be applied when animations finish loading
+      this.currentAction = action;
       return;
     }
-    this.snapshotCurrentPose();
+
+    const nextAnimAction = this.actions.get(action);
+    if (!nextAnimAction) {
+      console.warn(`[AnimationController] No animation loaded for action "${action}"`);
+      return;
+    }
+
+    const prevAnimAction = this.actions.get(this.currentAction);
+
+    // Skip if already playing the same action
+    if (action === this.currentAction && prevAnimAction?.isRunning()) {
+      // Just update speed if intensity changed
+      nextAnimAction.timeScale = INTENSITY_SPEED[intensity];
+      return;
+    }
+
+    // Fade out current
+    if (prevAnimAction && prevAnimAction !== nextAnimAction) {
+      prevAnimAction.fadeOut(FADE_DURATION);
+    }
+
+    // Configure and fade in next
+    nextAnimAction.reset();
+    nextAnimAction.timeScale = INTENSITY_SPEED[intensity];
+    nextAnimAction.fadeIn(FADE_DURATION);
+    nextAnimAction.play();
+
     this.currentAction = action;
-    this.intensityMultiplier = INTENSITY_SPEED[intensity];
-    this.fadeProgress = 0;
   }
 
+  /**
+   * Stop all animations and return to idle.
+   */
   stopAll(): void {
-    this.snapshotCurrentPose();
-    this.currentAction = 'waiting';
-    this.intensityMultiplier = 1.0;
-    this.fadeProgress = 0;
+    this.playAction('waiting', 'medium');
   }
 
+  /**
+   * Tick the animation mixer. Call every frame.
+   */
   update(delta: number): void {
-    this.elapsed += delta;
-
-    const animFn = PROCEDURAL_ANIMATIONS[this.currentAction];
-    if (!animFn) return;
-
-    const targetPose = animFn(this.elapsed, this.intensityMultiplier);
-
-    if (this.fadeProgress < 1.0) {
-      this.fadeProgress = Math.min(this.fadeProgress + delta / this.fadeDuration, 1.0);
-    }
-
-    const t = smoothstep(this.fadeProgress);
-
-    const allBones = new Set<VRMHumanBoneName>([
-      ...this.touchedBones,
-      ...targetPose.keys(),
-      ...this.fadeFromPose.keys(),
-    ]);
-
-    for (const boneName of allBones) {
-      const targetQuat = targetPose.get(boneName) ?? IDENTITY;
-
-      let normalizedQuat: THREE.Quaternion;
-      if (this.fadeProgress >= 1.0) {
-        normalizedQuat = targetQuat;
-      } else {
-        const fromQuat = this.fadeFromPose.get(boneName) ?? IDENTITY;
-        this._qResult.slerpQuaternions(fromQuat, targetQuat, t);
-        normalizedQuat = this._qResult;
-      }
-
-      this.applyToRawBone(boneName, normalizedQuat);
-      this.touchedBones.add(boneName);
-    }
-
-    if (this.fadeProgress >= 1.0) {
-      for (const boneName of this.touchedBones) {
-        if (!targetPose.has(boneName)) {
-          this.touchedBones.delete(boneName);
-        }
-      }
-    }
+    this.mixer?.update(delta);
   }
 
-  private applyToRawBone(boneName: VRMHumanBoneName, normalizedQuat: THREE.Quaternion): void {
-    const cache = this.boneCache.get(boneName);
-    if (!cache) return;
-
-    cache.rawNode.quaternion
-      .copy(normalizedQuat)
-      .multiply(cache.parentWorldRotation)
-      .premultiply(cache.invParentWorldRotation)
-      .multiply(cache.boneRotation);
-  }
-
+  /**
+   * Clean up the mixer and all cached actions.
+   */
   dispose(): void {
-    this.resetAllRawBones();
-    this.touchedBones.clear();
-    this.fadeFromPose.clear();
-    this.boneCache.clear();
-  }
-
-  private resetAllRawBones(): void {
-    for (const boneName of this.touchedBones) {
-      const cache = this.boneCache.get(boneName);
-      if (cache) {
-        cache.rawNode.quaternion.copy(cache.boneRotation);
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      // Uncache all clips to free memory
+      for (const action of this.actions.values()) {
+        this.mixer.uncacheAction(action.getClip());
+        this.mixer.uncacheClip(action.getClip());
       }
+      this.mixer = null;
     }
+    this.actions.clear();
+    this.loaded = false;
   }
-
-  private snapshotCurrentPose(): void {
-    this.fadeFromPose.clear();
-    for (const boneName of this.touchedBones) {
-      const cache = this.boneCache.get(boneName);
-      if (!cache) continue;
-
-      this._qWork
-        .copy(cache.rawNode.quaternion)
-        .multiply(this._qResult.copy(cache.boneRotation).invert())
-        .premultiply(cache.parentWorldRotation)
-        .multiply(cache.invParentWorldRotation);
-
-      this.fadeFromPose.set(boneName, this._qWork.clone());
-    }
-  }
-}
-
-function smoothstep(x: number): number {
-  return x * x * (3 - 2 * x);
 }

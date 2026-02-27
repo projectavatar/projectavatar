@@ -86,9 +86,14 @@ export function AvatarCanvas({ onSendSetModel }: {
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
+      const animationController = new AnimationController(vrm);
+      // Load Mixamo animations in background — scene starts immediately
+      animationController.loadAnimations().catch((err) =>
+        console.warn('[AvatarCanvas] Animation load failed:', err),
+      );
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
-        new AnimationController(vrm),
+        animationController,
         new BlinkController(vrm),
         new PropManager(vrm),
         {
@@ -99,7 +104,7 @@ export function AvatarCanvas({ onSendSetModel }: {
         },
       );
       stateMachineRef.current = stateMachine;
-      avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });
+      avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
     };
 
     let cancelled = false;

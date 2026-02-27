@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
   relayUrl:         'https://relay.projectavatar.io',
   appUrl:           DEFAULT_APP_URL,
   enabled:          true,
-  idleTimeoutMs:    30_000,
+  idleTimeoutMs:    5_000,
   debounceMs:       300,
   enableAvatarTool: false,
 };
