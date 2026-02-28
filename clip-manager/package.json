@@ -10,11 +10,12 @@
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.3.3",
+    "@pixiv/three-vrm-animation": "^3.5.0",
+    "@project-avatar/avatar-engine": "*",
     "@project-avatar/shared": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.172.0",
-    "@project-avatar/avatar-engine": "*"
+    "three": "^0.172.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.8",

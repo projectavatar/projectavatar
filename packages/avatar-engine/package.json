@@ -9,6 +9,7 @@
   },
   "peerDependencies": {
     "@pixiv/three-vrm": "^3.3.3",
+    "@pixiv/three-vrm-animation": "^3.5.0",
     "@project-avatar/shared": "*",
     "three": "^0.172.0"
   }
