@@ -262,15 +262,20 @@ export class IdleLayer {
       this.vrm.scene.position.y = this.baseY + bobOffset;
     }
 
-    // 2. Pin hips Y — prevent clips from moving the model up/down.
-    //    Mixer writes hips position every frame (root motion); we override
-    //    the Y component to keep the model locked to the hover plane.
+    // 2. Smooth hips Y lock — prevent clips from moving the model up/down.
+    //    Instead of hard-snapping, lerp toward rest Y to avoid jags
+    //    when clips with different hips positions crossfade.
     if (this.hips) {
       if (this.hipsRestY === null) {
-        // Capture rest Y on first frame after mixer has written pose
         this.hipsRestY = this.hips.position.y;
       }
-      this.hips.position.y = this.hipsRestY;
+      // Lerp current hips Y toward rest — fast enough to feel locked,
+      // slow enough to not jag during crossfades
+      this.hips.position.y = THREE.MathUtils.lerp(
+        this.hips.position.y,
+        this.hipsRestY,
+        0.3,
+      );
     }
 
     // 3. Gentle body tilt — spine leans forward/back
