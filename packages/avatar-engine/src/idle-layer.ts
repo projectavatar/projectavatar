@@ -352,8 +352,7 @@ export class IdleLayer {
     // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
     // direction. Mirror the target direction so the head turns toward camera.
     if (this.legBendSign === -1) {
-      this._headTargetDir.x = -this._headTargetDir.x;
-      this._headTargetDir.z = -this._headTargetDir.z;
+      this._headTargetDir.negate();
     }
 
     // Convert world direction to head's parent local space
