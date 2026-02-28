@@ -490,7 +490,7 @@ export class AnimationController {
     action.reset();
     // In air mode, dampen leg/feet clip weights so the idle layer's
     // dangle pose dominates but clips still have some influence.
-    const AIR_LEG_WEIGHT = 0.25;
+    const AIR_LEG_WEIGHT = 0.45;
     let effectiveWeight = normalizedWeight;
     if (this.idleLayer.getMode() === 'air' && (group === 'legs' || group === 'feet')) {
       effectiveWeight *= AIR_LEG_WEIGHT;
