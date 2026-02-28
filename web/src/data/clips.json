@@ -356,6 +356,13 @@
               "bodyParts": [
                 "head"
               ]
+            },
+            {
+              "clip": "idle",
+              "weight": 0.5,
+              "bodyParts": [
+                "legs"
+              ]
             }
           ]
         }
