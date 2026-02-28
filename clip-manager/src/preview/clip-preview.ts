@@ -208,7 +208,7 @@ export class ClipPreview {
     this.maskedClipCache.clear();
   }
 
-  async playClip(fbxPath: string, loop?: boolean): Promise<void> {
+  async playClip(clipPath: string, loop?: boolean): Promise<void> {
     if (!this.vrm || !this.mixer) return;
 
     if (this._engineActive) {
@@ -217,18 +217,18 @@ export class ClipPreview {
 
     const shouldLoop = loop ?? this._looping;
 
-    let fullClip = this.clipCache.get(fbxPath);
+    let fullClip = this.clipCache.get(clipPath);
     if (!fullClip) {
-      const loaded = fbxPath.endsWith('.vrma')
-        ? await loadVRMAAnimation(fbxPath, this.vrm)
-        : await loadMixamoAnimation(fbxPath, this.vrm);
-      loaded.name = fbxPath.split('/').pop()?.replace(/\.(fbx|vrma)$/, '') ?? fbxPath;
-      this.clipCache.set(fbxPath, loaded);
+      const loaded = clipPath.toLowerCase().endsWith('.vrma')
+        ? await loadVRMAAnimation(clipPath, this.vrm)
+        : await loadMixamoAnimation(clipPath, this.vrm);
+      loaded.name = clipPath.split('/').pop()?.replace(/\.(fbx|vrma)$/i, '') ?? clipPath;
+      this.clipCache.set(clipPath, loaded);
       fullClip = loaded;
     }
 
     const clip = this._boneMask
-      ? this._getMaskedClip(fbxPath, fullClip, this._boneMask)
+      ? this._getMaskedClip(clipPath, fullClip, this._boneMask)
       : fullClip;
 
     if (this.currentAction) {
@@ -251,7 +251,7 @@ export class ClipPreview {
     action.reset().play();
 
     this.currentAction = action;
-    this.currentClipName = fullClip.name ?? fbxPath;
+    this.currentClipName = fullClip.name ?? clipPath;
     this._paused = false;
   }
 
@@ -320,11 +320,11 @@ export class ClipPreview {
   // ─── Private ──────────────────────────────────────────────────────────
 
   private _getMaskedClip(
-    fbxPath: string,
+    clipPath: string,
     clip: THREE.AnimationClip,
     allowedBones: Set<string>,
   ): THREE.AnimationClip {
-    const cacheKey = fbxPath + ':' + [...allowedBones].sort().join(',');
+    const cacheKey = clipPath + ':' + [...allowedBones].sort().join(',');
     const cached = this.maskedClipCache.get(cacheKey);
     if (cached) return cached;
 

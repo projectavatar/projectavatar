@@ -156,7 +156,7 @@ export class AnimationController {
       files.map(async (file) => {
         try {
           const url = basePath + file;
-          const clip = file.endsWith('.vrma')
+          const clip = file.toLowerCase().endsWith('.vrma')
             ? await loadVRMAAnimation(url, this.vrm)
             : await loadMixamoAnimation(url, this.vrm);
           clip.name = file;

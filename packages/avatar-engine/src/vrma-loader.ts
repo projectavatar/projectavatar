@@ -7,15 +7,15 @@
  *
  * VRMA also supports expression animations and gaze data, which FBX cannot carry.
  */
-import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { AnimationClip } from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import {
   VRMAnimationLoaderPlugin,
   createVRMAnimationClip,
 } from '@pixiv/three-vrm-animation';
 
-// Singleton loader with VRMA plugin registered
+/** Singleton GLTFLoader with VRMAnimationLoaderPlugin registered. */
 const vrmaLoader = new GLTFLoader();
 vrmaLoader.register((parser) => new VRMAnimationLoaderPlugin(parser));
 
@@ -29,8 +29,16 @@ vrmaLoader.register((parser) => new VRMAnimationLoaderPlugin(parser));
 export async function loadVRMAAnimation(
   url: string,
   vrm: VRM,
-): Promise<THREE.AnimationClip> {
-  const gltf = await vrmaLoader.loadAsync(url);
+): Promise<AnimationClip> {
+  let gltf;
+  try {
+    gltf = await vrmaLoader.loadAsync(url);
+  } catch (err) {
+    throw new Error(
+      `Failed to load VRMA file: ${url}`,
+      { cause: err },
+    );
+  }
 
   const vrmAnimations = gltf.userData.vrmAnimations;
   if (!vrmAnimations || vrmAnimations.length === 0) {
@@ -40,14 +48,17 @@ export async function loadVRMAAnimation(
     );
   }
 
-  // Use the first animation in the file (VRMA files typically contain one)
-  const vrmAnimation = vrmAnimations[0];
+  if (vrmAnimations.length > 1) {
+    console.warn(
+      `[vrma-loader] ${url} contains ${vrmAnimations.length} animations — using the first, discarding the rest.`,
+    );
+  }
 
   // createVRMAnimationClip handles all retargeting:
   // - Maps humanoid bone rotations from the animation to the target VRM
   // - Handles expression weight animations (happy, sad, etc.)
   // - Handles gaze/lookAt animations if present
-  const clip = createVRMAnimationClip(vrmAnimation, vrm);
+  const clip = createVRMAnimationClip(vrmAnimations[0], vrm);
 
   return clip;
 }
