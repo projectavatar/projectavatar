@@ -145,16 +145,8 @@ export function ClipLibrary({
       entries = entries.filter(([, clip]) => clip.energy === energyFilter);
     }
 
-    // Sort: mapped first, then orphans, alphabetical within
-    return entries.sort(([aId], [bId]) => {
-      const aStatus = getClipStatus(aId, data);
-      const bStatus = getClipStatus(bId, data);
-      if (aStatus !== bStatus) {
-        if (aStatus === 'mapped') return -1;
-        if (bStatus === 'mapped') return 1;
-      }
-      return aId.localeCompare(bId);
-    });
+    // Sort alphabetically
+    return entries.sort(([aId], [bId]) => aId.localeCompare(bId));
   }, [data, searchQuery, categoryFilter, energyFilter]);
 
   const statusColor = (id: string): string => {

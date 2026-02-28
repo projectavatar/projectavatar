@@ -89,9 +89,10 @@ export function ActionList({ data, selectedAction, dispatch }: ActionListProps) 
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredActions = useMemo(() => {
-    if (!searchQuery) return [...ACTIONS];
+    const sorted = [...ACTIONS].sort((a, b) => a.localeCompare(b));
+    if (!searchQuery) return sorted;
     const q = searchQuery.toLowerCase();
-    return ACTIONS.filter(name => name.includes(q));
+    return sorted.filter(name => name.includes(q));
   }, [searchQuery]);
 
   const getClipCount = (name: string): number => {

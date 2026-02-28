@@ -89,9 +89,10 @@ export function EmotionList({ data, selectedEmotion, dispatch }: EmotionListProp
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredEmotions = useMemo(() => {
-    if (!searchQuery) return [...EMOTIONS];
+    const sorted = [...EMOTIONS].sort((a, b) => a.localeCompare(b));
+    if (!searchQuery) return sorted;
     const q = searchQuery.toLowerCase();
-    return EMOTIONS.filter(name => name.includes(q));
+    return sorted.filter(name => name.includes(q));
   }, [searchQuery]);
   return (
     <div style={panelStyle}>
