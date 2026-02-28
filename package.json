@@ -7,20 +7,20 @@
     "packages/*",
     "relay",
     "web",
-    "skill"
+    "clip-manager"
   ],
   "scripts": {
     "relay:dev": "cd relay && npm run dev",
     "relay:deploy": "cd relay && npm run deploy",
-    "gen:skill": "npx tsx scripts/gen-skill-md.ts",
     "relay:test": "cd relay && npm run test",
-    "skill:test": "cd skill && npm run test",
     "plugin:test": "cd packages/openclaw-avatar && npm run test",
     "plugin:build": "cd packages/openclaw-avatar && npm run build",
-    "test": "npm run relay:test && npm run skill:test && npm run plugin:test",
+    "test": "npm run relay:test && npm run plugin:test",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "clips": "cd clip-manager && npm run dev",
+    "clips:gen": "npx tsx scripts/generate-clips-json.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

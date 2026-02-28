@@ -21,8 +21,8 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
-import { resolveClips, getAllClipFiles, getActionDuration } from './clip-map.ts';
-import type { ClipEntry } from './clip-map.ts';
+import { resolveClips, getAllClipFiles, getActionDuration } from './clip-registry.ts';
+import type { ClipEntry } from './clip-registry.ts';
 import { evaluateIdleLayer } from './procedural/idle-layer.ts';
 import type { AnimBone, BoneState } from './procedural/types.ts';
 
