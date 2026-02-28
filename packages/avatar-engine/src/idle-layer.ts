@@ -29,7 +29,7 @@ const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Air mode — leg dangle
-const KNEE_BEND_ANGLE   = 0.18;    // radians (~10°) — slight knee bend
+const KNEE_BEND_ANGLE   = 0.18;    // radians (~10°) — base knee bend
 const TOE_DROOP_ANGLE   = 0.12;    // radians (~7°) — toes pointing slightly down
 
 // Ground mode
@@ -214,25 +214,28 @@ export class IdleLayer {
    * Slight asymmetry between left/right for natural look.
    */
   private _applyLegDangle(): void {
+    // Left leg: relaxed, mostly straight — the "weight-bearing" leg
     if (this.leftUpperLeg) {
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.5;
-    }
-    if (this.rightUpperLeg) {
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.7;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.4;
     }
     if (this.leftLowerLeg) {
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE;
-    }
-    if (this.rightLowerLeg) {
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 1.2;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 0.6;
     }
 
-    // Toes droop slightly
+    // Right leg: visibly tucked up — the "casual" leg
+    if (this.rightUpperLeg) {
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.8;
+    }
+    if (this.rightLowerLeg) {
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 2.5;
+    }
+
+    // Toes droop — more on the tucked leg
     if (this.leftFoot) {
       this.leftFoot.rotation.x += TOE_DROOP_ANGLE;
     }
     if (this.rightFoot) {
-      this.rightFoot.rotation.x += TOE_DROOP_ANGLE;
+      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5;
     }
   }
 }
