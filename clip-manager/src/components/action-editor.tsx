@@ -1,13 +1,6 @@
 /**
  * Action Detail Editor — center panel for the selected action.
- *
- * Shows the clip layers for the selected action with:
- * - Clip selector (dropdown)
- * - Weight slider (0–1)
- * - Body part on/off chips (head, torso, arms, legs)
- * - Remove button
- *
- * Changes dispatch immediately → preview updates live.
+ * Single-row layout: [dropdown | weight | body parts | delete]
  */
 import { useCallback } from 'react';
 import type { ClipsJson, ActionData, ClipLayer } from '../types.ts';
@@ -37,86 +30,49 @@ const emptyStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-const clipCardStyle: React.CSSProperties = {
-  background: 'var(--color-surface-2)',
-  borderRadius: 6,
-  padding: '10px 12px',
-  marginBottom: 8,
-  border: '1px solid var(--color-border)',
-};
-
-const clipHeaderStyle: React.CSSProperties = {
+const clipRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 8,
+  gap: 8,
+  padding: '8px 0',
+  borderBottom: '1px solid rgba(42, 42, 58, 0.3)',
 };
 
 const selectStyle: React.CSSProperties = {
-  flex: 1,
-  maxWidth: 220,
-  padding: '4px 6px',
-  fontSize: 11,
+  width: 180,
+  padding: '3px 6px',
+  fontSize: 10,
   fontFamily: 'var(--font-mono)',
   borderRadius: 4,
   border: '1px solid var(--color-border)',
   background: 'var(--color-surface)',
   color: 'var(--color-text)',
-};
-
-const removeBtnStyle: React.CSSProperties = {
-  padding: '2px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--color-danger)',
-  color: 'var(--color-danger)',
-  fontSize: 10,
-  cursor: 'pointer',
-  background: 'transparent',
-  fontFamily: 'var(--font-mono)',
-};
-
-const weightRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  marginBottom: 8,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: 'var(--color-text-muted)',
-  fontFamily: 'var(--font-mono)',
-  minWidth: 45,
+  flexShrink: 0,
 };
 
 const sliderStyle: React.CSSProperties = {
-  flex: 1,
+  width: 60,
   height: 4,
   accentColor: 'var(--color-accent)',
 };
 
 const weightValueStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 11,
+  fontSize: 10,
   color: 'var(--color-text-muted)',
-  width: 35,
+  width: 28,
   textAlign: 'right',
-};
-
-const bodyPartRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
+  flexShrink: 0,
 };
 
 const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
-  padding: '4px 10px',
-  borderRadius: 12,
-  fontSize: 10,
+  padding: '2px 7px',
+  borderRadius: 10,
+  fontSize: 9,
   fontFamily: 'var(--font-mono)',
   fontWeight: active ? 600 : 400,
   cursor: 'pointer',
-  transition: 'all 0.15s ease',
+  transition: 'all 0.12s ease',
   border: `1.5px solid ${active ? color : 'var(--color-border)'}`,
   background: active ? `${color}18` : 'transparent',
   color: active ? color : 'var(--color-text-muted)',
@@ -125,8 +81,21 @@ const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
   userSelect: 'none',
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 3,
+  flexShrink: 0,
 });
+
+const removeBtnStyle: React.CSSProperties = {
+  padding: '2px 6px',
+  borderRadius: 4,
+  border: '1px solid var(--color-danger)',
+  color: 'var(--color-danger)',
+  fontSize: 9,
+  cursor: 'pointer',
+  background: 'transparent',
+  fontFamily: 'var(--font-mono)',
+  flexShrink: 0,
+};
 
 const addBtnStyle: React.CSSProperties = {
   padding: '5px 14px',
@@ -136,7 +105,7 @@ const addBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontFamily: 'var(--font-mono)',
   cursor: 'pointer',
-  marginTop: 4,
+  marginTop: 8,
   background: 'transparent',
   width: '100%',
   textAlign: 'center',
@@ -149,6 +118,13 @@ const durationRowStyle: React.CSSProperties = {
   marginTop: 12,
   paddingTop: 12,
   borderTop: '1px solid var(--color-border)',
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: 'var(--color-text-muted)',
+  fontFamily: 'var(--font-mono)',
+  minWidth: 45,
 };
 
 const numberStyle: React.CSSProperties = {
@@ -208,54 +184,54 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
       <div style={titleStyle}>{selectedAction}</div>
 
       {action.clips.map((layer, i) => (
-        <div key={i} style={clipCardStyle}>
-          <div style={clipHeaderStyle}>
-            <select
-              style={selectStyle}
-              value={layer.clip}
-              onChange={(e) => updateClipLayer(selectedAction, action.clips, i, { clip: e.target.value })}
+        <div key={i} style={clipRowStyle}>
+          <select
+            style={selectStyle}
+            value={layer.clip}
+            onChange={(e) => {
+              const newClipId = e.target.value;
+              const newClipData = data.clips[newClipId];
+              updateClipLayer(selectedAction, action.clips, i, {
+                clip: newClipId,
+                bodyParts: newClipData?.bodyParts ?? layer.bodyParts,
+              });
+            }}
+          >
+            {clipIds.map(id => <option key={id} value={id}>{id}</option>)}
+          </select>
+
+          <input
+            type="range"
+            min={0} max={1} step={0.05}
+            value={layer.weight}
+            style={sliderStyle}
+            onChange={(e) => updateClipLayer(selectedAction, action.clips, i, {
+              weight: parseFloat(e.target.value),
+            })}
+          />
+          <span style={weightValueStyle}>{layer.weight.toFixed(2)}</span>
+
+          {BODY_PARTS.map(part => (
+            <button
+              key={part}
+              style={chipStyle(layer.bodyParts.includes(part), BODY_PART_COLOR[part])}
+              onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
             >
-              {clipIds.map(id => <option key={id} value={id}>{id}</option>)}
-            </select>
-            {action.clips.length > 1 && (
-              <button
-                style={removeBtnStyle}
-                onClick={() => {
-                  const newClips = action.clips.filter((_, idx) => idx !== i);
-                  updateAction(selectedAction, { clips: newClips });
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
+              {BODY_PART_ICON[part]} {part}
+            </button>
+          ))}
 
-          <div style={weightRowStyle}>
-            <span style={labelStyle}>Weight</span>
-            <input
-              type="range"
-              min={0} max={1} step={0.05}
-              value={layer.weight}
-              style={sliderStyle}
-              onChange={(e) => updateClipLayer(selectedAction, action.clips, i, {
-                weight: parseFloat(e.target.value),
-              })}
-            />
-            <span style={weightValueStyle}>{layer.weight.toFixed(2)}</span>
-          </div>
-
-          <div style={bodyPartRowStyle}>
-            <span style={labelStyle}>Body</span>
-            {BODY_PARTS.map(part => (
-              <button
-                key={part}
-                style={chipStyle(layer.bodyParts.includes(part), BODY_PART_COLOR[part])}
-                onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
-              >
-                {BODY_PART_ICON[part]} {part}
-              </button>
-            ))}
-          </div>
+          {action.clips.length > 1 && (
+            <button
+              style={removeBtnStyle}
+              onClick={() => {
+                const newClips = action.clips.filter((_, idx) => idx !== i);
+                updateAction(selectedAction, { clips: newClips });
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       ))}
 
