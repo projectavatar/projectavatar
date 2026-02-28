@@ -1,46 +1,12 @@
 {
   "version": 3,
   "clips": {
-    "asking-a-question-with-one-hand": {
-      "file": "asking-a-question-with-one-hand.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "being-bashful-while-standing": {
-      "file": "being-bashful-while-standing.fbx",
+    "celebrating": {
+      "file": "celebrating.fbx",
       "loop": false,
       "fadeIn": 0.3,
-      "fadeOut": 0.5,
+      "fadeOut": 0.3,
       "category": "gesture",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "being-terrified-while-standing": {
-      "file": "being-terrified-while-standing.fbx",
-      "loop": true,
-      "fadeIn": 0.1,
-      "fadeOut": 0.5,
-      "category": "continuous",
       "energy": "high",
       "bodyParts": [
         "head",
@@ -48,51 +14,13 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "negative",
-        "neutral"
-      ]
+      "tags": []
     },
-    "big-vegas-victory-idle": {
-      "file": "big-vegas-victory-idle.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.6,
-      "category": "reaction",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "positive",
-        "celebratory"
-      ]
-    },
-    "cocky-lean-back": {
-      "file": "cocky-lean-back.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "playful"
-      ]
-    },
-    "crazy-hand-gesture": {
-      "file": "crazy-hand-gesture.fbx",
+    "dismissive": {
+      "file": "dismissive.fbx",
       "loop": false,
       "fadeIn": 0.3,
-      "fadeOut": 0.5,
+      "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
@@ -101,32 +29,13 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "dismissing-with-back-hand": {
-      "file": "dismissing-with-back-hand.fbx",
+    "greeting-standing": {
+      "file": "greeting-standing.fbx",
       "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.6,
-      "category": "reaction",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "aggressive"
-      ]
-    },
-    "emotional-waving-forward": {
-      "file": "emotional-waving-forward.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.5,
+      "fadeIn": 0.3,
+      "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
@@ -135,29 +44,10 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "evil-plotting": {
-      "file": "evil-plotting.fbx",
-      "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.6,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "sneaky"
-      ]
-    },
-    "female-standing-idle": {
-      "file": "female-standing-idle.fbx",
+    "idle-bored": {
+      "file": "idle-bored.fbx",
       "loop": true,
       "fadeIn": 0.5,
       "fadeOut": 0.5,
@@ -169,16 +59,14 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "female-standing-talking-on-phone": {
-      "file": "female-standing-talking-on-phone.fbx",
+    "idle-happy": {
+      "file": "idle-happy.fbx",
       "loop": true,
-      "fadeIn": 0.4,
+      "fadeIn": 0.5,
       "fadeOut": 0.5,
-      "category": "continuous",
+      "category": "idle",
       "energy": "medium",
       "bodyParts": [
         "head",
@@ -186,184 +74,12 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "gesturing-head-side-to-side": {
-      "file": "gesturing-head-side-to-side.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.4,
-      "category": "reaction",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "greeting-while-standing": {
-      "file": "greeting-while-standing.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.6,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "happy-forward-hand-gesture": {
-      "file": "happy-forward-hand-gesture.fbx",
+    "idle-static": {
+      "file": "idle-static.fbx",
       "loop": true,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "positive"
-      ]
-    },
-    "high-enthusiasm-fist-pump": {
-      "file": "high-enthusiasm-fist-pump.fbx",
-      "loop": false,
-      "fadeIn": 0.1,
-      "fadeOut": 0.4,
-      "category": "reaction",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "positive"
-      ]
-    },
-    "left-hand-on-hip": {
-      "file": "left-hand-on-hip.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "looking-forward": {
-      "file": "looking-forward.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "looking-off-into-the-distance": {
-      "file": "looking-off-into-the-distance.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "looking-over-both-shoulders": {
-      "file": "looking-over-both-shoulders.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "looking-with-hand-shading-eyes": {
-      "file": "looking-with-hand-shading-eyes.fbx",
-      "loop": true,
-      "fadeIn": 0.4,
-      "fadeOut": 0.6,
-      "category": "continuous",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "male-talking-on-the-cell-phone": {
-      "file": "male-talking-on-the-cell-phone.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "mutant-stretching-idle-with-breathing": {
-      "file": "mutant-stretching-idle-with-breathing.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
+      "fadeIn": 0.5,
       "fadeOut": 0.5,
       "category": "idle",
       "energy": "low",
@@ -373,69 +89,14 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "calm",
-        "neutral"
-      ]
+      "tags": []
     },
-    "nervously-looking-around-left-to-right-loop": {
-      "file": "nervously-looking-around-left-to-right-loop.fbx",
+    "idle-switch-legs": {
+      "file": "idle-switch-legs.fbx",
       "loop": true,
-      "fadeIn": 0.2,
-      "fadeOut": 0.4,
-      "category": "continuous",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "negative"
-      ]
-    },
-    "nodding-head-yes": {
-      "file": "nodding-head-yes.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.4,
-      "category": "reaction",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "old-man-standing-idle": {
-      "file": "old-man-standing-idle.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
+      "fadeIn": 0.5,
       "fadeOut": 0.5,
       "category": "idle",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "calm",
-        "neutral"
-      ]
-    },
-    "playing-a-run-on-a-piano": {
-      "file": "playing-a-run-on-a-piano.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
       "energy": "medium",
       "bodyParts": [
         "head",
@@ -443,240 +104,14 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "pointing-behind-with-thumb": {
-      "file": "pointing-behind-with-thumb.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.5,
-      "category": "reaction",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "pumping-a-fist": {
-      "file": "pumping-a-fist.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "quick-nervous-look-over-right-shoulder": {
-      "file": "quick-nervous-look-over-right-shoulder.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "negative"
-      ]
-    },
-    "rallying-the-crowd-to-make-them-cheer": {
-      "file": "rallying-the-crowd-to-make-them-cheer.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "restrained-enthusiasm-standing-fist-pump": {
-      "file": "restrained-enthusiasm-standing-fist-pump.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.6,
-      "category": "gesture",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "positive",
-        "neutral"
-      ]
-    },
-    "right-hand-behind-head": {
-      "file": "right-hand-behind-head.fbx",
+    "idle-texting": {
+      "file": "idle-texting.fbx",
       "loop": true,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "rubbing-a-shoulder": {
-      "file": "rubbing-a-shoulder.fbx",
-      "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "sarcastically-looking-away": {
-      "file": "sarcastically-looking-away.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "playful"
-      ]
-    },
-    "shaking-it-off-in-relief": {
-      "file": "shaking-it-off-in-relief.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.6,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "sitting-at-a-computer-and-typing": {
-      "file": "sitting-at-a-computer-and-typing.fbx",
-      "loop": true,
-      "fadeIn": 0.4,
-      "fadeOut": 0.6,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "standing-idle": {
-      "file": "standing-idle.fbx",
-      "loop": true,
-      "fadeIn": 0.3,
+      "fadeIn": 0.5,
       "fadeOut": 0.5,
       "category": "idle",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "calm",
-        "neutral",
-        "resting"
-      ]
-    },
-    "standing-in-a-sad-disposition": {
-      "file": "standing-in-a-sad-disposition.fbx",
-      "loop": true,
-      "fadeIn": 0.6,
-      "fadeOut": 0.8,
-      "category": "continuous",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "negative",
-        "neutral"
-      ]
-    },
-    "standing-up-and-looking-around": {
-      "file": "standing-up-and-looking-around.fbx",
-      "loop": true,
-      "fadeIn": 0.4,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "neutral"
-      ]
-    },
-    "step-back-cautiously-agreeing": {
-      "file": "step-back-cautiously-agreeing.fbx",
-      "loop": false,
-      "fadeIn": 0.2,
-      "fadeOut": 0.5,
-      "category": "reaction",
       "energy": "medium",
       "bodyParts": [
         "head",
@@ -684,66 +119,13 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "neutral"
-      ]
+      "tags": []
     },
-    "talking-finding-something-funny": {
-      "file": "talking-finding-something-funny.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.6,
-      "category": "gesture",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "playful"
-      ]
-    },
-    "telling-a-secret": {
-      "file": "telling-a-secret.fbx",
-      "loop": true,
-      "fadeIn": 0.4,
-      "fadeOut": 0.5,
-      "category": "continuous",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "sneaky"
-      ]
-    },
-    "vexed-shaking-of-the-fist": {
-      "file": "vexed-shaking-of-the-fist.fbx",
-      "loop": false,
-      "fadeIn": 0.15,
-      "fadeOut": 0.5,
-      "category": "reaction",
-      "energy": "high",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": [
-        "aggressive"
-      ]
-    },
-    "victory-from-a-boxing-win": {
-      "file": "victory-from-a-boxing-win.fbx",
+    "laughing": {
+      "file": "laughing.fbx",
       "loop": false,
       "fadeIn": 0.3,
-      "fadeOut": 0.5,
+      "fadeOut": 0.3,
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
@@ -752,16 +134,14 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "positive"
-      ]
+      "tags": []
     },
-    "warrior-stretching-idle": {
-      "file": "warrior-stretching-idle.fbx",
+    "nervous": {
+      "file": "nervous.fbx",
       "loop": true,
-      "fadeIn": 0.3,
+      "fadeIn": 0.5,
       "fadeOut": 0.5,
-      "category": "idle",
+      "category": "emotion",
       "energy": "low",
       "bodyParts": [
         "head",
@@ -769,20 +149,122 @@
         "arms",
         "legs"
       ],
-      "tags": [
-        "calm",
-        "neutral"
-      ]
+      "tags": []
+    },
+    "nodding": {
+      "file": "nodding.fbx",
+      "loop": false,
+      "fadeIn": 0.3,
+      "fadeOut": 0.3,
+      "category": "gesture",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "planning": {
+      "file": "planning.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "emotion",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "sad": {
+      "file": "sad.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "emotion",
+      "energy": "low",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "searching-looking": {
+      "file": "searching-looking.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "emotion",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "talking": {
+      "file": "talking.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "continuous",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "typing-keyboard": {
+      "file": "typing-keyboard.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "continuous",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "typing-touch-screen": {
+      "file": "typing-touch-screen.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "continuous",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
     }
   },
   "actions": {
     "idle": {
       "groups": [
         {
-          "rarity": 0.5,
+          "rarity": 0.1625,
           "clips": [
             {
-              "clip": "female-standing-idle",
+              "clip": "idle-bored",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -794,10 +276,10 @@
           ]
         },
         {
-          "rarity": 0.125,
+          "rarity": 0.1625,
           "clips": [
             {
-              "clip": "mutant-stretching-idle-with-breathing",
+              "clip": "idle-happy",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -809,10 +291,10 @@
           ]
         },
         {
-          "rarity": 0.125,
+          "rarity": 0.35,
           "clips": [
             {
-              "clip": "old-man-standing-idle",
+              "clip": "idle-static",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -824,10 +306,10 @@
           ]
         },
         {
-          "rarity": 0.125,
+          "rarity": 0.1625,
           "clips": [
             {
-              "clip": "standing-idle",
+              "clip": "idle-switch-legs",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -839,10 +321,10 @@
           ]
         },
         {
-          "rarity": 0.125,
+          "rarity": 0.1625,
           "clips": [
             {
-              "clip": "warrior-stretching-idle",
+              "clip": "idle-texting",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -862,18 +344,8 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "happy-forward-hand-gesture",
-              "weight": 0.85,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            },
-            {
-              "clip": "nodding-head-yes",
-              "weight": 0.2,
+              "clip": "talking",
+              "weight": 1,
               "bodyParts": [
                 "head",
                 "torso",
@@ -889,20 +361,30 @@
     "typing": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.7,
           "clips": [
             {
-              "clip": "sitting-at-a-computer-and-typing",
+              "clip": "typing-keyboard",
               "weight": 1,
               "bodyParts": [
+                "head",
+                "torso",
                 "arms",
-                "torso"
+                "legs"
               ]
-            },
+            }
+          ]
+        },
+        {
+          "rarity": 0.3,
+          "clips": [
             {
-              "clip": "female-standing-idle",
-              "weight": 0.5,
+              "clip": "typing-touch-screen",
+              "weight": 1,
               "bodyParts": [
+                "head",
+                "torso",
+                "arms",
                 "legs"
               ]
             }
@@ -917,7 +399,7 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "nodding-head-yes",
+              "clip": "nodding",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -929,7 +411,7 @@
           ]
         }
       ],
-      "durationOverride": 1.8
+      "durationOverride": 2
     },
     "laughing": {
       "groups": [
@@ -937,7 +419,7 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "talking-finding-something-funny",
+              "clip": "laughing",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -954,55 +436,10 @@
     "celebrating": {
       "groups": [
         {
-          "rarity": 0.25,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "restrained-enthusiasm-standing-fist-pump",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.25,
-          "clips": [
-            {
-              "clip": "high-enthusiasm-fist-pump",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.25,
-          "clips": [
-            {
-              "clip": "big-vegas-victory-idle",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.25,
-          "clips": [
-            {
-              "clip": "rallying-the-crowd-to-make-them-cheer",
+              "clip": "celebrating",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1019,70 +456,10 @@
     "dismissive": {
       "groups": [
         {
-          "rarity": 0.2,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "dismissing-with-back-hand",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.2,
-          "clips": [
-            {
-              "clip": "gesturing-head-side-to-side",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.2,
-          "clips": [
-            {
-              "clip": "sarcastically-looking-away",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.2,
-          "clips": [
-            {
-              "clip": "step-back-cautiously-agreeing",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.2,
-          "clips": [
-            {
-              "clip": "vexed-shaking-of-the-fist",
+              "clip": "dismissive",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1099,40 +476,10 @@
     "searching": {
       "groups": [
         {
-          "rarity": 0.33,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "standing-up-and-looking-around",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.33,
-          "clips": [
-            {
-              "clip": "looking-with-hand-shading-eyes",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.33,
-          "clips": [
-            {
-              "clip": "asking-a-question-with-one-hand",
+              "clip": "searching-looking",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1149,10 +496,10 @@
     "nervous": {
       "groups": [
         {
-          "rarity": 0.25,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "nervously-looking-around-left-to-right-loop",
+              "clip": "nervous",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1162,42 +509,17 @@
               ]
             }
           ]
-        },
+        }
+      ],
+      "durationOverride": null
+    },
+    "sad": {
+      "groups": [
         {
-          "rarity": 0.25,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "being-terrified-while-standing",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.25,
-          "clips": [
-            {
-              "clip": "shaking-it-off-in-relief",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.25,
-          "clips": [
-            {
-              "clip": "right-hand-behind-head",
+              "clip": "sad",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1214,40 +536,10 @@
     "plotting": {
       "groups": [
         {
-          "rarity": 0.33,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "evil-plotting",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.33,
-          "clips": [
-            {
-              "clip": "cocky-lean-back",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.33,
-          "clips": [
-            {
-              "clip": "telling-a-secret",
+              "clip": "planning",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1264,25 +556,10 @@
     "greeting": {
       "groups": [
         {
-          "rarity": 0.5,
+          "rarity": 1,
           "clips": [
             {
-              "clip": "greeting-while-standing",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.5,
-          "clips": [
-            {
-              "clip": "emotional-waving-forward",
+              "clip": "greeting-standing",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1295,26 +572,6 @@
         }
       ],
       "durationOverride": 2.5
-    },
-    "sad": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "standing-in-a-sad-disposition",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
     }
   },
   "emotions": {
@@ -1325,12 +582,7 @@
     },
     "sad": {
       "weightScale": 0.7,
-      "overrides": {
-        "idle": {
-          "clip": "standing-in-a-sad-disposition",
-          "weight": 0.8
-        }
-      },
+      "overrides": {},
       "layers": []
     },
     "angry": {
@@ -1344,24 +596,14 @@
       "layers": []
     },
     "confused": {
-      "weightScale": 1,
-      "overrides": {
-        "idle": {
-          "clip": "looking-forward",
-          "weight": 0.9
-        }
-      },
+      "weightScale": 1.0,
+      "overrides": {},
       "layers": []
     },
     "nervous": {
       "weightScale": 0.85,
       "overrides": {},
-      "layers": [
-        {
-          "clip": "quick-nervous-look-over-right-shoulder",
-          "weight": 0.15
-        }
-      ]
+      "layers": []
     },
     "surprised": {
       "weightScale": 1.1,
@@ -1369,23 +611,13 @@
       "layers": []
     },
     "bashful": {
-      "weightScale": 1,
-      "overrides": {
-        "idle": {
-          "clip": "being-bashful-while-standing",
-          "weight": 1
-        }
-      },
+      "weightScale": 1.0,
+      "overrides": {},
       "layers": []
     },
     "thinking": {
-      "weightScale": 1,
-      "overrides": {
-        "idle": {
-          "clip": "looking-off-into-the-distance",
-          "weight": 0.9
-        }
-      },
+      "weightScale": 1.0,
+      "overrides": {},
       "layers": []
     }
   }
