@@ -11,6 +11,10 @@ import type { PropManager } from './prop-manager.ts';
  * Receives AvatarEvents from the WebSocket client and dispatches
  * to expression, animation, blink, and prop controllers.
  * Returns to idle after a configurable timeout of no events.
+ *
+ * Animation is hybrid: FBX clips (via AnimationMixer) provide the base motion,
+ * procedural idle layer adds organic noise on top, and ExpressionController
+ * handles blend shapes + additive head offset.
  */
 
 interface AvatarState {
@@ -59,6 +63,7 @@ export class StateMachine {
     // When a non-looping animation finishes, return to idle
     this.animationCtrl.onActionFinished = () => {
       this.state.action = 'idle';
+      this.animationCtrl.playAction('idle', this.state.intensity, this.state.emotion);
       this.onStateChange?.(this.state);
     };
   }
@@ -83,12 +88,14 @@ export class StateMachine {
     if (event.emotion && event.emotion !== prev.emotion) {
       this.state.emotion = event.emotion;
       this.expressionCtrl.setEmotion(event.emotion, this.state.intensity);
+      // Notify animation controller — emotion may change clip selection
+      this.animationCtrl.setEmotion(event.emotion);
     }
 
     // Update action
     if (event.action && event.action !== prev.action) {
       this.state.action = event.action;
-      this.animationCtrl.playAction(event.action, this.state.intensity);
+      this.animationCtrl.playAction(event.action, this.state.intensity, this.state.emotion);
     }
 
     // Update prop
@@ -104,11 +111,15 @@ export class StateMachine {
     this.resetIdleTimer();
   }
 
-  /** Update all subsystems. Call every frame with delta time. */
+  /**
+   * Update all subsystems. Call every frame with delta time.
+   *
+   * Order matters:
+   * 1. AnimationController: mixer ticks FBX clips, then idle layer adds noise
+   * 2. ExpressionController: blend shapes + additive head offset (on top of mixer)
+   * 3. BlinkController: blink + micro-glance (expression-level, last)
+   */
   update(delta: number): void {
-    // Order: procedural engine writes bone rotations from rest pose,
-    // then expression controller adds blend shapes + additive head offset.
-    // Blink runs last (also expression-level).
     this.animationCtrl.update(delta);
     this.expressionCtrl.update(delta);
     this.blinkCtrl.update(delta);

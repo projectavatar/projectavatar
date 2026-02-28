@@ -88,7 +88,7 @@ export function AvatarCanvas({ onSendSetModel }: {
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm);
-      // Initialize procedural animation engine (instant — no FBX to load)
+      // Load all FBX animation clips (async — shows loading overlay)
       animationController.loadAnimations()
         .then(() => setAnimationsLoaded(true))
         .catch((err) => {
