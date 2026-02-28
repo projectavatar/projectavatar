@@ -357,9 +357,11 @@ export class IdleLayer {
     const yaw = Math.atan2(this._headDir.x, this._headDir.z);
     const pitch = -Math.asin(Math.max(-1, Math.min(1, this._headDir.y)));
 
-    // Apply directly as small additive offset — no accumulation
-    this.head.rotation.y += yaw * HEAD_TRACK_INFLUENCE;
-    this.head.rotation.x += pitch * HEAD_TRACK_INFLUENCE;
+    // Apply directly as small additive offset — no accumulation.
+    // VRM 0.x has inverted axes (legBendSign === -1) — negate both.
+    const sign = this.legBendSign;
+    this.head.rotation.y += yaw * HEAD_TRACK_INFLUENCE * sign;
+    this.head.rotation.x += pitch * HEAD_TRACK_INFLUENCE * sign;
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
