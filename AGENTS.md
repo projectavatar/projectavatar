@@ -27,14 +27,24 @@ Monorepo with independently deployable packages:
 - Model: stored in DO, synced to all WebSocket clients via `model_changed` broadcast.
 - Share link format: `?token=abc123` — no model in URL.
 
-## Animation System (v2)
+## Animation System (v3)
 
 Weight-based multi-clip blending with body part scoping. All animation logic lives in `packages/avatar-engine/`.
 
-### clips.json v2 Schema
-- `clips{}`: per-clip metadata (file, loop, fadeIn/Out, category, energy, bodyParts, tags, defaultWeight)
-- `actions{}`: each with `clips[]` (ordered array of clip layers with weight + bodyParts) + `durationOverride`
-- `emotions{}`: 14 emotions with `weightScale` + action `overrides` + extra `layers`
+### clips.json v3 Schema
+- `clips{}`: per-clip metadata (file, loop, fadeIn/Out, category, energy, bodyParts, tags)
+- `actions{}`: each with `groups[]` — animation groups with weighted random selection
+  - Each group has `rarity` (probability weight) + `clips[]` (clip layers with weight + bodyParts)
+  - When an action fires, one group is randomly selected based on rarity weights
+  - For looping actions (idle), a new group is re-rolled after each animation cycle
+  - `durationOverride` at the action level (shared across all groups)
+- `emotions{}`: 10 emotions with `weightScale` + action `overrides` + extra `layers`
+
+### Actions (12)
+`idle`, `talking`, `typing`, `nodding`, `laughing`, `celebrating`, `dismissive`, `searching`, `nervous`, `sad`, `plotting`, `greeting`
+
+### Emotions (10)
+`idle`, `thinking`, `excited`, `confused`, `happy`, `angry`, `sad`, `surprised`, `bashful`, `nervous`
 
 ### Blending Model
 All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into per-body-part sub-clips (track filtering). Weights normalized per body-part group so total influence always sums to 1.0.
@@ -44,7 +54,7 @@ Body parts: `head`, `torso`, `arms`, `legs` (legs includes hips/root motion).
 ### Key Engine Classes
 - **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
 - **TransitionStabilizer** — pins hips, feet, and hands during clip transitions using soft positional constraints. Independent timing per bone group (feet: tight lock, hands: loose lock with gentle release).
-- **ClipRegistry** — data-driven clip resolver. Resolves action + emotion + intensity → final clip set with body part scoping. Dynamic fallback chain: action → idle action → first clip in registry (no hardcoded clip IDs).
+- **ClipRegistry** — data-driven clip resolver (v3). Resolves action + emotion + intensity + group index → final clip set with body part scoping. `selectGroup()` for weighted random selection, `isActionLooping()`, `getGroupCount()`. Dynamic fallback chain: action → idle action → first clip in registry.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
 - **BlinkController** — random blink + micro-glance.
 - **PropManager** — GLB prop loading + hand bone attachment.
@@ -63,7 +73,7 @@ AnimationController (avatar-engine) — runtime playback via Three.js AnimationM
     ↓ post-mixer
 TransitionStabilizer (avatar-engine) — pins bones during crossfade window
 
-Clip Manager (clip-manager/) — dev UI for editing clips.json
+Clip Manager (clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)
 clips.json
 ```
@@ -100,7 +110,7 @@ Client → server messages (`WebSocketClientMessage`):
 
 ### Relay
 - `relay/src/channel.ts` — Durable Object. Handles push, stream, state, set_model.
-- `relay/src/index.ts` — Worker entry. Routes: `POST /push/:token`, `GET /stream/:token`, `GET /channel/:token/state`, `GET /skill/install`.
+- `relay/src/index.ts` — Worker entry. Routes: `POST /push/:token`, `GET /stream/:token`, `GET /channel/:token/state`, 
 
 ### Web App
 - `web/src/avatar/avatar-canvas.tsx` — React wrapper: creates engine instances + wires WebSocket.

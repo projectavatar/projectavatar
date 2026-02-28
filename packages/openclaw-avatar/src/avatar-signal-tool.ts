@@ -18,7 +18,7 @@ const INTENSITY_SET = new Set<string>(INTENSITIES);
 export function createAvatarTool(stateMachine: AvatarStateMachine) {
   return {
     name: 'avatar_signal',
-    description: 'Set your avatar expression. Call before replying to match your tone. For longer responses with genuine tone shifts, call again mid-response. Silent — the user never sees it.',
+    description: 'Set your expression. Call before replying to match your tone. For longer responses with genuine tone shifts, call again mid-response. Silent — the user never sees it.',
     parameters: {
       type: 'object' as const,
       required: ['emotion', 'action'] as string[],
