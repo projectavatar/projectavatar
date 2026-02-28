@@ -6,7 +6,8 @@
  * those bones in the preview.
  */
 import { useCallback } from 'react';
-import { BODY_PARTS, BODY_PART_ICON, BODY_PART_COLOR } from '@project-avatar/avatar-engine';
+import { BODY_PARTS } from '@project-avatar/avatar-engine';
+import { BODY_PART_ICON, BODY_PART_COLOR } from '../constants.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

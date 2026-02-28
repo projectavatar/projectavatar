@@ -14,6 +14,9 @@ export interface AvatarSceneOptions {
   gridDivisions?: number;
 }
 
+const DEFAULT_GRID_SIZE = 4;
+const DEFAULT_GRID_DIVISIONS = 16;
+
 export class AvatarScene {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -66,8 +69,8 @@ export class AvatarScene {
     // Optional grid floor
     if (options?.grid) {
       const grid = new THREE.GridHelper(
-        options.gridSize ?? 4,
-        options.gridDivisions ?? 16,
+        options.gridSize ?? DEFAULT_GRID_SIZE,
+        options.gridDivisions ?? DEFAULT_GRID_DIVISIONS,
         0x2a2a3a,
         0x1a1a2a,
       );

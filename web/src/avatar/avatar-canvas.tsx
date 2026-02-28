@@ -12,6 +12,7 @@ import {
   ClipRegistry,
 } from '@project-avatar/avatar-engine';
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
+import type { ClipsJsonData } from '@project-avatar/avatar-engine';
 
 // Import clips data for the registry
 import clipsData from '../data/clips.json';
@@ -40,7 +41,7 @@ export function useWsClient(): WsContextValue {
 
 // ─── Clip Registry (singleton) ────────────────────────────────────────────────
 
-const clipRegistry = new ClipRegistry(clipsData as any);
+const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 

@@ -82,6 +82,15 @@ const DEFAULT_LAYERS: LayerState = {
   blink: true,
 };
 
+/** Human-readable labels for each animation layer. */
+export const LAYER_LABELS: Record<keyof LayerState, string> = {
+  fbxClips: 'FBX Clips',
+  idleNoise: 'Idle Noise',
+  expressions: 'Expressions',
+  headOffset: 'Head Offset',
+  blink: 'Blink',
+};
+
 // ─── AnimationController ──────────────────────────────────────────────────────
 
 export class AnimationController {
@@ -113,6 +122,9 @@ export class AnimationController {
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
 
+  /** Whether all animations have been preloaded. */
+  get loaded(): boolean { return this._loaded; }
+
   /** Timer for non-looping action completion. */
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -140,7 +152,7 @@ export class AnimationController {
 
     console.info(`[AnimationController] Loading ${files.length} FBX clips...`);
 
-    const results = await Promise.allSettled(
+    await Promise.all(
       files.map(async (file) => {
         try {
           const clip = await loadMixamoAnimation(basePath + file, this.vrm);
@@ -152,8 +164,7 @@ export class AnimationController {
       }),
     );
 
-    const loaded = results.filter((r) => r.status === 'fulfilled').length;
-    console.info(`[AnimationController] Loaded ${loaded}/${files.length} clips`);
+    console.info(`[AnimationController] Loaded ${this.clipCache.size}/${files.length} clips`);
 
     const missing = files.filter((f) => !this.clipCache.has(f));
     if (missing.length > 0) {
@@ -213,7 +224,6 @@ export class AnimationController {
   stopAll(): void {
     this.playAction('idle', 'medium');
   }
-
 
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this.layers[layer] = enabled;

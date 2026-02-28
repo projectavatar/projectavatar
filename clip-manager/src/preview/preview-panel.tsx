@@ -8,6 +8,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
 import { getBonesForParts } from '@project-avatar/avatar-engine';
+import { LAYER_LABELS } from '@project-avatar/avatar-engine';
 import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -149,13 +150,6 @@ const toggleKnobStyle = (on: boolean): React.CSSProperties => ({
 
 // ─── Layer Labels ─────────────────────────────────────────────────────────────
 
-const LAYER_LABELS: Record<keyof LayerState, string> = {
-  fbxClips: 'FBX Clips',
-  idleNoise: 'Idle Noise',
-  expressions: 'Expressions',
-  headOffset: 'Head Offset',
-  blink: 'Blink',
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

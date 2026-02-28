@@ -163,11 +163,6 @@ export class ClipPreview {
    * Requires a loaded model and clips data.
    * Returns a promise that resolves when all clips are preloaded.
    */
-  /**
-   * Enable the full animation engine (idle noise, expressions, blink).
-   * Requires a loaded model and clips data.
-   * Returns a promise that resolves when all clips are preloaded.
-   */
   async enableEngine(clipsData: ClipsJsonData): Promise<void> {
     if (!this.vrm) throw new Error('Load a model first');
 

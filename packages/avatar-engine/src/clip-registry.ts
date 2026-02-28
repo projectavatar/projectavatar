@@ -31,12 +31,24 @@ export interface ResolvedClips {
 
 // ─── JSON shape ───────────────────────────────────────────────────────────────
 
-interface ClipJson {
+/** Full clip metadata as stored in clips.json. */
+export interface ClipJson {
   file: string;
   loop: boolean;
   fadeIn: number;
   fadeOut: number;
-  [key: string]: unknown;
+  mustFinish: boolean;
+  returnToIdle: boolean;
+  minPlayTime: number;
+  category: 'idle' | 'gesture' | 'reaction' | 'emotion' | 'continuous';
+  energy: 'low' | 'medium' | 'high';
+  bodyParts: string[];
+  symmetric: boolean;
+  layerPriority: number;
+  additiveCompatible: boolean;
+  baseOnly: boolean;
+  tags: string[];
+  incompatibleWith: string[];
 }
 
 interface ClipRefJson {
