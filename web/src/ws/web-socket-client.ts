@@ -14,8 +14,7 @@ interface ServerMessage {
   version?: string;
 }
 
-/** If no message is received within this window, close + reconnect */
-const KEEPALIVE_TIMEOUT_MS = 60_000;
+import { KEEPALIVE } from '@project-avatar/shared';
 
 export class WebSocketClient {
   private url: string;
@@ -100,7 +99,7 @@ export class WebSocketClient {
       this.keepaliveTimer = null;
       console.warn('[Avatar WS] No message in 60s — reconnecting');
       this.ws?.close(); // onclose fires → scheduleReconnect
-    }, KEEPALIVE_TIMEOUT_MS);
+    }, KEEPALIVE.timeoutMs);
   }
 
   /**
@@ -157,7 +156,11 @@ export class WebSocketClient {
       case 'ping': {
         // Server keepalive — respond with pong. resetKeepalive() already
         // fired in onmessage before we got here, so the timer is reset.
-        try { this.ws?.send(JSON.stringify({ type: 'pong' })); } catch { /* noop */ }
+        try {
+          this.ws?.send(JSON.stringify({ type: 'pong' }));
+        } catch {
+          // Send failed — socket is dead, onclose will handle reconnection
+        }
         break;
       }
 

@@ -182,7 +182,8 @@ export interface AvatarEventMessage {
 export type WebSocketServerMessage =
   | ChannelStateMessage
   | ModelChangedMessage
-  | AvatarEventMessage;
+  | AvatarEventMessage
+  | PingMessage;
 
 // ─── WebSocket message types (client → server) ─────────────────────────────────
 
@@ -192,7 +193,7 @@ export interface SetModelMessage {
   model: string | null;
 }
 
-export type WebSocketClientMessage = SetModelMessage;
+export type WebSocketClientMessage = SetModelMessage | PongMessage;
 
 // ─── HTTP response types ────────────────────────────────────────────────────────
 
