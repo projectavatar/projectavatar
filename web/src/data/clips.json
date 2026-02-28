@@ -822,9 +822,15 @@
           "clip": "sitting-at-a-computer-and-typing",
           "weight": 1,
           "bodyParts": [
-            "head",
-            "torso",
-            "arms"
+            "arms",
+            "torso"
+          ]
+        },
+        {
+          "clip": "female-standing-idle",
+          "weight": 0.5,
+          "bodyParts": [
+            "legs"
           ]
         }
       ],

@@ -7,7 +7,7 @@ Coding agent context for this repository.
 Monorepo with independently deployable packages:
 
 - `packages/shared/` — shared types, validation, constants. Imported by all packages.
-- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, procedural idle layer. Shared by `web/` and `clip-manager/`.
+- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, weight-based clip blending. Shared by `web/` and `clip-manager/`.
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
