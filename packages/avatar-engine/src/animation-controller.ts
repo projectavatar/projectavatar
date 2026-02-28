@@ -21,31 +21,17 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
-import { evaluateIdleLayer } from './procedural/idle-layer.ts';
-import type { AnimBone, BoneState } from './procedural/types.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const IDLE_INFLUENCE_DURING_CLIP = 0.4;
-const IDLE_INFLUENCE_DURING_IDLE = 1.0;
 const DEFAULT_FADE_IN = 0.3;
 const DEFAULT_FADE_OUT = 0.5;
-
-// ─── Bones for additive idle layer ────────────────────────────────────────────
-
-const IDLE_BONES: AnimBone[] = [
-  'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
-  'leftShoulder', 'rightShoulder',
-  'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm',
-];
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
 export interface LayerState {
   /** FBX clip playback enabled */
   fbxClips: boolean;
-  /** Procedural idle noise (breathing, sway, head drift) */
-  idleNoise: boolean;
   /** Expression blend shapes (happy, sad, etc.) */
   expressions: boolean;
   /** Expression head bone offset */
@@ -76,7 +62,6 @@ export interface ActiveClipInfo {
 
 const DEFAULT_LAYERS: LayerState = {
   fbxClips: true,
-  idleNoise: true,
   expressions: true,
   headOffset: true,
   blink: true,
@@ -85,7 +70,6 @@ const DEFAULT_LAYERS: LayerState = {
 /** Human-readable labels for each animation layer. */
 export const LAYER_LABELS: Record<keyof LayerState, string> = {
   fbxClips: 'FBX Clips',
-  idleNoise: 'Idle Noise',
   expressions: 'Expressions',
   headOffset: 'Head Offset',
   blink: 'Blink',
@@ -115,23 +99,6 @@ export class AnimationController {
   /** Active sub-actions for the current blended action. */
   private activeSubActions: SubAction[] = [];
 
-  /** Body part groups currently covered by at least one clip. */
-  private activeBodyGroups = new Set<BodyPart>();
-
-  /** VRM 0.x vs 1.0 axis flip for additive idle layer. */
-  private flipXZ: boolean;
-
-  /** Bone node references for additive idle layer. */
-  private boneNodes = new Map<AnimBone, THREE.Object3D>();
-  /** Rest-pose rotations captured once on init (for reset when FBX off). */
-  private restPositions = new Map<AnimBone, THREE.Vector3>();
-  private restRotations = new Map<AnimBone, THREE.Euler>();
-
-  /** Global elapsed time for idle layer noise. */
-  private elapsed = 0;
-
-  /** Reusable frame buffer for idle layer evaluation. */
-  private idleBuffer = new Map<AnimBone, BoneState>();
 
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
@@ -151,15 +118,10 @@ export class AnimationController {
   /** Map from VRM bone name → normalized bone node name (for track filtering). */
   private boneNameMap = new Map<string, string>();
 
-  /** Reverse lookup: AnimBone name → body part group (for idle noise filtering). */
-  private boneToGroup = new Map<string, BodyPart>();
-
   constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
-    this.flipXZ = (vrm.meta as any)?.metaVersion !== '0';
-    this._captureBones();
     this._buildBoneNameMap();
   }
 
@@ -245,17 +207,11 @@ export class AnimationController {
    */
   update(delta: number): void {
     const dt = Math.min(delta, 0.1);
-    this.elapsed += dt;
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-    } else {
-      this._resetBonesToRest();
     }
 
-    if (this.layers.idleNoise && this._loaded) {
-      this._applyIdleLayer();
-    }
   }
 
   getActiveClips(): ActiveClipInfo[] {
@@ -285,11 +241,6 @@ export class AnimationController {
     this.mixer.uncacheRoot(this.vrm.scene);
     this.clipCache.clear();
     this.activeSubActions.length = 0;
-    this.activeBodyGroups.clear();
-    this.boneNodes.clear();
-    this.restPositions.clear();
-    this.restRotations.clear();
-    this.idleBuffer.clear();
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
@@ -298,36 +249,14 @@ export class AnimationController {
 
   // ─── Private: bone setup ────────────────────────────────────────────────
 
-  private _captureBones(): void {
-    for (const boneName of IDLE_BONES) {
-      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
-      if (node) {
-        this.boneNodes.set(boneName, node);
-        this.restPositions.set(boneName, node.position.clone());
-        this.restRotations.set(boneName, node.rotation.clone());
-      }
-    }
-  }
-
   /** Build a map from VRM normalized bone node names to bone names for track filtering. */
   private _buildBoneNameMap(): void {
-    for (const [group, bones] of Object.entries(BODY_PART_BONES)) {
-      for (const boneName of bones) {
-        const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
-        if (node) {
-          this.boneNameMap.set(node.name, boneName);
-        }
-        this.boneToGroup.set(boneName, group as BodyPart);
+    const allBones = Object.values(BODY_PART_BONES).flat();
+    for (const boneName of allBones) {
+      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
+      if (node) {
+        this.boneNameMap.set(node.name, boneName);
       }
-    }
-  }
-
-  private _resetBonesToRest(): void {
-    for (const [boneName, node] of this.boneNodes) {
-      const restRot = this.restRotations.get(boneName);
-      const restPos = this.restPositions.get(boneName);
-      if (restRot) node.rotation.copy(restRot);
-      if (restPos) node.position.copy(restPos);
     }
   }
 
@@ -363,7 +292,6 @@ export class AnimationController {
       sub.action.fadeOut(DEFAULT_FADE_OUT);
     }
     this.activeSubActions = [];
-    this.activeBodyGroups.clear();
 
     // Resolve action clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity);
@@ -384,10 +312,7 @@ export class AnimationController {
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
         const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
-        if (sub) {
-          this.activeSubActions.push(sub);
-          this.activeBodyGroups.add(group);
-        }
+        if (sub) this.activeSubActions.push(sub);
       }
     }
 
@@ -465,37 +390,4 @@ export class AnimationController {
     );
   }
 
-  // ─── Private: procedural idle noise ─────────────────────────────────────
-
-  private _applyIdleLayer(): void {
-    const influence = this.currentAction === 'idle'
-      ? IDLE_INFLUENCE_DURING_IDLE
-      : IDLE_INFLUENCE_DURING_CLIP;
-
-    if (influence <= 0.001) return;
-
-    this.idleBuffer.clear();
-    evaluateIdleLayer(this.elapsed, this.idleBuffer, influence);
-
-    const s = this.flipXZ ? -1 : 1;
-
-    for (const [boneName, node] of this.boneNodes) {
-      const state = this.idleBuffer.get(boneName);
-      if (!state) continue;
-
-      // Only apply idle noise to bones in active body part groups
-      const group = this.boneToGroup.get(boneName);
-      if (group && !this.activeBodyGroups.has(group)) continue;
-
-      node.rotation.x += state.rx * s;
-      node.rotation.y += state.ry;
-      node.rotation.z += state.rz * s;
-
-      if (state.px !== 0 || state.py !== 0 || state.pz !== 0) {
-        node.position.x += state.px * s;
-        node.position.y += state.py;
-        node.position.z += state.pz * s;
-      }
-    }
-  }
 }

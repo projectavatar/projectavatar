@@ -58,7 +58,6 @@ export class ClipPreview {
   private _engineActive = false;
   private _layers: LayerState = {
     fbxClips: true,
-    idleNoise: true,
     expressions: true,
     headOffset: true,
     blink: true,

@@ -192,7 +192,6 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   void eventLogVersion; // triggers re-render on event log update
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
-    idleNoise: true,
     expressions: true,
     headOffset: true,
     blink: true,

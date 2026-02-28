@@ -187,7 +187,6 @@ export function PreviewPanel({
   const [actionLabel, setActionLabel] = useState<string | null>(null);
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
-    idleNoise: true,
     expressions: true,
     headOffset: true,
     blink: true,
