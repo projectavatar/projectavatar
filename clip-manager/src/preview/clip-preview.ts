@@ -1,23 +1,21 @@
 /**
  * Clip preview — composes avatar-engine primitives for the clip manager.
  *
- * Two modes:
+ * Three modes:
  * 1. Raw clip playback: plays a single FBX with bone masking (for clip editing)
  * 2. Full engine: AnimationController + ExpressionController + BlinkController
  *    with layer toggles (for mimicking the main web app's behavior)
- *
- * The engine stack is bootstrapped lazily when enableEngine() is called after
- * a model is loaded. Layer toggles only work in engine mode.
+ * 3. Action preview: plays a blended action through the engine (for action editing)
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
+import type { Action as ActionName } from '@project-avatar/shared';
 import {
   AvatarScene,
   VrmManager,
   AnimationController,
   ExpressionController,
   BlinkController,
-
   ClipRegistry,
   loadMixamoAnimation,
 } from '@project-avatar/avatar-engine';
@@ -56,6 +54,7 @@ export class ClipPreview {
   private animCtrl: AnimationController | null = null;
   private exprCtrl: ExpressionController | null = null;
   private blinkCtrl: BlinkController | null = null;
+  private registry: ClipRegistry | null = null;
   private _engineActive = false;
   private _layers: LayerState = {
     fbxClips: true,
@@ -96,7 +95,6 @@ export class ClipPreview {
     this.avatarScene.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.avatarScene.renderer.toneMappingExposure = 1.0;
 
-    // Full-body camera for clip manager
     this.avatarScene.camera.position.set(0, 1.0, 7.0);
     this.avatarScene.camera.lookAt(0, 0.9, 0);
 
@@ -106,7 +104,6 @@ export class ClipPreview {
       if (this._disposed) return;
 
       if (this._engineActive) {
-        // Engine mode: animation controller handles mixer + idle layer
         this.animCtrl!.update(delta);
         const layers = this.animCtrl!.layers;
         if (layers.expressions || layers.headOffset) {
@@ -116,7 +113,6 @@ export class ClipPreview {
           this.blinkCtrl!.update(delta);
         }
       } else {
-        // Raw mode: direct mixer update
         if (this.mixer && !this._paused) {
           this.mixer.update(delta);
         }
@@ -133,12 +129,12 @@ export class ClipPreview {
     this.avatarScene.start();
   }
 
-  /** Load a VRM model */
   async loadModel(url: string): Promise<void> {
     this._engineActive = false;
     this.animCtrl = null;
     this.exprCtrl = null;
     this.blinkCtrl = null;
+    this.registry = null;
 
     if (this.mixer) {
       this.mixer.stopAllAction();
@@ -158,31 +154,37 @@ export class ClipPreview {
     });
   }
 
-  /**
-   * Enable the full animation engine (idle noise, expressions, blink).
-   * Requires a loaded model and clips data.
-   * Returns a promise that resolves when all clips are preloaded.
-   */
   async enableEngine(clipsData: ClipsJsonData): Promise<void> {
     if (!this.vrm) throw new Error('Load a model first');
 
-    const registry = new ClipRegistry(clipsData);
-    this.animCtrl = new AnimationController(this.vrm, registry);
+    this.registry = new ClipRegistry(clipsData);
+    this.animCtrl = new AnimationController(this.vrm, this.registry);
     this.exprCtrl = new ExpressionController(this.vrm);
     this.blinkCtrl = new BlinkController(this.vrm);
 
-    // Apply current layer state
     for (const [layer, enabled] of Object.entries(this._layers)) {
       this.animCtrl.setLayer(layer as keyof LayerState, enabled);
     }
 
-    // Preload all animation clips
     await this.animCtrl.loadAnimations();
-
     this._engineActive = true;
   }
 
-  /** Set a layer toggle (only effective in engine mode). */
+  /** Update the clip registry data without re-initializing the engine. */
+  updateEngineData(clipsData: ClipsJsonData): void {
+    if (this.registry) {
+      this.registry.setData(clipsData);
+    }
+  }
+
+  /** Play a blended action through the animation engine. */
+  playEngineAction(action: ActionName): void {
+    if (!this.animCtrl || !this._engineActive) return;
+    // Force re-resolve by resetting current action tracking
+    this.animCtrl.playAction(action, 'medium', 'idle', true);
+    this.currentClipName = null; // Clear single-clip info
+  }
+
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this._layers[layer] = enabled;
     if (this.animCtrl) {
@@ -190,7 +192,6 @@ export class ClipPreview {
     }
   }
 
-  /** Get current layer state. */
   get layers(): Readonly<LayerState> {
     return this._layers;
   }
@@ -200,12 +201,9 @@ export class ClipPreview {
     this.maskedClipCache.clear();
   }
 
-  /** Load and play an FBX clip by path (raw mode — bypasses engine). */
   async playClip(fbxPath: string, loop?: boolean): Promise<void> {
     if (!this.vrm || !this.mixer) return;
 
-    // When engine is active, disable it for raw clip playback
-    // (clip preview is a direct FBX player, engine is for idle/layer testing)
     if (this._engineActive) {
       this._engineActive = false;
     }
@@ -254,9 +252,18 @@ export class ClipPreview {
       this.currentAction = null;
       this.currentClipName = null;
     }
+    // If engine active, return to idle
+    if (this._engineActive && this.animCtrl) {
+      this.animCtrl.playAction('idle', 'medium', 'idle');
+    }
   }
 
   togglePause(): void {
+    if (this._engineActive) {
+      // For engine mode, we don't have a simple pause — just toggle the flag
+      this._paused = !this._paused;
+      return;
+    }
     if (!this.currentAction) return;
     this._paused = !this._paused;
     this.currentAction.paused = this._paused;

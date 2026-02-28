@@ -191,13 +191,13 @@ export class AnimationController {
   /**
    * Play an action with the given intensity, influenced by current emotion.
    */
-  playAction(action: Action, intensity: Intensity = 'medium', emotion?: Emotion): void {
+  playAction(action: Action, intensity: Intensity = 'medium', emotion?: Emotion, force?: boolean): void {
     if (emotion !== undefined) {
       this.currentEmotion = emotion;
     }
 
     if (
-      action === this.currentAction &&
+      action === this.currentAction && !force &&
       intensity === this.currentIntensity &&
       (emotion === undefined || emotion === this.currentEmotion)
     ) {

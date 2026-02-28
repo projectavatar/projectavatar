@@ -11,14 +11,16 @@ export interface AppState {
   data: ClipsJson;
   /** Currently selected clip id in the library panel */
   selectedClip: string | null;
-  /** Currently active center panel tab */
-  activeTab: 'detail' | 'actions' | 'emotions';
+  /** Currently active tab in header */
+  activeTab: 'clips' | 'actions' | 'emotions';
   /** Currently expanded action (in actions tab) */
   expandedAction: string | null;
   /** Currently expanded emotion (in emotions tab) */
   expandedEmotion: string | null;
-  /** Clip currently playing in preview */
+  /** Clip currently playing in preview (Clips tab — single clip preview) */
   previewClip: string | null;
+  /** Action currently being previewed via engine (Actions tab — blended preview) */
+  previewAction: string | null;
   /** Search query for clip library */
   searchQuery: string;
   /** Active category filter */
@@ -40,6 +42,7 @@ export type Action =
   | { type: 'EXPAND_ACTION'; action: string | null }
   | { type: 'EXPAND_EMOTION'; emotion: string | null }
   | { type: 'SET_PREVIEW_CLIP'; clipId: string | null }
+  | { type: 'SET_PREVIEW_ACTION'; action: string | null }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'SET_CATEGORY_FILTER'; category: string | null }
   | { type: 'SET_ENERGY_FILTER'; energy: string | null }
@@ -62,20 +65,23 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         selectedClip: action.clipId,
-        activeTab: action.clipId ? 'detail' : state.activeTab,
+        activeTab: action.clipId ? 'clips' : state.activeTab,
       };
 
     case 'SET_TAB':
       return { ...state, activeTab: action.tab };
 
     case 'EXPAND_ACTION':
-      return { ...state, expandedAction: action.action };
+      return { ...state, expandedAction: action.action, previewAction: action.action };
 
     case 'EXPAND_EMOTION':
       return { ...state, expandedEmotion: action.emotion };
 
     case 'SET_PREVIEW_CLIP':
       return { ...state, previewClip: action.clipId };
+
+    case 'SET_PREVIEW_ACTION':
+      return { ...state, previewAction: action.action };
 
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query };
@@ -143,13 +149,10 @@ function reducer(state: AppState, action: Action): AppState {
 
 // ─── Computed helpers ─────────────────────────────────────────────────────────
 
-/** Get the status of a clip: mapped (used by action/emotion), orphan (in json but unused) */
 export function getClipStatus(clipId: string, data: ClipsJson): ClipStatus {
-  // Check if referenced by any action
   for (const action of Object.values(data.actions)) {
     if (action.clips.some(c => c.clip === clipId)) return 'mapped';
   }
-  // Check if referenced by any emotion
   for (const emotion of Object.values(data.emotions)) {
     for (const override of Object.values(emotion.overrides)) {
       if (override.clip === clipId) return 'mapped';
@@ -159,7 +162,6 @@ export function getClipStatus(clipId: string, data: ClipsJson): ClipStatus {
   return 'orphan';
 }
 
-/** Get all actions/emotions that reference a clip */
 export function getClipUsage(clipId: string, data: ClipsJson): { actions: string[]; emotions: string[] } {
   const actions: string[] = [];
   const emotions: string[] = [];
@@ -179,7 +181,6 @@ export function getClipUsage(clipId: string, data: ClipsJson): { actions: string
   return { actions, emotions };
 }
 
-/** Count stats */
 export function getStats(data: ClipsJson) {
   const total = Object.keys(data.clips).length;
   let mapped = 0;
@@ -199,10 +200,11 @@ export function useAppState(initialData?: ClipsJson) {
   const initial: AppState = {
     data: initialData ?? EMPTY_DATA,
     selectedClip: null,
-    activeTab: 'actions',
+    activeTab: 'clips',
     expandedAction: null,
     expandedEmotion: null,
     previewClip: null,
+    previewAction: null,
     searchQuery: '',
     categoryFilter: null,
     energyFilter: null,
