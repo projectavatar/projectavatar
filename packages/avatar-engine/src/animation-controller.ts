@@ -24,7 +24,6 @@ import type { BodyPart } from './body-parts.ts';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const DEFAULT_FADE_IN = 0.3;
-const DEFAULT_FADE_OUT = 0.5;
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -76,8 +75,6 @@ interface SubAction {
   bodyPartGroup: BodyPart;
   /** The configured weight before normalization. */
   baseWeight: number;
-  /** Per-clip fade-out duration (seconds). */
-  fadeOut: number;
 }
 
 // ─── AnimationController ──────────────────────────────────────────────────────
@@ -334,15 +331,25 @@ export class AnimationController {
     for (const sub of outgoing) {
       sub.action.fadeOut(crossfadeDuration);
     }
-    // Clean up after crossfade completes
+    // Clean up after crossfade completes.
+    // Safety: check that each clip isn't still used by activeSubActions
+    // before uncaching — rapid transitions (A→B→C) can cause timer A
+    // to fire while B's filtered sub-clips from the same FBX are still active.
     if (outgoing.length > 0) {
       const captured = [...outgoing];
       setTimeout(() => {
+        // Build set of clip names currently in use
+        const activeClipNames = new Set(
+          this.activeSubActions.map((s) => s.action.getClip().name),
+        );
         for (const sub of captured) {
           sub.action.stop();
           const clip = sub.action.getClip();
           this.mixer.uncacheAction(clip);
-          this.mixer.uncacheClip(clip);
+          // Only uncache the clip data if no active sub-action is using it
+          if (!activeClipNames.has(clip.name)) {
+            this.mixer.uncacheClip(clip);
+          }
         }
       }, (crossfadeDuration + 0.1) * 1000);
     }
@@ -430,10 +437,9 @@ export class AnimationController {
       clipId: entry.file,
       bodyPartGroup: group,
       baseWeight: normalizedWeight,
-      fadeOut: entry.fadeOut ?? DEFAULT_FADE_OUT,
     };
-
   }
+
   /**
    * Filter an animation clip to only include tracks for bones in the given body part group.
    * Creates a new clip with a unique name so the mixer caches it separately.

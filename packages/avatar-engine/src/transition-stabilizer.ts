@@ -1,20 +1,21 @@
 /**
- * Transition Stabilizer — masks crossfade artifacts on feet, hips, and hands.
+ * Transition Stabilizer v2 — masks crossfade artifacts on feet, hips, and hands.
  *
  * Problem: Mixamo clips have different rest poses, so bones interpolate
  * through unnatural positions during crossfades. Most visible as foot
  * sliding, hip popping, and hand snapping.
  *
- * Solution (v2 — step arc):
+ * Strategy per bone group:
  *   - Hips:  soft pin toward locked position (prevents vertical pop)
  *   - Hands: soft pin toward locked position (prevents gesture snap)
  *   - Feet:  procedural step arc — lifts feet proportional to horizontal
- *            drift, peaking mid-transition. Masks skating by making the
- *            foot movement look like a small weight-shift step.
+ *            drift, peaking mid-transition. Masks skating as a weight-shift step.
  *
- * The step arc lets the mixer's X/Z interpolation happen naturally while
- * adding a Y lift that peaks at the midpoint of the transition. Small
- * drift = barely visible lift. Large drift = clear step.
+ * Fade philosophy (documented convention):
+ *   - Gestures: fast fadeIn (0.1–0.15s) for responsive entry, slower fadeOut
+ *   - Idle/continuous: symmetric fades (0.4–0.6s) for gentle transitions
+ *   - Outgoing fadeOut always matches incoming fadeIn (complementary curves)
+ *   - The stabilizer window should cover the full crossfade duration
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
@@ -36,10 +37,10 @@ interface FootTarget {
   bone: StabilizedBone;
   /** Foot position at lock time (start of transition). */
   startPosition: THREE.Vector3;
-  /** Horizontal drift magnitude measured on first frame after lock. */
+  /** Peak horizontal drift measured across first few frames. */
   horizontalDrift: number;
-  /** Whether drift has been measured (needs one mixer frame). */
-  driftMeasured: boolean;
+  /** Number of frames drift has been sampled. */
+  driftSamples: number;
 }
 
 interface GroupTiming {
@@ -52,16 +53,29 @@ interface GroupTiming {
 const HIPS_TIMING:  GroupTiming = { lockDuration: 0.25, releaseDuration: 0.20 };
 const HANDS_TIMING: GroupTiming = { lockDuration: 0.15, releaseDuration: 0.25 };
 
-/** Total duration for foot step arc (lock + release combined). */
-const FOOT_ARC_DURATION = 0.5;
+/**
+ * Duration of the foot step arc in seconds.
+ * Should be >= the longest expected crossfade duration (idle fadeIn = 0.6s).
+ * Set to 0.65s to cover the full crossfade + small margin.
+ */
+const FOOT_ARC_DURATION = 0.65;
 
 /** Max step height as fraction of leg length. */
 const MAX_STEP_HEIGHT_FRAC = 0.08;
 
-/** Minimum horizontal drift (meters) before a step arc triggers. */
-const MIN_DRIFT_FOR_STEP = 0.0005;
+/**
+ * Minimum horizontal drift (meters) before a step arc triggers.
+ * Set to 2mm to avoid triggering on numerical jitter at 60fps.
+ */
+const MIN_DRIFT_FOR_STEP = 0.002;
 
-/** Max total duration across all groups. */
+/** Number of frames to sample drift before committing the arc height. */
+const DRIFT_SAMPLE_FRAMES = 3;
+
+/**
+ * Max total stabilizer duration across all groups.
+ * Derived from the longest group timing to prevent silent cutoffs.
+ */
 const MAX_TOTAL = Math.max(
   HIPS_TIMING.lockDuration + HIPS_TIMING.releaseDuration,
   HANDS_TIMING.lockDuration + HANDS_TIMING.releaseDuration,
@@ -137,16 +151,21 @@ export class TransitionStabilizer {
 
   /**
    * Call when an animation transition starts.
-   * Captures current world positions of all stabilized bones.
+   *
+   * If a previous transition is still active (rapid lock), captures
+   * the current bone positions (including any in-flight arc offset)
+   * so the new transition starts from where the bones actually are,
+   * not from where the mixer thinks they should be.
    */
   lock(): void {
     if (!this.initialized) return;
 
+    // Capture current positions — includes any in-flight stabilizer offsets
+    // because getWorldPosition reads the actual scene graph state.
     this.hipsTarget = this._capture(this.hipsBone);
     this.leftHandTarget = this._capture(this.leftHand);
     this.rightHandTarget = this._capture(this.rightHand);
 
-    // Feet: capture start position, drift measured on next frame
     this.leftFootTarget = this._captureFoot(this.leftFoot);
     this.rightFootTarget = this._captureFoot(this.rightFoot);
 
@@ -168,7 +187,7 @@ export class TransitionStabilizer {
       return;
     }
 
-    // Hips + hands: soft pin (same as v1)
+    // Hips + hands: soft pin
     const hipsBlend = getBlend(this.elapsed, HIPS_TIMING);
     const handsBlend = getBlend(this.elapsed, HANDS_TIMING);
     this._applyCorrection(this.hipsTarget, hipsBlend);
@@ -276,7 +295,7 @@ export class TransitionStabilizer {
       bone,
       startPosition: pos,
       horizontalDrift: 0,
-      driftMeasured: false,
+      driftSamples: 0,
     };
   }
 
@@ -316,6 +335,9 @@ export class TransitionStabilizer {
   /**
    * Step arc: lift foot proportional to horizontal drift during crossfade.
    * Lets X/Z blend naturally from the mixer; adds Y lift in a sin arc.
+   *
+   * Drift is sampled over the first few frames (running max) to avoid
+   * under-estimating total drift from a single 16ms sample.
    */
   private _applyFootArc(target: FootTarget | null): void {
     if (!target) return;
@@ -323,14 +345,16 @@ export class TransitionStabilizer {
 
     const obj = target.bone.bone;
 
-    // Measure drift on first frame after lock (mixer has blended one frame)
-    if (!target.driftMeasured) {
+    // Sample drift over first N frames (running max)
+    if (target.driftSamples < DRIFT_SAMPLE_FRAMES) {
       obj.getWorldPosition(_v3a);
-      // Horizontal drift only (XZ plane)
       const dx = _v3a.x - target.startPosition.x;
       const dz = _v3a.z - target.startPosition.z;
-      target.horizontalDrift = Math.sqrt(dx * dx + dz * dz);
-      target.driftMeasured = true;
+      const drift = Math.sqrt(dx * dx + dz * dz);
+      if (drift > target.horizontalDrift) {
+        target.horizontalDrift = drift;
+      }
+      target.driftSamples++;
     }
 
     // Skip arc if drift is negligible
@@ -351,6 +375,7 @@ export class TransitionStabilizer {
 
   /**
    * Convert a world-space offset to bone local space and apply.
+   * Uses absolute scale values to handle mirrored bones (negative scale).
    */
   private _addWorldOffsetToBone(obj: THREE.Object3D, worldOffset: THREE.Vector3): void {
     const parent = obj.parent;
@@ -361,10 +386,14 @@ export class TransitionStabilizer {
 
     _v3c.copy(worldOffset).applyQuaternion(_quat);
 
+    // Use absolute scale to handle mirrored bones (negative scale axis)
     parent.getWorldScale(_scale);
-    if (_scale.x !== 0) _v3c.x /= _scale.x;
-    if (_scale.y !== 0) _v3c.y /= _scale.y;
-    if (_scale.z !== 0) _v3c.z /= _scale.z;
+    const sx = Math.abs(_scale.x);
+    const sy = Math.abs(_scale.y);
+    const sz = Math.abs(_scale.z);
+    if (sx > 0.0001) _v3c.x /= sx;
+    if (sy > 0.0001) _v3c.y /= sy;
+    if (sz > 0.0001) _v3c.z /= sz;
 
     obj.position.add(_v3c);
   }
