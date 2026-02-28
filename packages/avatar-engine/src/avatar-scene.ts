@@ -74,7 +74,7 @@ export class AvatarScene {
         0x2a2a3a,
         0x1a1a2a,
       );
-      grid.position.y = 0;
+      grid.position.y = -0.4;
       this.scene.add(grid);
     }
 
