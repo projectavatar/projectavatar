@@ -5,6 +5,12 @@
  * a real-time 3D VRM avatar. The avatar reacts to what the agent is *doing*
  * (via before_tool_call / after_tool_call) — not just what it says.
  *
+ * SIGNAL PHILOSOPHY:
+ *   The agent's `avatar_signal` tool is the PRIMARY source of truth — it knows
+ *   the intent behind each reply. Lifecycle hooks only fire for high-signal
+ *   tools (exec, browser, tts, etc.). Routine tools (Read, Write, Edit, etc.)
+ *   are intentionally silent — they produce visual jitter when 5+ fire per turn.
+ *
  * Installation:
  *   openclaw plugins install @projectavatar/openclaw-avatar
  *   openclaw secrets set AVATAR_TOKEN <your-token>
@@ -21,15 +27,6 @@ import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, SessionMeta } from './types.js';
 import { deriveSessionPriority } from './session-utils.js';
-
-
-
-/**
- * Fallback signals for tool calls on tools not in the tool map.
- * The avatar should always react to tool activity, even for unknown tools.
- */
-const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'thinking', action: 'typing', prop: 'none', intensity: 'medium' };
-const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'thinking', action: 'nodding', prop: 'none', intensity: 'medium' };
 
 
 /**
@@ -92,53 +89,52 @@ const plugin: OpenClawPluginDefinition = {
     const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
-      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms`
+      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms, ` +
+      `cooldowns: emotion=${cfg.emotionCooldownMs}ms action=${cfg.actionCooldownMs}ms oneshot=${cfg.oneShotCooldownMs}ms`
     );
 
     // ── Agent lifecycle hooks ─────────────────────────────────────────────────
     //
-    // Every hook receives `ctx` as the second argument (OpenClaw PluginHookAgentContext).
-    // We cast ctx to Record<string,unknown> once per handler — OpenClaw injects sessionKey
-    // at runtime but our local type stubs use AnyCtx. deriveSessionMeta extracts it safely.
+    // SIGNAL REDUCTION: Only emotion on message_received (no action change).
+    // Tool hooks only fire for high-signal tools in the tool map — unknown
+    // tools are silently ignored (no fallback signal).
 
     api.on('message_received', (_event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
-      sm.transition(
-        { emotion: 'thinking', action: 'searching', prop: 'none', intensity: 'medium' },
-        session,
-      );
+      // Emotion-only signal: let the agent's avatar_signal pick the action
+      sm.transition({ emotion: 'thinking' }, session);
     });
 
     api.on('before_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
-      // Skip avatar_signal — it IS the signal. Emitting lifecycle signals for it
-      // would override the agent's intended expression with the unknown-tool fallback.
+      // Skip avatar_signal — it IS the signal
       if (event.toolName === 'avatar_signal' || event.toolName === 'avatar_commands') return;
+      const signal = resolveToolSignal(event.toolName, 'before');
+      // No fallback for unmapped tools — let the agent's avatar_signal handle it
+      if (!signal) return;
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
-      const signal  = resolveToolSignal(event.toolName, 'before') ?? UNKNOWN_TOOL_BEFORE;
       sm.transition(signal, session);
     });
 
     api.on('after_tool_call', (event, ctx) => {
       if (typeof event.toolName !== 'string') return;
       if (event.toolName === 'avatar_signal' || event.toolName === 'avatar_commands') return;
-      const session  = deriveSessionMeta(ctx as Record<string, unknown>);
       const errorStr = typeof event.error === 'string' ? event.error : undefined;
-      const signal   = resolveToolSignal(event.toolName, 'after', errorStr) ?? UNKNOWN_TOOL_AFTER;
+      const signal = resolveToolSignal(event.toolName, 'after', errorStr);
+      if (!signal) return;
+      const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(signal, session);
     });
 
     api.on('agent_end', (event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
-      sm.transition(
-        event.success
-          ? { emotion: 'happy', action: 'nodding', prop: 'none', intensity: 'medium' }
-          : { emotion: 'nervous', action: 'dismissive', prop: 'none', intensity: 'high' },
-        session,
-      );
-      // Pass session to scheduleIdle so the idle timer fires with the correct session
-      // context. Without this, the timer bypasses arbitration (no sessionId) and can
-      // override an active lower-priority session with an unsuppressed idle push.
+      // Only signal on error — success is handled by the agent's final avatar_signal
+      if (!event.success) {
+        sm.transition(
+          { emotion: 'nervous', action: 'dismissive', prop: 'none', intensity: 'high' },
+          session,
+        );
+      }
       sm.scheduleIdle(session);
     });
 
@@ -154,8 +150,6 @@ const plugin: OpenClawPluginDefinition = {
         prependContext: 'Call avatar_signal before each reply. Respond in the user\'s language.',
       };
     });
-
-
 
     // ── Avatar signal tool — always registered ────────────────────────────────
 
