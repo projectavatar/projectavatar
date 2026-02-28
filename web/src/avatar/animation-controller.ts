@@ -33,13 +33,13 @@ import type { AnimBone, BoneState } from './procedural/types.ts';
  * This prevents breathing/sway from fighting the clip's motion.
  * 0 = fully suppressed, 1 = full idle influence.
  */
-const IDLE_INFLUENCE_DURING_CLIP = 0.15;
+const IDLE_INFLUENCE_DURING_CLIP = 0.4;
 
 /**
  * Idle layer influence when only the idle clip is playing.
  * Higher because the idle clip is subtle and benefits from extra life.
  */
-const IDLE_INFLUENCE_DURING_IDLE = 0.6;
+const IDLE_INFLUENCE_DURING_IDLE = 1.0;
 
 /**
  * Default crossfade duration if not specified in clip entry.
@@ -57,6 +57,7 @@ const DEFAULT_FADE_OUT = 0.5;
 const IDLE_BONES: AnimBone[] = [
   'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
   'leftShoulder', 'rightShoulder',
+  'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm',
 ];
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
@@ -72,6 +73,25 @@ export interface LayerState {
   headOffset: boolean;
   /** Blink + micro-glance */
   blink: boolean;
+}
+
+
+/** Info about an active animation clip — exposed for dev panel. */
+export interface ActiveClipInfo {
+  /** FBX filename */
+  name: string;
+  /** Current effective blend weight (0–1) */
+  weight: number;
+  /** Current effective time scale */
+  timeScale: number;
+  /** Whether this is the primary clip (vs additive layer) */
+  isPrimary: boolean;
+  /** Whether the clip is looping */
+  isLooping: boolean;
+  /** Current playback time in seconds */
+  time: number;
+  /** Total clip duration in seconds */
+  duration: number;
 }
 
 const DEFAULT_LAYERS: LayerState = {
@@ -100,6 +120,8 @@ export class AnimationController {
   private boneNodes = new Map<AnimBone, THREE.Object3D>();
   /** Rest-pose positions captured once on init (for hip translation). */
   private restPositions = new Map<AnimBone, THREE.Vector3>();
+  /** Rest-pose rotations captured once on init (for reset when FBX off). */
+  private restRotations = new Map<AnimBone, THREE.Euler>();
 
   /** Global elapsed time for idle layer noise. */
   private elapsed = 0;
@@ -252,12 +274,33 @@ export class AnimationController {
     // Step 1: FBX mixer updates bones (if layer enabled)
     if (this.layers.fbxClips) {
       this.mixer.update(dt);
+    } else {
+      // When FBX clips are disabled, reset bones to rest pose so the
+      // idle layer doesn't add offsets to a stale/T-pose state.
+      this._resetBonesToRest();
     }
 
     // Step 2: Additive idle layer on top (if layer enabled)
     if (this.layers.idleNoise) {
       this._applyIdleLayer();
     }
+  }
+
+  /**
+   * Get info about currently active clips for dev panel display.
+   */
+  getActiveClips(): ActiveClipInfo[] {
+    return this.activeActions
+      .filter((a) => a.isRunning() || a.getEffectiveWeight() > 0.001)
+      .map((a, i) => ({
+        name: a.getClip().name,
+        weight: a.getEffectiveWeight(),
+        timeScale: a.getEffectiveTimeScale(),
+        isPrimary: i === 0,
+        isLooping: a.loop === THREE.LoopRepeat,
+        time: a.time,
+        duration: a.getClip().duration,
+      }));
   }
 
   /**
@@ -270,6 +313,7 @@ export class AnimationController {
     this.activeActions.length = 0;
     this.boneNodes.clear();
     this.restPositions.clear();
+    this.restRotations.clear();
     this.idleBuffer.clear();
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
@@ -285,6 +329,24 @@ export class AnimationController {
       if (node) {
         this.boneNodes.set(boneName, node);
         this.restPositions.set(boneName, node.position.clone());
+        this.restRotations.set(boneName, node.rotation.clone());
+      }
+    }
+  }
+
+  /**
+   * Reset bones to their rest pose. Used when FBX clips are disabled
+   * so the idle layer has a clean base to add offsets to.
+   */
+  private _resetBonesToRest(): void {
+    for (const [boneName, node] of this.boneNodes) {
+      const restRot = this.restRotations.get(boneName);
+      const restPos = this.restPositions.get(boneName);
+      if (restRot) {
+        node.rotation.copy(restRot);
+      }
+      if (restPos) {
+        node.position.copy(restPos);
       }
     }
   }

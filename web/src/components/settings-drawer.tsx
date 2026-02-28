@@ -15,7 +15,7 @@ const overlayStyle: React.CSSProperties = {
   background: 'rgba(0, 0, 0, 0.5)',
   zIndex: 200,
   display: 'flex',
-  justifyContent: 'flex-end',
+  justifyContent: 'flex-start',
 };
 
 const drawerStyle: React.CSSProperties = {
@@ -23,7 +23,7 @@ const drawerStyle: React.CSSProperties = {
   maxWidth: '90vw',
   height: '100%',
   background: 'var(--color-surface)',
-  borderLeft: '1px solid var(--color-border)',
+  borderRight: '1px solid var(--color-border)',
   padding: '1.5rem',
   overflowY: 'auto',
   display: 'flex',

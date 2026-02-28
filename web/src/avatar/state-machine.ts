@@ -2,7 +2,7 @@ import { DEFAULTS } from '@project-avatar/shared';
 import type { AvatarEvent, Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
 import type { ExpressionController } from './expression-controller.ts';
 import type { AnimationController } from './animation-controller.ts';
-import type { LayerState } from './animation-controller.ts';
+import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
 
@@ -166,6 +166,13 @@ export class StateMachine {
     if (layers.blink) {
       this.blinkCtrl.update(delta);
     }
+  }
+
+  /**
+   * Get info about currently active animation clips.
+   */
+  getActiveClips(): ActiveClipInfo[] {
+    return this.animationCtrl.getActiveClips();
   }
 
   /** Clean up timers. */

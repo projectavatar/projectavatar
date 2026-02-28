@@ -49,6 +49,14 @@
       "url": "/models/summer.vrm",
       "thumbnail": null,
       "license": null
+    },
+    {
+      "id": "turtle",
+      "name": "Turtle",
+      "description": "Turtle model.",
+      "url": "/models/turtle.vrm",
+      "thumbnail": null,
+      "license": null
     }
   ]
 }

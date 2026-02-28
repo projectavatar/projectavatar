@@ -2,49 +2,76 @@
  * The idle layer — an always-running procedural animation that makes
  * the avatar feel alive even when no action is playing.
  *
- * This is NOT a recipe. It's a separate system that runs underneath
- * all action recipes. The engine blends its influence down when an
- * action is active (but never to zero — breathing persists always).
+ * All components run continuously using layered sine waves at
+ * irrational frequency ratios. This breaks the repeating pattern
+ * of single-sine motion — the combination never exactly repeats,
+ * creating organic, non-rhythmic movement.
  *
  * Components:
  * - Breathing: spine chain oscillation (inhale/exhale)
- * - Weight shift: hips lateral drift + subtle leg compensation
- * - Micro-sway: layered noise on spine for organic feel
- * - Head drift: slow noise-driven look-around
+ * - Weight shift: hips tilt side to side
+ * - Micro-sway: layered sine on spine/chest/neck
+ * - Head drift: slow look-around
  * - Shoulder settle: asymmetric micro-rotations
+ * - Arm swing: gentle lateral motion
  */
 import type { BoneState, AnimBone } from './types.ts';
-import { noise1D } from './noise.ts';
 
 const TAU = Math.PI * 2;
 
 // ─── Breathing ────────────────────────────────────────────────────────────────
-const BREATHE_PERIOD = 5.5;         // seconds per breath cycle (~11/min)
-const BREATHE_SPINE  = 0.008;       // radians — chest expansion
-const BREATHE_CHEST  = 0.006;       // radians — upper chest
-const BREATHE_SHOULDERS = 0.004;    // radians — shoulders rise/fall
+const BREATHE_PERIOD_1   = 7.2;       // primary cycle
+const BREATHE_PERIOD_2   = 11.0;       // secondary — irrational ratio to primary
+const BREATHE_SPINE      = 0.04;
+const BREATHE_CHEST      = 0.03;
+const BREATHE_SHOULDERS  = 0.02;
 
 // ─── Weight Shift ─────────────────────────────────────────────────────────────
-const WEIGHT_PERIOD  = 13.7;        // seconds per full L-R-L cycle
-const WEIGHT_HIP_X   = 0.003;      // units — hip lateral translation
-const WEIGHT_HIP_ROT = 0.006;      // radians — hip tilt
-const WEIGHT_SPINE_COMP = 0.004;   // radians — spine counter-tilt
+const WEIGHT_PERIOD_1    = 17.5;
+const WEIGHT_PERIOD_2    = 26.0;
+const WEIGHT_HIP_ROT     = 0.03;
+const WEIGHT_SPINE_COMP  = 0.05;
 
-// ─── Micro-sway (noise-driven) ───────────────────────────────────────────────
-const SWAY_AMP_SPINE  = 0.005;     // radians
-const SWAY_AMP_CHEST  = 0.004;
-const SWAY_AMP_NECK   = 0.003;
-const SWAY_SPEED      = 0.25;      // noise time multiplier
+// ─── Micro-sway ──────────────────────────────────────────────────────────────
+const SWAY_PERIOD_1      = 12.0;
+const SWAY_PERIOD_2      = 20.0;
+const SWAY_AMP_SPINE     = 0.06;
+const SWAY_AMP_CHEST     = 0.04;
+const SWAY_AMP_NECK      = 0.03;
 
 // ─── Head drift ───────────────────────────────────────────────────────────────
-const HEAD_DRIFT_YAW   = 0.015;    // radians — looking left/right
-const HEAD_DRIFT_PITCH = 0.008;    // radians — looking up/down
-const HEAD_DRIFT_SPEED = 0.12;     // noise speed (very slow)
+const HEAD_PERIOD_1      = 14.5;
+const HEAD_PERIOD_2      = 22.0;
+const HEAD_DRIFT_YAW     = 0.1;
+const HEAD_DRIFT_PITCH   = 0.06;
 
 // ─── Shoulder settle ──────────────────────────────────────────────────────────
-const SHOULDER_AMP    = 0.005;     // radians
-const SHOULDER_PERIOD = 9.1;       // seconds
-const SHOULDER_PHASE_OFFSET = Math.PI * 0.6; // asymmetry between L/R
+const SHOULDER_PERIOD_1  = 12.0;
+const SHOULDER_PERIOD_2  = 18.0;
+const SHOULDER_AMP       = 0.05;
+
+// ─── Arm swing ────────────────────────────────────────────────────────────────
+const ARM_PERIOD_1       = 8.0;
+const ARM_PERIOD_2       = 13.0;
+const ARM_SWING_AMP      = 0.05;
+const ARM_LOWER_AMP      = 0.025;
+
+/**
+ * Dual sine wave — two sine waves at irrational frequency ratios.
+ * The result never exactly repeats, breaking rhythmic patterns.
+ *
+ * @param t       Elapsed time
+ * @param period1 Primary period (seconds)
+ * @param period2 Secondary period (seconds) — should be irrational ratio to period1
+ * @param phase   Phase offset for secondary wave (radians)
+ * @returns       Value in approximately [-1, 1] (can exceed slightly due to sum)
+ */
+function dualSine(t: number, period1: number, period2: number, phase: number = 0): number {
+  // Primary wave (70% weight) + secondary wave (30% weight)
+  // Weighted sum stays in roughly [-1, 1] range
+  return Math.sin((t / period1) * TAU) * 0.7
+       + Math.sin((t / period2) * TAU + phase) * 0.3;
+}
 
 /**
  * Evaluate the idle layer and write additive bone rotations.
@@ -63,39 +90,51 @@ export function evaluateIdleLayer(
   const t = elapsed;
 
   // ── Breathing ──
-  const breathPhase = Math.sin((t / BREATHE_PERIOD) * TAU);
-  // Inhale: spine extends back, chest opens
-  addRotation(output, 'spine',      'x', -breathPhase * BREATHE_SPINE * influence);
-  addRotation(output, 'chest',      'x', -breathPhase * BREATHE_CHEST * influence);
-  addRotation(output, 'upperChest', 'x', -breathPhase * BREATHE_CHEST * 0.5 * influence);
-  // Shoulders rise slightly on inhale
-  addRotation(output, 'leftShoulder',  'z',  breathPhase * BREATHE_SHOULDERS * influence);
-  addRotation(output, 'rightShoulder', 'z', -breathPhase * BREATHE_SHOULDERS * influence);
+  const breath = dualSine(t, BREATHE_PERIOD_1, BREATHE_PERIOD_2);
+  addRotation(output, 'spine',      'x', -breath * BREATHE_SPINE * influence);
+  addRotation(output, 'chest',      'x', -breath * BREATHE_CHEST * influence);
+  addRotation(output, 'upperChest', 'x', -breath * BREATHE_CHEST * 0.5 * influence);
+  addRotation(output, 'leftShoulder',  'z',  breath * BREATHE_SHOULDERS * influence);
+  addRotation(output, 'rightShoulder', 'z', -breath * BREATHE_SHOULDERS * influence);
 
   // ── Weight shift ──
-  const weightPhase = Math.sin((t / WEIGHT_PERIOD) * TAU);
-  addPosition(output, 'hips', 'x', weightPhase * WEIGHT_HIP_X * influence);
-  addRotation(output, 'hips',  'z', weightPhase * WEIGHT_HIP_ROT * influence);
-  addRotation(output, 'spine', 'z', -weightPhase * WEIGHT_SPINE_COMP * influence);
+  const weight = dualSine(t, WEIGHT_PERIOD_1, WEIGHT_PERIOD_2, 0.8);
+  addRotation(output, 'hips',  'z', weight * WEIGHT_HIP_ROT * influence);
+  addRotation(output, 'spine', 'z', -weight * WEIGHT_SPINE_COMP * influence);
 
-  // ── Micro-sway (noise) ──
-  const swayT = t * SWAY_SPEED;
-  addRotation(output, 'spine', 'z', noise1D(swayT, 0) * SWAY_AMP_SPINE * influence);
-  addRotation(output, 'spine', 'x', noise1D(swayT, 1) * SWAY_AMP_SPINE * 0.5 * influence);
-  addRotation(output, 'chest', 'z', noise1D(swayT, 2) * SWAY_AMP_CHEST * influence);
-  addRotation(output, 'neck',  'z', noise1D(swayT, 3) * SWAY_AMP_NECK * influence);
+  // ── Micro-sway ──
+  // Each bone gets different phase offsets so they don't move in lockstep
+  const swaySpineZ = dualSine(t, SWAY_PERIOD_1, SWAY_PERIOD_2, 0.0);
+  const swaySpineX = dualSine(t, SWAY_PERIOD_1 * 1.1, SWAY_PERIOD_2 * 0.9, 1.5);
+  const swayChest  = dualSine(t, SWAY_PERIOD_1 * 0.95, SWAY_PERIOD_2 * 1.05, 2.3);
+  const swayNeck   = dualSine(t, SWAY_PERIOD_1 * 1.15, SWAY_PERIOD_2 * 0.85, 3.7);
+  addRotation(output, 'spine', 'z', swaySpineZ * SWAY_AMP_SPINE * influence);
+  addRotation(output, 'spine', 'x', swaySpineX * SWAY_AMP_SPINE * 0.4 * influence);
+  addRotation(output, 'chest', 'z', swayChest * SWAY_AMP_CHEST * influence);
+  addRotation(output, 'neck',  'z', swayNeck * SWAY_AMP_NECK * influence);
 
   // ── Head drift ──
-  const headT = t * HEAD_DRIFT_SPEED;
-  addRotation(output, 'head', 'y', noise1D(headT, 10) * HEAD_DRIFT_YAW * influence);
-  addRotation(output, 'head', 'x', noise1D(headT, 11) * HEAD_DRIFT_PITCH * influence);
+  const headYaw   = dualSine(t, HEAD_PERIOD_1, HEAD_PERIOD_2, 0.0);
+  const headPitch = dualSine(t, HEAD_PERIOD_1 * 1.3, HEAD_PERIOD_2 * 0.8, 2.1);
+  addRotation(output, 'head', 'y', headYaw * HEAD_DRIFT_YAW * influence);
+  addRotation(output, 'head', 'x', headPitch * HEAD_DRIFT_PITCH * influence);
 
   // ── Shoulder settle ──
-  const shoulderPhase = (t / SHOULDER_PERIOD) * TAU;
-  addRotation(output, 'leftShoulder',  'z',
-    Math.sin(shoulderPhase) * SHOULDER_AMP * influence);
-  addRotation(output, 'rightShoulder', 'z',
-    Math.sin(shoulderPhase + SHOULDER_PHASE_OFFSET) * SHOULDER_AMP * influence);
+  // Different phase offsets for asymmetry
+  const shoulderL = dualSine(t, SHOULDER_PERIOD_1, SHOULDER_PERIOD_2, 0.0);
+  const shoulderR = dualSine(t, SHOULDER_PERIOD_1, SHOULDER_PERIOD_2, 1.9);
+  addRotation(output, 'leftShoulder',  'z', shoulderL * SHOULDER_AMP * influence);
+  addRotation(output, 'rightShoulder', 'z', shoulderR * SHOULDER_AMP * influence);
+
+  // ── Arm swing ──
+  const armL = dualSine(t, ARM_PERIOD_1, ARM_PERIOD_2, 0.0);
+  const armR = dualSine(t, ARM_PERIOD_1, ARM_PERIOD_2, Math.PI);
+  addRotation(output, 'leftUpperArm',  'z',  armL * ARM_SWING_AMP * influence);
+  addRotation(output, 'rightUpperArm', 'z', -armR * ARM_SWING_AMP * influence);
+  addRotation(output, 'leftUpperArm',  'x',  armL * ARM_SWING_AMP * 0.25 * influence);
+  addRotation(output, 'rightUpperArm', 'x',  armR * ARM_SWING_AMP * 0.25 * influence);
+  addRotation(output, 'leftLowerArm',  'z',  armL * ARM_LOWER_AMP * influence);
+  addRotation(output, 'rightLowerArm', 'z', -armR * ARM_LOWER_AMP * influence);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -119,16 +158,4 @@ function addRotation(
   if (axis === 'x') state.rx += value;
   else if (axis === 'y') state.ry += value;
   else state.rz += value;
-}
-
-function addPosition(
-  output: Map<AnimBone, BoneState>,
-  bone: AnimBone,
-  axis: 'x' | 'y' | 'z',
-  value: number,
-): void {
-  const state = getOrCreate(output, bone);
-  if (axis === 'x') state.px += value;
-  else if (axis === 'y') state.py += value;
-  else state.pz += value;
 }

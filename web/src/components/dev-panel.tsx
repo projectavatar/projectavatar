@@ -3,7 +3,7 @@ import { ACTIONS, EMOTIONS, INTENSITIES } from '@project-avatar/shared';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { useStore } from '../state/store.ts';
 import type { StateMachine } from '../avatar/state-machine.ts';
-import type { LayerState } from '../avatar/animation-controller.ts';
+import type { LayerState, ActiveClipInfo } from '../avatar/animation-controller.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -207,6 +207,25 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
 
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Active clips state — polled every frame via rAF
+  const [activeClips, setActiveClips] = useState<ActiveClipInfo[]>([]);
+  const clipsPollRef = useRef<number>(0);
+
+  // Poll active clips at ~10fps (every 6 frames) for performance
+  useEffect(() => {
+    if (!stateMachine || !devPanelOpen) return;
+    let frameCount = 0;
+    const poll = () => {
+      frameCount++;
+      if (frameCount % 6 === 0) {
+        setActiveClips(stateMachine.getActiveClips());
+      }
+      clipsPollRef.current = requestAnimationFrame(poll);
+    };
+    clipsPollRef.current = requestAnimationFrame(poll);
+    return () => cancelAnimationFrame(clipsPollRef.current);
+  }, [stateMachine, devPanelOpen]);
+
   // Subscribe to event log updates
   useEffect(() => {
     if (!stateMachine) return;
@@ -281,6 +300,62 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
           </div>
         </div>
 
+        {/* Active Clips */}
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>Active Clips</div>
+          {activeClips.length === 0 && (
+            <div style={{ color: "var(--color-text-muted)", fontStyle: "italic", fontSize: 10 }}>
+              No clips playing
+            </div>
+          )}
+          {activeClips.map((clip) => (
+            <div key={clip.name} style={{
+              padding: "5px 8px",
+              marginBottom: 3,
+              borderRadius: 4,
+              border: `1px solid ${clip.isPrimary ? "var(--color-accent)" : "var(--color-border)"}`,
+              background: clip.isPrimary ? "rgba(108, 92, 231, 0.08)" : "transparent",
+              fontSize: 10,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{
+                  fontWeight: clip.isPrimary ? 600 : 400,
+                  color: clip.isPrimary ? "var(--color-accent)" : "var(--color-text)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: 180,
+                }} title={clip.name}>
+                  {clip.isPrimary ? "▶ " : "  "}{clip.name.replace(".fbx", "")}
+                </span>
+                <span style={{ color: "var(--color-text-muted)", flexShrink: 0 }}>
+                  {clip.isLooping ? "🔁" : "⏹"}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 3, color: "var(--color-text-muted)" }}>
+                <span>w:{clip.weight.toFixed(2)}</span>
+                <span>ts:{clip.timeScale.toFixed(2)}</span>
+                <span>{clip.time.toFixed(1)}s / {clip.duration.toFixed(1)}s</span>
+              </div>
+              {/* Weight bar */}
+              <div style={{
+                marginTop: 3,
+                height: 2,
+                borderRadius: 1,
+                background: "var(--color-border)",
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.min(clip.weight * 100, 100)}%`,
+                  background: clip.isPrimary ? "var(--color-accent)" : "var(--color-text-muted)",
+                  borderRadius: 1,
+                  transition: "width 0.1s",
+                }} />
+              </div>
+            </div>
+          ))}
+        </div>
         {/* Send Event */}
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>Emotion</div>
