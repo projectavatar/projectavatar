@@ -67,6 +67,12 @@ export class IdleLayer {
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
 
+  /**
+   * Sign multiplier for leg bend direction (+1 or -1).
+   * Detected from the bone chain geometry — some VRM models have flipped axes.
+   */
+  private legBendSign = 1;
+
   constructor(vrm: VRM, mode: IdleMode = 'air') {
     this.vrm = vrm;
     this.mode = mode;
@@ -141,6 +147,52 @@ export class IdleLayer {
     this.rightFoot     = get('rightFoot');
 
     this.initialized = !!(this.hips || this.spine || this.chest);
+
+    // Detect leg bend direction from bone chain geometry.
+    // Compare upper leg and lower leg world Y positions — if the lower leg
+    // is below the upper leg, a positive X rotation should bend the knee
+    // backward (normal). If the axis is flipped, we negate.
+    this._detectLegBendDirection();
+  }
+
+  /**
+   * Detect which direction positive X rotation bends the knee.
+   * We do a small test rotation on the upper leg and check if the
+   * lower leg moves forward (wrong) or backward (correct).
+   */
+  private _detectLegBendDirection(): void {
+    if (!this.leftUpperLeg || !this.leftLowerLeg) return;
+
+    const _v = new THREE.Vector3();
+
+    // Capture lower leg world Z before rotation
+    this.vrm.scene.updateMatrixWorld(true);
+    this.leftLowerLeg.getWorldPosition(_v);
+    const zBefore = _v.z;
+
+    // Apply a small positive X rotation to upper leg
+    const testAngle = 0.1;
+    this.leftUpperLeg.rotation.x += testAngle;
+    this.vrm.scene.updateMatrixWorld(true);
+    this.leftLowerLeg.getWorldPosition(_v);
+    const zAfter = _v.z;
+
+    // Undo the test rotation
+    this.leftUpperLeg.rotation.x -= testAngle;
+    this.vrm.scene.updateMatrixWorld(true);
+
+    // If the lower leg moved forward (positive Z in VRM 1.0 = toward camera),
+    // the knee bent forward — wrong direction, so we flip.
+    // For a correct backward bend, Z should decrease (move away from camera).
+    const zDelta = zAfter - zBefore;
+    if (zDelta > 0) {
+      // Positive X rotation moved knee forward — flip it
+      this.legBendSign = -1;
+      console.info('[IdleLayer] Detected flipped leg axis — using negative bend');
+    } else {
+      this.legBendSign = 1;
+      console.info('[IdleLayer] Detected normal leg axis — using positive bend');
+    }
   }
 
   // ─── Private: air mode ────────────────────────────────────────────────
@@ -216,26 +268,26 @@ export class IdleLayer {
   private _applyLegDangle(): void {
     // Left leg: relaxed, mostly straight — the "weight-bearing" leg
     if (this.leftUpperLeg) {
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.4;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.4 * this.legBendSign;
     }
     if (this.leftLowerLeg) {
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 0.6;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 0.6 * this.legBendSign;
     }
 
     // Right leg: visibly tucked up — the "casual" leg
     if (this.rightUpperLeg) {
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.8;
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.8 * this.legBendSign;
     }
     if (this.rightLowerLeg) {
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 2.5;
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 2.5 * this.legBendSign;
     }
 
     // Toes droop — more on the tucked leg
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * this.legBendSign;
     }
     if (this.rightFoot) {
-      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5;
+      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5 * this.legBendSign;
     }
   }
 }
