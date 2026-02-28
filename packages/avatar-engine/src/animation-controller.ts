@@ -115,6 +115,9 @@ export class AnimationController {
   /** Active sub-actions for the current blended action. */
   private activeSubActions: SubAction[] = [];
 
+  /** Body part groups currently covered by at least one clip. */
+  private activeBodyGroups = new Set<BodyPart>();
+
   /** VRM 0.x vs 1.0 axis flip for additive idle layer. */
   private flipXZ: boolean;
 
@@ -147,6 +150,9 @@ export class AnimationController {
 
   /** Map from VRM bone name → normalized bone node name (for track filtering). */
   private boneNameMap = new Map<string, string>();
+
+  /** Reverse lookup: AnimBone name → body part group (for idle noise filtering). */
+  private boneToGroup = new Map<string, BodyPart>();
 
   constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
@@ -279,6 +285,7 @@ export class AnimationController {
     this.mixer.uncacheRoot(this.vrm.scene);
     this.clipCache.clear();
     this.activeSubActions.length = 0;
+    this.activeBodyGroups.clear();
     this.boneNodes.clear();
     this.restPositions.clear();
     this.restRotations.clear();
@@ -304,11 +311,13 @@ export class AnimationController {
 
   /** Build a map from VRM normalized bone node names to bone names for track filtering. */
   private _buildBoneNameMap(): void {
-    const allBones = Object.values(BODY_PART_BONES).flat();
-    for (const boneName of allBones) {
-      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
-      if (node) {
-        this.boneNameMap.set(node.name, boneName);
+    for (const [group, bones] of Object.entries(BODY_PART_BONES)) {
+      for (const boneName of bones) {
+        const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
+        if (node) {
+          this.boneNameMap.set(node.name, boneName);
+        }
+        this.boneToGroup.set(boneName, group as BodyPart);
       }
     }
   }
@@ -354,6 +363,7 @@ export class AnimationController {
       sub.action.fadeOut(DEFAULT_FADE_OUT);
     }
     this.activeSubActions = [];
+    this.activeBodyGroups.clear();
 
     // Resolve action clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity);
@@ -374,7 +384,10 @@ export class AnimationController {
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
         const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
-        if (sub) this.activeSubActions.push(sub);
+        if (sub) {
+          this.activeSubActions.push(sub);
+          this.activeBodyGroups.add(group);
+        }
       }
     }
 
@@ -469,6 +482,10 @@ export class AnimationController {
     for (const [boneName, node] of this.boneNodes) {
       const state = this.idleBuffer.get(boneName);
       if (!state) continue;
+
+      // Only apply idle noise to bones in active body part groups
+      const group = this.boneToGroup.get(boneName);
+      if (group && !this.activeBodyGroups.has(group)) continue;
 
       node.rotation.x += state.rx * s;
       node.rotation.y += state.ry;
