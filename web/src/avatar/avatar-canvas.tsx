@@ -71,7 +71,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const avatarScene = new AvatarScene(canvas);
+    const avatarScene = new AvatarScene(canvas, { orbit: true });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 

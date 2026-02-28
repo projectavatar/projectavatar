@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /**
  * Core Three.js scene: camera, lighting, renderer, render loop.
@@ -12,6 +13,8 @@ export interface AvatarSceneOptions {
   gridSize?: number;
   /** Grid divisions (default: 16). */
   gridDivisions?: number;
+  /** Enable orbit controls (zoom, rotate, pan). Default: false. */
+  orbit?: boolean;
 }
 
 const DEFAULT_GRID_SIZE = 4;
@@ -23,6 +26,7 @@ export class AvatarScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly clock: THREE.Clock;
 
+  private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
@@ -78,6 +82,22 @@ export class AvatarScene {
       this.scene.add(grid);
     }
 
+    // Optional orbit controls (mouse rotate + zoom)
+    if (options?.orbit) {
+      this.controls = new OrbitControls(this.camera, canvas);
+      this.controls.enableDamping = true;
+      this.controls.dampingFactor = 0.08;
+      this.controls.target.set(0, 0.7, 0);
+      this.controls.minDistance = 1;
+      this.controls.maxDistance = 15;
+      this.controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.ROTATE,
+      };
+      this.controls.update();
+    }
+
     this.clock = new THREE.Clock();
 
     // Handle window resize
@@ -119,6 +139,7 @@ export class AvatarScene {
   /** Full cleanup — call when unmounting. */
   dispose(): void {
     this.stop();
+    this.controls?.dispose();
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.renderer.dispose();
@@ -132,6 +153,7 @@ export class AvatarScene {
 
   private tick(): void {
     const delta = this.clock.getDelta();
+    this.controls?.update();
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
