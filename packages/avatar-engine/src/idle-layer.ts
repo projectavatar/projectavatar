@@ -368,9 +368,11 @@ export class IdleLayer {
     this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
-    // Apply as additive rotation scaled by influence
-    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE;
-    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
+    // Apply as additive rotation scaled by influence.
+    // legBendSign === -1 for VRM 0.x (inverted axes) — negate both.
+    const sign = this.legBendSign;
+    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE * sign;
+    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE * sign;
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
