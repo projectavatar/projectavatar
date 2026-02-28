@@ -4,12 +4,13 @@ Coding agent context for this repository.
 
 ## Repo Structure
 
-Monorepo with three independently deployable packages:
+Monorepo with independently deployable packages:
 
-- `packages/shared/` — shared types, validation, constants. Imported by relay and web. The plugin copies what it needs (standalone, no cross-package deps at runtime).
-- `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded by OpenClaw via jiti — **no build step**. Entry: `src/index.ts`.
+- `packages/shared/` — shared types, validation, constants. Imported by relay, web, and clip-manager.
+- `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
-- `web/` — React + Vite app. Deployed to Cloudflare Pages at `app.projectavatar.io`.
+- `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
+- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, and action/emotion mappings. Port 5174.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
@@ -24,6 +25,24 @@ Monorepo with three independently deployable packages:
 - Token: identifies a channel (DO instance). Stored in plugin env var (`AVATAR_TOKEN`) and URL param.
 - Model: stored in DO, synced to all WebSocket clients via `model_changed` broadcast.
 - Share link format: `?token=abc123` — no model in URL.
+
+## Animation Data Pipeline
+
+```
+clips.json (web/src/data/) — source of truth for all clip metadata + mappings
+    ↓ imported at build time
+clip-registry.ts — resolver (resolveClips, getActionDuration, getAllClipFiles)
+    ↓
+animation-controller.ts — runtime playback via Three.js AnimationMixer
+
+Clip Manager (clip-manager/) — dev UI for editing clips.json
+    ↓ File System Access API
+clips.json
+```
+
+- `scripts/generate-clips-json.ts` — bootstrap script: generates clips.json from legacy clip-map data
+- `npm run clips` — starts clip manager on port 5174
+- `npm run clips:gen` — regenerates clips.json from scratch
 
 ## WebSocket Protocol
 
@@ -47,15 +66,23 @@ Client → server messages (`WebSocketClientMessage`):
 - `web/src/avatar/avatar-canvas.tsx` — Mounts Three.js scene + WS client. Provides `WsContext` (sendSetModel).
 - `web/src/avatar/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling.
 - `web/src/avatar/expression-controller.ts` — Blend shape weights + head bone movement + idle breathing.
+- `web/src/avatar/clip-registry.ts` — Loads clips.json, resolves action+emotion+intensity → clip set.
+- `web/src/data/clips.json` — Animation clip registry (45 clips, 29 actions, 14 emotions).
+- `web/src/avatar/mixamo-loader.ts` — Loads Mixamo FBX, retargets to VRM 0.x/1.0.
 - `web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
+
+### Clip Manager
+- `clip-manager/src/app.tsx` — Three-panel layout: library, editor, preview.
+- `clip-manager/src/preview/clip-preview.ts` — Standalone VRM + FBX preview engine.
+- `clip-manager/src/state.ts` — useReducer-based state management.
+- `clip-manager/src/types.ts` — clips.json schema types.
 
 ### Plugin
 - `packages/openclaw-avatar/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
-- `packages/openclaw-avatar/src/types.ts` — Standalone types (no shared package dep at runtime).
 - `packages/openclaw-avatar/openclaw.plugin.json` — Manifest with configSchema + commands.
 
 ### Shared
-- `packages/shared/src/schema.ts` — AvatarEvent, ChannelState, WebSocketServerMessage, WebSocketClientMessage, isValidModelId.
+- `packages/shared/src/schema.ts` — AvatarEvent, ChannelState, WebSocketServerMessage, WebSocketClientMessage.
 - `packages/shared/src/constants.ts` — TOKEN_REGEX, generateToken, CORS_HEADERS, RATE_LIMITS.
 
 ## Plugin: No Build Step
@@ -72,101 +99,24 @@ cd web && npm run build                   # full web build (catches type errors)
 
 ## Current State
 
-Phases complete:
-- Phase 1: Relay server ✅
-- Phase 2: Web app + avatar core ✅
-- Phase 3: Agent skill + output filter ✅
-- Phase 4: OpenClaw plugin ✅
-- Phase 4.1: Identity persistence + multi-screen sync ✅
-- Phase 4.2: Agent presence + /avatar command ✅
-- Phase 4.3: WebSocket keepalive ✅
-- Phase 4.4: Expression improvements ✅
-- Phase 4.5: Multi-session arbitration ✅
+Phases complete: 1–4 (relay, web, skill, plugin, identity sync, presence, keepalive, expressions, multi-session arbitration).
 
-Next: Phase 5 (Polish + Desktop).
+Current: Clip Manager + JSON-driven animation registry.
 
-## Animation System (v1.1.1)
+## Animation System
 
-Real Mixamo FBX animations via Three.js AnimationMixer.
+Hybrid FBX + procedural: Mixamo FBX clips via AnimationMixer, additive procedural idle layer (breathing, sway, head drift), expression blend shapes.
 
-### Files
-- `web/src/avatar/mixamo-loader.ts` — loads FBX, retargets to VRM 0.x.
-- `web/src/avatar/animation-controller.ts` — AnimationMixer wrapper. `loadAnimations()` loads all 7 FBX clips. `playAction()` fades between clips (0.6s).
-- `web/public/animations/` — 7 Mixamo FBX files (downloaded "without skin", 30fps).
+### clips.json Schema
+- `clips`: per-clip metadata (file, loop, mustFinish, fadeIn/Out, category, energy, bodyParts, tags, layering rules)
+- `actions`: 29 actions, each with primary clip + optional layers + duration override
+- `emotions`: 14 emotions, each with weightScale + action overrides + extra layers
 
-### Action → file mapping
-waiting→idle.fbx, responding→responding.fbx, searching→searching.fbx, coding→coding.fbx, reading→reading.fbx, error→error.fbx, celebrating→celebrating.fbx
+### Expression System
+- Blend shapes via `expressionManager.setValue(name, weight)` — exponential decay lerp
+- Head bone euler offsets per emotion
+- Breathing: sine wave on head pitch, always running
 
-## Expression System (v1.2)
+## Multi-Session Arbitration
 
-Facial expressions + head bone movement driven by `ExpressionController`.
-
-### How it works
-- **Blend shapes**: `expressionManager.setValue(name, weight)` — frame-rate independent exponential decay lerp (speed 3.0)
-- **Head bone**: `humanoid.getNormalizedBoneNode('head')` — per-emotion euler offsets, lerped at speed 2.5
-- **Breathing**: slow sine wave on head pitch (0.008 rad amplitude, ~11 breaths/min), always running
-
-### Emotion → expression mapping
-Weights are intentionally strong (0.65–1.0) — VRM blending is designed for full-weight combinations:
-- `excited` → happy 1.0 + surprised 0.35, head up + right tilt
-- `confused` → surprised 0.65, head side-tilt (z: 0.07)
-- `concerned` → sad 0.65, head down + slight turn
-- `satisfied` → happy 0.75 + relaxed 0.5, slight nod
-- `thinking` → neutral 0.4 + lookUp 0.45, head up + tilt
-- `focused` → neutral 1.0, slight forward lean
-
-### VRM 0.x name normalization (three-vrm handles this automatically)
-`joy→happy`, `sorrow→sad`, `fun→relaxed`, `lookup→lookUp`, etc.
-
-### Model requirements
-**Must have blend shape binds.** The VRM spec lists expressions but doesn't require mesh bindings — many models have the labels with 0 binds (silent no-ops). Always verify with:
-```js
-vrm0.blendShapeMaster.blendShapeGroups.forEach(g =>
-  console.log(g.presetName, 'binds:', (g.binds||[]).length)
-)
-```
-Any `binds: 0` = that expression does nothing on that model.
-
-### Bundled models
-- `web/public/models/avatarsample_c.vrm` — Official Pixiv VRoid sample (CC0). Full expressions, all binds wired. **Primary model.**
-- `web/public/models/potato.vrm` — Lip-sync + blink only, no emotion expressions. Animation testing only.
-- `web/src/assets/models/manifest.json` — model registry for the picker.
-
-## Multi-Session Arbitration (v1.3)
-
-Multiple concurrent agent sessions pushing to the same channel are handled by the relay via priority-based arbitration with a first-mover tiebreaker.
-
-### How it works
-
-Each push event carries two optional fields:
-- `sessionId` — stable opaque string identifying the session (OpenClaw sessionKey passed as-is)
-- `priority` — integer derived from sessionKey structure; lower = higher priority
-
-The Durable Object maintains an in-memory session registry (`Map<sessionId, SessionEntry>`).
-On each push:
-1. Register/update the session entry — `firstPushAt` is set once and never changed
-2. Prune stale entries (> 60s silence, lazy GC on write)
-3. Resolve the active winner: lowest priority tier; ties broken by earliest `firstPushAt`
-4. Fan out only if the pushing session is the winner; suppressed pushes return `{ ok: true, suppressed: true }`
-
-The registry is ephemeral (in-memory only) — DO hibernation resets it. Sessions re-announce on their next push.
-
-### Priority derivation (plugin side)
-
-Priority = number of `:subagent:` segments in the OpenClaw sessionKey:
-- Main/channel sessions → 0 (highest priority)
-- Sub-agents → 1
-- Nested sub-agents → 2
-- Cron/isolated sessions → 1 (same as sub-agents)
-
-### Tiebreaker: first-mover holds
-
-Two concurrent sessions at the same priority (e.g. two channel agents sharing a token) both get priority 0. The one that pushed first holds the avatar until it goes idle (10s silence). Only then does the other session's next push win.
-
-### Backward compatibility
-
-Events without `sessionId` bypass arbitration entirely and always fan out — single-session and skill-based setups are unaffected.
-
-### Key constants (relay/src/channel.ts)
-- `SESSION_ACTIVE_WINDOW_MS = 10_000` — how long a session stays "active" after its last push
-- `SESSION_EVICT_AFTER_MS = 60_000` — stale entry TTL (lazy GC)
+Priority-based with first-mover tiebreaker. Lower priority = higher importance. Main sessions = 0, sub-agents = 1, nested = 2+. Stale sessions evicted after 60s silence.
