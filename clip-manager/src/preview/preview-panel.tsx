@@ -3,7 +3,7 @@
  * Renders a VRM model and plays FBX clips on it.
  * Body part masking is driven by the clip's bodyParts from ClipDetail.
  */
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
 import { getBonesForParts } from '../body-parts.ts';
@@ -120,15 +120,9 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
   const [speed, setSpeed] = useState(1.0);
   const [modelLoaded, setModelLoaded] = useState(false);
 
-  // Compute bone mask from clip's body parts.
-  // All 4 parts active (or 'full' or undefined) = no masking.
-  const boneMask = useMemo(() => {
-    if (!clipBodyParts || clipBodyParts.length === 0) return null;
-    return getBonesForParts(clipBodyParts);
-  }, [clipBodyParts]);
-
-  // Serialize for dependency tracking
-  const maskKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
+  // Serialize body parts for stable dependency tracking.
+  // Avoids Set identity issues and eslint-disable for exhaustive-deps.
+  const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
 
   // Initialize preview engine
   useEffect(() => {
@@ -165,6 +159,7 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !clipPath) return;
 
+    const boneMask = clipBodyParts ? getBonesForParts(clipBodyParts) : null;
     preview.setBoneMask(boneMask);
     setPaused(false);
 
@@ -172,8 +167,7 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     preview.playClip(clipPath, looping).catch(err => {
       console.error('[PreviewPanel] Failed to play clip:', err);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipPath, modelLoaded, looping, maskKey]);
+  }, [clipPath, modelLoaded, looping, partsKey, clipBodyParts]);
 
   const handleTogglePause = useCallback(() => {
     const preview = previewRef.current;

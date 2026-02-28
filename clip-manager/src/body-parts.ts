@@ -41,7 +41,16 @@ export function getBonesForParts(parts: string[]): Set<string> | null {
 
 export function normalizeBodyParts(parts: string[]): string[] {
   if (parts.includes('full') || parts.length === 0) return [...BODY_PARTS];
-  return parts.filter((p) => (BODY_PARTS as readonly string[]).includes(p));
+
+  const known: string[] = [];
+  for (const p of parts) {
+    if ((BODY_PARTS as readonly string[]).includes(p)) {
+      known.push(p);
+    } else {
+      console.warn(`[body-parts] Unknown body part "${p}" — ignored`);
+    }
+  }
+  return known.length > 0 ? known : [...BODY_PARTS];
 }
 
 export const BODY_PART_ICON: Record<BodyPart, string> = {

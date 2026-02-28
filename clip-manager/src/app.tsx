@@ -44,6 +44,7 @@ const mainStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
+// Panel widths: left=clip library, right=3D preview (needs space for model)
 const leftPanelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
@@ -100,6 +101,7 @@ const ANIM_BASE = '/animations/';
 export function App() {
   const [state, dispatch] = useAppState(clipsData as ClipsJson);
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Resolve preview clip path
   const previewClipPath = useMemo(() => {
@@ -117,6 +119,7 @@ export function App() {
   }, [state.previewClip, state.data.clips]);
 
   const handleSave = useCallback(async () => {
+    setSaveError(null);
     try {
       const res = await fetch('/api/save-clips', {
         method: 'POST',
@@ -129,6 +132,8 @@ export function App() {
       }
       dispatch({ type: 'MARK_SAVED' });
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Save failed';
+      setSaveError(msg);
       console.error('[ClipManager] Save failed:', err);
     }
   }, [state.data, dispatch]);
@@ -225,6 +230,7 @@ export function App() {
         data={state.data}
         dirty={state.dirty}
         lastSaved={state.lastSaved}
+        saveError={saveError}
       />
     </div>
   );

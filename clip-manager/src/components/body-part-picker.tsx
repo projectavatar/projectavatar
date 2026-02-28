@@ -43,7 +43,7 @@ const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
   opacity: active ? 1 : 0.5,
   textDecoration: active ? 'none' : 'line-through',
   userSelect: 'none',
-  display: 'flex',
+  display: 'inline-flex',
   alignItems: 'center',
   gap: 5,
 });
@@ -56,22 +56,17 @@ interface BodyPartPickerProps {
 }
 
 export function BodyPartPicker({ bodyParts, onChange }: BodyPartPickerProps) {
-  const isActive = useCallback(
-    (part: string) => bodyParts.includes(part),
-    [bodyParts],
-  );
-
   const toggle = useCallback(
     (part: string) => {
-      if (isActive(part)) {
+      if (bodyParts.includes(part)) {
         const remaining = bodyParts.filter((p) => p !== part);
-        if (remaining.length === 0) return;
+        if (remaining.length === 0) return; // keep at least one
         onChange(remaining);
       } else {
         onChange([...bodyParts, part]);
       }
     },
-    [bodyParts, isActive, onChange],
+    [bodyParts, onChange],
   );
 
   return (
@@ -79,13 +74,16 @@ export function BodyPartPicker({ bodyParts, onChange }: BodyPartPickerProps) {
       <div style={sectionTitleStyle}>Body Parts</div>
       <div style={chipsStyle}>
         {BODY_PARTS.map((part) => (
-          <div
+          <button
             key={part}
-            style={chipStyle(isActive(part), BODY_PART_COLOR[part])}
+            type="button"
+            style={chipStyle(bodyParts.includes(part), BODY_PART_COLOR[part])}
             onClick={() => toggle(part)}
+            aria-pressed={bodyParts.includes(part)}
+            aria-label={`Toggle ${part} body part`}
           >
             {BODY_PART_ICON[part]} {part}
-          </div>
+          </button>
         ))}
       </div>
     </div>

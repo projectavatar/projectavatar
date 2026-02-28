@@ -6,9 +6,16 @@ import type { Plugin } from 'vite';
 
 const CLIPS_JSON_PATH = resolve(__dirname, '../web/src/data/clips.json');
 
+/** Maximum request body size (1 MB). */
+const MAX_BODY_BYTES = 1_048_576;
+
 /**
  * Dev-only Vite plugin: POST /api/save-clips writes JSON directly to disk.
- * No file picker dialogs, no File System Access API — just save.
+ *
+ * ⚠️  NO AUTHENTICATION — this is a local dev tool. Do not expose to the
+ * internet or run on a publicly accessible host without adding auth.
+ * The endpoint is only registered in Vite's dev server (configureServer),
+ * so it does not exist in production builds.
  */
 function saveClipsPlugin(): Plugin {
   return {
@@ -27,13 +34,21 @@ function saveClipsPlugin(): Plugin {
         }
 
         const chunks: Buffer[] = [];
+        let totalBytes = 0;
+
         for await (const chunk of req) {
+          totalBytes += (chunk as Buffer).length;
+          if (totalBytes > MAX_BODY_BYTES) {
+            res.writeHead(413, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Request body too large (max 1 MB)' }));
+            return;
+          }
           chunks.push(chunk as Buffer);
         }
+
         const body = Buffer.concat(chunks).toString('utf-8');
 
         try {
-          // Validate JSON before writing
           const parsed = JSON.parse(body);
           const formatted = JSON.stringify(parsed, null, 2) + '\n';
           await writeFile(CLIPS_JSON_PATH, formatted, 'utf-8');
