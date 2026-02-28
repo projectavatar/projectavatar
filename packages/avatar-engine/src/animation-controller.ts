@@ -498,20 +498,36 @@ export class AnimationController {
     const groupBones = BODY_PART_BONES[group];
     const groupNodeNames = new Set<string>();
 
+    // Resolve hips node name for position track stripping in air mode
+    const hipsNodeName = this.vrm.humanoid?.getNormalizedBoneNode('hips' as any)?.name;
+
     for (const boneName of groupBones) {
       const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
       if (node) groupNodeNames.add(node.name);
     }
 
+    const isAirMode = this.idleLayer.getMode() === 'air';
+
     const filteredTracks = clip.tracks.filter((track) => {
       const dotIdx = track.name.indexOf('.');
       if (dotIdx === -1) return false;
       const nodeName = track.name.slice(0, dotIdx);
-      return groupNodeNames.has(nodeName);
+      if (!groupNodeNames.has(nodeName)) return false;
+
+      // In air mode, strip hips position tracks — the idle layer's
+      // hover bob is the sole authority on vertical position.
+      // This prevents different clips from pulling the model up/down
+      // during crossfades.
+      if (isAirMode && nodeName === hipsNodeName && track.name.endsWith('.position')) {
+        return false;
+      }
+
+      return true;
     });
 
+    const modeSuffix = this.idleLayer.getMode() === 'air' ? ':air' : ':gnd';
     return new THREE.AnimationClip(
-      `${clip.name}:${group}`,
+      `${clip.name}:${group}${modeSuffix}`,
       clip.duration,
       filteredTracks,
     );

@@ -76,9 +76,6 @@ export class IdleLayer {
   /** Camera reference for subtle head tracking. */
   private camera: THREE.Camera | null = null;
 
-  /** Hips rest Y position — captured once after first mixer update. */
-  private hipsRestY: number | null = null;
-
   /**
    * Sign multiplier for leg bend direction (+1 or -1).
    * Detected from the bone chain geometry — some VRM models have flipped axes.
@@ -262,39 +259,22 @@ export class IdleLayer {
       this.vrm.scene.position.y = this.baseY + bobOffset;
     }
 
-    // 2. Smooth hips Y lock — prevent clips from moving the model up/down.
-    //    Instead of hard-snapping, lerp toward rest Y to avoid jags
-    //    when clips with different hips positions crossfade.
-    if (this.hips) {
-      if (this.hipsRestY === null) {
-        this.hipsRestY = this.hips.position.y;
-      }
-      // Exponential decay toward rest Y — framerate-independent,
-      // no end-of-transition snap like raw lerp.
-      const hipsLerpSpeed = 4.0; // higher = faster convergence
-      this.hips.position.y = THREE.MathUtils.lerp(
-        this.hips.position.y,
-        this.hipsRestY,
-        1 - Math.exp(-hipsLerpSpeed * delta),
-      );
-    }
-
-    // 3. Gentle body tilt — spine leans forward/back
+    // 2. Gentle body tilt — spine leans forward/back
     if (this.spine) {
       const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE;
       this.spine.rotation.x += tiltX;
     }
 
-    // 4. Slow left/right drift — hips sway
+    // 3. Slow left/right drift — hips sway
     if (this.hips) {
       const driftZ = Math.sin(t * DRIFT_FREQUENCY * Math.PI * 2) * DRIFT_AMPLITUDE;
       this.hips.rotation.z += driftZ;
     }
 
-    // 5. Leg dangle — relaxed hanging pose
+    // 4. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
 
-    // 6. Subtle head tracking toward camera
+    // 5. Subtle head tracking toward camera
     this._applyHeadTracking(delta);
   }
 
