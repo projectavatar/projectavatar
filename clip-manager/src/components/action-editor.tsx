@@ -363,6 +363,7 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
                         });
                       }}
                     >
+                      {!layer.clip && <option value="" disabled>— select clip —</option>}
                       {clipIds.map(id => <option key={id} value={id}>{id}</option>)}
                     </select>
 
@@ -409,9 +410,9 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
                     const newClips = [
                       ...group.clips,
                       {
-                        clip: clipIds[0] ?? '',
+                        clip: '',
                         weight: 0.5,
-                        bodyParts: data.clips[clipIds[0] ?? '']?.bodyParts ?? ['head', 'torso', 'arms', 'legs'],
+                        bodyParts: ['head', 'torso', 'arms', 'legs'],
                       },
                     ];
                     updateGroup(selectedAction, action.groups, gi, { clips: newClips });
@@ -434,9 +435,9 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
             {
               rarity: 0.5,
               clips: [{
-                clip: clipIds[0] ?? '',
+                clip: '',
                 weight: 1,
-                bodyParts: data.clips[clipIds[0] ?? '']?.bodyParts ?? ['head', 'torso', 'arms', 'legs'],
+                bodyParts: ['head', 'torso', 'arms', 'legs'],
               }],
             },
           ];
