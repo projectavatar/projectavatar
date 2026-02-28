@@ -89,10 +89,10 @@ function easeOutCubic(t: number): number {
 // ─── TransitionStabilizer ─────────────────────────────────────────────────────
 
 /**
- * Exported as FootIK for backward compatibility (AnimationController imports it).
+ * Stabilizes hips, feet, and hands during animation transitions.
  * Internally stabilizes hips, feet, and hands.
  */
-export class FootIK {
+export class TransitionStabilizer {
   private vrm: VRM;
 
   // ─── Bone references ──────────────────────────────────────────────────

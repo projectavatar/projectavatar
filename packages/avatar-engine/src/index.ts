@@ -20,7 +20,7 @@ export type { EventLogEntry } from './state-machine.ts';
 
 export { loadMixamoAnimation } from './mixamo-loader.ts';
 
-export { FootIK } from './foot-ik.ts';
+export { TransitionStabilizer } from './transition-stabilizer.ts';
 
 // ─── Body parts ───────────────────────────────────────────────────────────────
 export {
