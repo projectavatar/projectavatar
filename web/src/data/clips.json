@@ -231,7 +231,7 @@
     "idle": {
       "groups": [
         {
-          "rarity": 0.4,
+          "rarity": 1,
           "clips": [
             {
               "clip": "idle",
@@ -246,7 +246,7 @@
           ]
         },
         {
-          "rarity": 0.3,
+          "rarity": 0.12,
           "clips": [
             {
               "clip": "idle-happy",
@@ -261,7 +261,7 @@
           ]
         },
         {
-          "rarity": 0.3,
+          "rarity": 0.12,
           "clips": [
             {
               "clip": "idle-switch",
@@ -309,7 +309,13 @@
               "bodyParts": [
                 "head",
                 "torso",
-                "arms",
+                "arms"
+              ]
+            },
+            {
+              "clip": "idle",
+              "weight": 0.5,
+              "bodyParts": [
                 "legs"
               ]
             }
@@ -324,7 +330,13 @@
               "bodyParts": [
                 "head",
                 "torso",
-                "arms",
+                "arms"
+              ]
+            },
+            {
+              "clip": "idle",
+              "weight": 0.5,
+              "bodyParts": [
                 "legs"
               ]
             }
@@ -384,7 +396,13 @@
               "bodyParts": [
                 "head",
                 "torso",
-                "arms",
+                "arms"
+              ]
+            },
+            {
+              "clip": "idle",
+              "weight": 0.5,
+              "bodyParts": [
                 "legs"
               ]
             }
@@ -536,7 +554,7 @@
       "layers": []
     },
     "confused": {
-      "weightScale": 1.0,
+      "weightScale": 1,
       "overrides": {},
       "layers": []
     },
@@ -551,12 +569,12 @@
       "layers": []
     },
     "bashful": {
-      "weightScale": 1.0,
+      "weightScale": 1,
       "overrides": {},
       "layers": []
     },
     "thinking": {
-      "weightScale": 1.0,
+      "weightScale": 1,
       "overrides": {},
       "layers": []
     }
