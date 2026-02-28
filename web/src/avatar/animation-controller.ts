@@ -54,6 +54,29 @@ const IDLE_BONES: AnimBone[] = [
   'leftShoulder', 'rightShoulder',
 ];
 
+// ─── Layer toggles ────────────────────────────────────────────────────────────
+
+export interface LayerState {
+  /** FBX clip playback enabled */
+  fbxClips: boolean;
+  /** Procedural idle noise (breathing, sway, head drift) */
+  idleNoise: boolean;
+  /** Expression blend shapes (happy, sad, etc.) */
+  expressions: boolean;
+  /** Expression head bone offset */
+  headOffset: boolean;
+  /** Blink + micro-glance */
+  blink: boolean;
+}
+
+const DEFAULT_LAYERS: LayerState = {
+  fbxClips: true,
+  idleNoise: true,
+  expressions: true,
+  headOffset: true,
+  blink: true,
+};
+
 // ─── AnimationController ──────────────────────────────────────────────────────
 
 export class AnimationController {
@@ -81,6 +104,9 @@ export class AnimationController {
 
   /** Timer for non-looping action completion. */
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Layer toggle state — dev panel can enable/disable layers. */
+  layers: LayerState = { ...DEFAULT_LAYERS };
 
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
@@ -160,6 +186,26 @@ export class AnimationController {
   }
 
   /**
+   * Set a layer toggle. Used by dev panel.
+   */
+  setLayer(layer: keyof LayerState, enabled: boolean): void {
+    this.layers[layer] = enabled;
+
+    // If FBX clips toggled off, pause the mixer
+    if (layer === 'fbxClips') {
+      if (!enabled) {
+        for (const action of this.activeActions) {
+          action.paused = true;
+        }
+      } else {
+        for (const action of this.activeActions) {
+          action.paused = false;
+        }
+      }
+    }
+  }
+
+  /**
    * Tick the animation system. Call every frame.
    *
    * Order of operations:
@@ -170,11 +216,15 @@ export class AnimationController {
     const dt = Math.min(delta, 0.1);
     this.elapsed += dt;
 
-    // Step 1: FBX mixer updates bones
-    this.mixer.update(dt);
+    // Step 1: FBX mixer updates bones (if layer enabled)
+    if (this.layers.fbxClips) {
+      this.mixer.update(dt);
+    }
 
-    // Step 2: Additive idle layer on top
-    this._applyIdleLayer(dt);
+    // Step 2: Additive idle layer on top (if layer enabled)
+    if (this.layers.idleNoise) {
+      this._applyIdleLayer(dt);
+    }
   }
 
   /**

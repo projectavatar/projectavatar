@@ -32,6 +32,7 @@ export interface AppState {
   channelStateReceived: boolean;
   avatar: AvatarState;
   settingsOpen: boolean;
+  devPanelOpen: boolean;
   theme: 'dark' | 'transparent';
   setupComplete: boolean;
   setToken: (token: string | null) => void;
@@ -42,6 +43,7 @@ export interface AppState {
   setReconnectAttempt: (attempt: number) => void;
   setAvatarState: (state: Partial<AvatarState>) => void;
   setSettingsOpen: (open: boolean) => void;
+  setDevPanelOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'transparent') => void;
   setSetupComplete: (complete: boolean) => void;
   generateAndSetToken: () => string;
@@ -126,6 +128,7 @@ export const useStore = create<AppState>((set, get) => ({
   avatar: { emotion: 'idle', action: 'idle', prop: 'none', intensity: 'medium' },
 
   settingsOpen:  false,
+  devPanelOpen:  false,
   theme:         persisted.theme ?? 'dark',
   setupComplete: false,
 
@@ -148,6 +151,7 @@ export const useStore = create<AppState>((set, get) => ({
   setAvatarState: (partial) => set((state) => ({ avatar: { ...state.avatar, ...partial } })),
 
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),
 
   setTheme: (theme) => { set({ theme }); persistState(get()); },
 

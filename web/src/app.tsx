@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useStore } from './state/store.ts';
 import { TokenSetup } from './token-setup.tsx';
 import { ModelPickerOverlay } from './model-picker-overlay.tsx';
@@ -6,6 +6,8 @@ import { AvatarCanvas, WsContext } from './avatar/avatar-canvas.tsx';
 import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
+import { DevPanel } from './components/dev-panel.tsx';
+import type { StateMachine } from './avatar/state-machine.ts';
 
 const settingsBtnStyle: React.CSSProperties = {
   position: 'fixed',
@@ -81,10 +83,20 @@ export function App() {
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.
   const sendSetModelRef = useRef<((modelId: string | null) => void) | null>(null);
+  const stateMachineRef = useRef<StateMachine | null>(null);
+  const [stateMachine, setStateMachine] = useState<StateMachine | null>(null);
 
   const handleSendSetModelReady = useCallback(
     (fn: ((modelId: string | null) => void) | null) => {
       sendSetModelRef.current = fn;
+    },
+    [],
+  );
+
+  const handleStateMachine = useCallback(
+    (sm: StateMachine | null) => {
+      stateMachineRef.current = sm;
+      setStateMachine(sm);
     },
     [],
   );
@@ -119,7 +131,7 @@ export function App() {
   return (
     <WsContext.Provider value={wsContextValue}>
       <div style={avatarContainerStyle}>
-        <AvatarCanvas onSendSetModel={handleSendSetModelReady} />
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} />
 
         {showPicker && <ModelPickerOverlay />}
 
@@ -145,6 +157,9 @@ export function App() {
             <SettingsDrawer />
           </>
         )}
+
+        {/* Dev panel — toggle with backtick key */}
+        <DevPanel stateMachine={stateMachine} />
       </div>
     </WsContext.Provider>
   );

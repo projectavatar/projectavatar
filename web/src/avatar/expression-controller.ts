@@ -126,11 +126,14 @@ export class ExpressionController {
 
   /**
    * Update blend shapes and head bone offset. Call every frame, AFTER
-   * animation update so the offset applies on top of the procedural engine's pose.
+   * animation update so the offset applies on top of the mixer's pose.
+   *
+   * @param enableBlendShapes  Whether to update VRM expression blend shapes (layer toggle)
+   * @param enableHeadOffset   Whether to apply additive head bone rotation (layer toggle)
    */
-  update(delta: number): void {
-    this._updateBlendShapes(delta);
-    this._updateHeadBone(delta);
+  update(delta: number, enableBlendShapes = true, enableHeadOffset = true): void {
+    if (enableBlendShapes) this._updateBlendShapes(delta);
+    if (enableHeadOffset) this._updateHeadBone(delta);
   }
 
   private _updateBlendShapes(delta: number): void {

@@ -2,6 +2,7 @@ import { DEFAULTS } from '@project-avatar/shared';
 import type { AvatarEvent, Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
 import type { ExpressionController } from './expression-controller.ts';
 import type { AnimationController } from './animation-controller.ts';
+import type { LayerState } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
 
@@ -33,6 +34,18 @@ const DEFAULT_STATE: AvatarState = {
   lastEventTime: 0,
 };
 
+/** Event log entry for dev panel. */
+export interface EventLogEntry {
+  timestamp: number;
+  emotion: Emotion;
+  action: Action;
+  prop?: Prop;
+  intensity?: Intensity;
+  source: 'relay' | 'dev-panel';
+}
+
+const MAX_LOG_ENTRIES = 50;
+
 export class StateMachine {
   private state: AvatarState = { ...DEFAULT_STATE };
   private expressionCtrl: ExpressionController;
@@ -42,6 +55,12 @@ export class StateMachine {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimeoutMs: number;
   private onStateChange?: (state: Readonly<AvatarState>) => void;
+
+  /** Event log — most recent events for dev panel inspection. */
+  readonly eventLog: EventLogEntry[] = [];
+
+  /** Callback when event log updates. */
+  onEventLog?: (log: EventLogEntry[]) => void;
 
   constructor(
     expressionCtrl: ExpressionController,
@@ -74,10 +93,13 @@ export class StateMachine {
   }
 
   /** Handle an incoming avatar event from the relay. */
-  handleEvent(event: AvatarEvent): void {
+  handleEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' = 'relay'): void {
     const prev = { ...this.state };
 
     this.state.lastEventTime = Date.now();
+
+    // Log the event
+    this._logEvent(event, source);
 
     // Update intensity first (used by subsequent updates)
     if (event.intensity && event.intensity !== prev.intensity) {
@@ -112,6 +134,20 @@ export class StateMachine {
   }
 
   /**
+   * Set a layer toggle. Delegates to the appropriate controller.
+   */
+  setLayer(layer: keyof LayerState, enabled: boolean): void {
+    this.animationCtrl.setLayer(layer, enabled);
+  }
+
+  /**
+   * Get current layer state.
+   */
+  get layerState(): Readonly<LayerState> {
+    return this.animationCtrl.layers;
+  }
+
+  /**
    * Update all subsystems. Call every frame with delta time.
    *
    * Order matters:
@@ -121,8 +157,15 @@ export class StateMachine {
    */
   update(delta: number): void {
     this.animationCtrl.update(delta);
-    this.expressionCtrl.update(delta);
-    this.blinkCtrl.update(delta);
+
+    // Expression layers respect toggles
+    const layers = this.animationCtrl.layers;
+    if (layers.expressions || layers.headOffset) {
+      this.expressionCtrl.update(delta, layers.expressions, layers.headOffset);
+    }
+    if (layers.blink) {
+      this.blinkCtrl.update(delta);
+    }
   }
 
   /** Clean up timers. */
@@ -140,5 +183,20 @@ export class StateMachine {
     this.idleTimer = setTimeout(() => {
       this.handleEvent({ emotion: 'idle', action: 'idle', prop: 'none' });
     }, this.idleTimeoutMs);
+  }
+
+  private _logEvent(event: AvatarEvent, source: 'relay' | 'dev-panel'): void {
+    this.eventLog.unshift({
+      timestamp: Date.now(),
+      emotion: event.emotion,
+      action: event.action,
+      prop: event.prop,
+      intensity: event.intensity,
+      source,
+    });
+    if (this.eventLog.length > MAX_LOG_ENTRIES) {
+      this.eventLog.length = MAX_LOG_ENTRIES;
+    }
+    this.onEventLog?.(this.eventLog);
   }
 }

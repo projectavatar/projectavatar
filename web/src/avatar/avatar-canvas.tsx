@@ -57,8 +57,9 @@ export function useWsClient(): WsContextValue {
  * is ready and `onSendSetModel(null)` on disconnect. app.tsx stores this in a
  * ref and delegates from the stable WsContext value.
  */
-export function AvatarCanvas({ onSendSetModel }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
+  onStateMachine?: (sm: import('./state-machine.ts').StateMachine | null) => void;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -108,6 +109,7 @@ export function AvatarCanvas({ onSendSetModel }: {
         },
       );
       stateMachineRef.current = stateMachine;
+      onStateMachine?.(stateMachine);
       avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
     };
 
