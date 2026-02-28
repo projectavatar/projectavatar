@@ -53,7 +53,7 @@ Body parts: `head`, `torso`, `arms`, `legs` (legs includes hips/root motion).
 
 ### Key Engine Classes
 - **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
-- **TransitionStabilizer** — pins hips, feet, and hands during clip transitions using soft positional constraints. Independent timing per bone group (feet: tight lock, hands: loose lock with gentle release).
+- **TransitionStabilizer** — masks crossfade artifacts per bone group. Hips/hands use soft positional pinning. Feet use procedural step arcs: measures horizontal drift on first blended frame, lifts feet in a sin() arc proportional to drift, masking skating as a small weight-shift step.
 - **ClipRegistry** — data-driven clip resolver (v3). Resolves action + emotion + intensity + group index → final clip set with body part scoping. `selectGroup()` for weighted random selection, `isActionLooping()`, `getGroupCount()`. Dynamic fallback chain: action → idle action → first clip in registry.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
 - **BlinkController** — random blink + micro-glance.
@@ -71,7 +71,7 @@ ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getA
     ↓
 AnimationController (avatar-engine) — runtime playback via Three.js AnimationMixer
     ↓ post-mixer
-TransitionStabilizer (avatar-engine) — pins bones during crossfade window
+TransitionStabilizer (avatar-engine) — step arcs for feet, soft pins for hips/hands
 
 Clip Manager (clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)
