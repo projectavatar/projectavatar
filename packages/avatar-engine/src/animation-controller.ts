@@ -315,6 +315,14 @@ export class AnimationController {
       this.stabilizer.lock();
     }
 
+    // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
+    const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
+    let maxFadeIn = DEFAULT_FADE_IN;
+    for (const entry of clips) {
+      const fi = entry.fadeIn ?? DEFAULT_FADE_IN;
+      if (fi > maxFadeIn) maxFadeIn = fi;
+    }
+
     // Crossfade: fade out old sub-actions using per-clip fadeOut durations.
     // IMPORTANT: do NOT uncacheClip/uncacheAction during the fade — that
     // instantly removes the action from the mixer, killing the crossfade.
@@ -325,9 +333,11 @@ export class AnimationController {
       sub.action.fadeOut(fo);
       if (fo > maxFadeOut) maxFadeOut = fo;
     }
-    // Clean up after the longest fade-out finishes (with margin)
+    // Clean up after BOTH fades complete — outgoing must survive until
+    // incoming clips reach full weight, otherwise T-pose bleeds through.
     if (outgoing.length > 0) {
       const captured = [...outgoing];
+      const cleanupDelay = Math.max(maxFadeOut, maxFadeIn) + 0.1;
       setTimeout(() => {
         for (const sub of captured) {
           sub.action.stop();
@@ -335,11 +345,9 @@ export class AnimationController {
           this.mixer.uncacheAction(clip);
           this.mixer.uncacheClip(clip);
         }
-      }, (maxFadeOut + 0.2) * 1000);
+      }, cleanupDelay * 1000);
     }
     this.activeSubActions = [];
-    // Resolve action clips from the selected group
-    const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
 
     // Track max clip duration for loop cycling
     let maxClipDuration = 0;
