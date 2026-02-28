@@ -51,7 +51,7 @@ const selectStyle: React.CSSProperties = {
 };
 
 const sliderStyle: React.CSSProperties = {
-  width: 60,
+  flex: 1,
   height: 4,
   accentColor: 'var(--color-accent)',
 };
@@ -128,7 +128,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 const numberStyle: React.CSSProperties = {
-  width: 60,
+  flex: 1,
   padding: '3px 6px',
   fontSize: 11,
   textAlign: 'right',
