@@ -256,13 +256,14 @@ export class AnimationController {
   update(delta: number): void {
     const dt = Math.min(delta, 0.1);
 
+    // Procedural idle layer: hover bob, breathing, etc.
+    // Runs independently of FBX clips — has its own toggle.
+    this.idleLayer.update(dt, this._loaded);
+
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
       // Stabilizer: pin feet/hips during crossfade to prevent sliding
       this.stabilizer.update(dt);
-
-      // Procedural idle layer: hover bob, breathing, etc.
-      this.idleLayer.update(dt, this._loaded);
 
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
