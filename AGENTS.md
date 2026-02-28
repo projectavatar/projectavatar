@@ -10,7 +10,7 @@ Monorepo with independently deployable packages:
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
-- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, and action/emotion mappings. Port 5174. Assets served via symlinks to `web/public/` (dev-only, not CI-safe).
+- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, and body part masking. Port 5174. Assets served from `web/public/` via shared `publicDir`.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
@@ -36,7 +36,7 @@ clip-registry.ts — resolver (resolveClips, getActionDuration, getAllClipFiles)
 animation-controller.ts — runtime playback via Three.js AnimationMixer
 
 Clip Manager (clip-manager/) — dev UI for editing clips.json
-    ↓ File System Access API
+    ↓ POST /api/save-clips (Vite dev server)
 clips.json
 ```
 
@@ -73,9 +73,13 @@ Client → server messages (`WebSocketClientMessage`):
 
 ### Clip Manager
 - `clip-manager/src/app.tsx` — Three-panel layout: library, editor, preview.
-- `clip-manager/src/preview/clip-preview.ts` — Standalone VRM + FBX preview engine.
+- `clip-manager/src/preview/clip-preview.ts` — Standalone VRM + FBX preview engine with bone masking.
+- `clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, masking driven by body parts.
+- `clip-manager/src/body-parts.ts` — Body part → VRM bone mapping (head/torso/arms/legs).
+- `clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips, drives both metadata and preview masking.
 - `clip-manager/src/state.ts` — useReducer-based state management.
 - `clip-manager/src/types.ts` — clips.json schema types.
+- `clip-manager/vite.config.ts` — Includes `saveClipsPlugin()` — POST /api/save-clips writes to disk.
 
 ### Plugin
 - `packages/openclaw-avatar/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
@@ -109,6 +113,7 @@ Hybrid FBX + procedural: Mixamo FBX clips via AnimationMixer, additive procedura
 
 ### clips.json Schema
 - `clips`: per-clip metadata (file, loop, mustFinish, fadeIn/Out, category, energy, bodyParts, tags, layering rules)
+  - `bodyParts`: active bone mask — `['head','torso','arms','legs']` by default. Disabling a part strips those bone tracks from playback. Legs includes hips (root motion).
 - `actions`: 29 actions, each with primary clip + optional layers + duration override
 - `emotions`: 14 emotions, each with weightScale + action overrides + extra layers
 
