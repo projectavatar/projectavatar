@@ -167,17 +167,26 @@ export class ClipRegistry {
       }
     }
 
-    // Fallback: if nothing resolved, use idle
+    // Fallback: if nothing resolved, resolve the idle action's first clip
+    if (clips.length === 0 && action !== 'idle') {
+      return this.resolveClips('idle', emotion, intensity);
+    }
+
+    // Last resort: if idle itself has no clips, use the first clip in the registry
     if (clips.length === 0) {
-      const idleClip = this.data.clips['female-standing-idle'];
-      clips.push({
-        file: idleClip?.file ?? 'female-standing-idle.fbx',
-        weight: 1.0,
-        loop: true,
-        fadeIn: 0.5,
-        fadeOut: 0.5,
-        bodyParts: ['head', 'torso', 'arms', 'legs'],
-      });
+      const firstClipId = Object.keys(this.data.clips)[0];
+      const firstClip = firstClipId ? this.data.clips[firstClipId] : undefined;
+      if (firstClip) {
+        clips.push({
+          file: firstClip.file,
+          weight: 1.0,
+          loop: true,
+          fadeIn: 0.5,
+          fadeOut: 0.5,
+          bodyParts: ['head', 'torso', 'arms', 'legs'],
+        });
+        console.warn('[ClipRegistry] No idle action configured — falling back to first clip:', firstClipId);
+      }
     }
 
     return { clips };
