@@ -230,8 +230,8 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-      // Stabilizer disabled — crossfade blending handles transitions
-      // this.stabilizer.update(dt);
+      // Stabilizer: pin feet/hips during crossfade to prevent sliding
+      this.stabilizer.update(dt);
 
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
@@ -310,10 +310,10 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Stabilizer lock disabled — relying on mixer crossfade blending
-    // if (this.activeSubActions.length > 0) {
-    //   this.stabilizer.lock();
-    // }
+    // Lock stabilizer before crossfade — captures current foot/hip positions
+    if (this.activeSubActions.length > 0) {
+      this.stabilizer.lock();
+    }
 
     // Crossfade: fade out old sub-actions using per-clip fadeOut durations.
     // IMPORTANT: do NOT uncacheClip/uncacheAction during the fade — that
