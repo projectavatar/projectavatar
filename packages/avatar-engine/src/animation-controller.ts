@@ -18,7 +18,6 @@ import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
-import { TransitionStabilizer } from './transition-stabilizer.ts';
 import { IdleLayer } from './idle-layer.ts';
 import type { IdleMode } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
@@ -132,9 +131,6 @@ export class AnimationController {
   /** Whether the current action is looping and has multiple groups. */
   private isLoopCycling = false;
 
-  /** Foot IK stabilizer — pins feet during animation transitions. */
-  private stabilizer: TransitionStabilizer;
-
   /** Procedural idle layer — hover/breathing on top of mixer clips. */
   private idleLayer: IdleLayer;
 
@@ -148,7 +144,6 @@ export class AnimationController {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
-    this.stabilizer = new TransitionStabilizer(vrm);
     this.idleLayer = new IdleLayer(vrm, 'air');
   }
 
@@ -258,9 +253,6 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-      // Stabilizer: pin feet/hips during crossfade to prevent sliding
-      this.stabilizer.update(dt);
-
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
         this.loopCycleElapsed += dt;
@@ -336,7 +328,6 @@ export class AnimationController {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
-    this.stabilizer.dispose();
     this.idleLayer.dispose();
   }
 
@@ -363,9 +354,6 @@ export class AnimationController {
     }
 
     this.currentGroupIndex = groupIndex;
-
-    // Remember whether we had previous animations (need stabilizer lock)
-    const hadPreviousActions = this.activeSubActions.length > 0;
 
     // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
@@ -438,13 +426,6 @@ export class AnimationController {
           if (clipDuration > maxClipDuration) maxClipDuration = clipDuration;
         }
       }
-    }
-
-    // Lock stabilizer — captures current bone positions before crossfade.
-    // Foot drift is measured at runtime via continuous sampling throughout
-    // the first half of the arc duration (see TransitionStabilizer).
-    if (hadPreviousActions) {
-      this.stabilizer.lock();
     }
 
     // Set up loop cycling for looping actions with multiple groups
