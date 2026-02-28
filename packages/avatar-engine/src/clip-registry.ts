@@ -40,18 +40,10 @@ export interface ClipJson {
   loop: boolean;
   fadeIn: number;
   fadeOut: number;
-  mustFinish: boolean;
-  returnToIdle: boolean;
-  minPlayTime: number;
   category: 'idle' | 'gesture' | 'reaction' | 'emotion' | 'continuous';
   energy: 'low' | 'medium' | 'high';
   bodyParts: string[];
-  symmetric: boolean;
-  layerPriority: number;
-  additiveCompatible: boolean;
-  baseOnly: boolean;
   tags: string[];
-  incompatibleWith: string[];
 }
 
 /** v2 clip layer within an action. */

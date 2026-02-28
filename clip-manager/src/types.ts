@@ -16,9 +16,6 @@ export interface ClipData {
 
   // Playback
   loop: boolean;
-  mustFinish: boolean;
-  returnToIdle: boolean;
-  minPlayTime: number;
   fadeIn: number;
   fadeOut: number;
 
@@ -26,16 +23,9 @@ export interface ClipData {
   category: 'idle' | 'gesture' | 'reaction' | 'emotion' | 'continuous';
   energy: 'low' | 'medium' | 'high';
   bodyParts: string[];
-  symmetric: boolean;
-
-  // Layering
-  layerPriority: number;
-  additiveCompatible: boolean;
-  baseOnly: boolean;
 
   // Tags
   tags: string[];
-  incompatibleWith: string[];
 }
 
 export interface ActionData {
