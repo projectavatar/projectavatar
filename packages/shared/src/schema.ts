@@ -198,3 +198,15 @@ export type WebSocketClientMessage = SetModelMessage;
 
 /** Response from GET /channel/:token/state */
 export type ChannelStateResponse = ChannelState;
+
+// ─── Keepalive ──────────────────────────────────────────────────────────────────
+
+/** Server-sent keepalive ping. Clients should reset their dead-connection timer on receipt. */
+export interface PingMessage {
+  type: 'ping';
+}
+
+/** Optional client-sent pong in response to a ping. */
+export interface PongMessage {
+  type: 'pong';
+}

@@ -154,6 +154,13 @@ export class WebSocketClient {
         break;
       }
 
+      case 'ping': {
+        // Server keepalive — respond with pong. resetKeepalive() already
+        // fired in onmessage before we got here, so the timer is reset.
+        try { this.ws?.send(JSON.stringify({ type: 'pong' })); } catch { /* noop */ }
+        break;
+      }
+
       default:
         // Unknown message type — ignore
         break;
