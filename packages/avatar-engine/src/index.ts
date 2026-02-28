@@ -19,6 +19,7 @@ export { StateMachine } from './state-machine.ts';
 export type { EventLogEntry } from './state-machine.ts';
 
 export { loadMixamoAnimation } from './mixamo-loader.ts';
+export { loadVRMAAnimation } from './vrma-loader.ts';
 
 // ─── Body parts ───────────────────────────────────────────────────────────────
 export {

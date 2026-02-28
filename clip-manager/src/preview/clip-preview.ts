@@ -19,6 +19,7 @@ import {
   BlinkController,
   ClipRegistry,
   loadMixamoAnimation,
+  loadVRMAAnimation,
 } from '@project-avatar/avatar-engine';
 import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
 
@@ -218,8 +219,10 @@ export class ClipPreview {
 
     let fullClip = this.clipCache.get(fbxPath);
     if (!fullClip) {
-      const loaded = await loadMixamoAnimation(fbxPath, this.vrm);
-      loaded.name = fbxPath.split('/').pop()?.replace('.fbx', '') ?? fbxPath;
+      const loaded = fbxPath.endsWith('.vrma')
+        ? await loadVRMAAnimation(fbxPath, this.vrm)
+        : await loadMixamoAnimation(fbxPath, this.vrm);
+      loaded.name = fbxPath.split('/').pop()?.replace(/\.(fbx|vrma)$/, '') ?? fbxPath;
       this.clipCache.set(fbxPath, loaded);
       fullClip = loaded;
     }

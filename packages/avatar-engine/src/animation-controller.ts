@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
+import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
 import { TransitionStabilizer } from './transition-stabilizer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
@@ -142,19 +143,22 @@ export class AnimationController {
   }
 
   /**
-   * Load all FBX animations referenced in the clip registry.
+   * Load all animation clips (FBX and VRMA) referenced in the clip registry.
    * Should be called once after construction, before any playAction calls.
    */
   async loadAnimations(): Promise<void> {
     const files = this.registry.getAllClipFiles();
     const basePath = '/animations/';
 
-    console.info(`[AnimationController] Loading ${files.length} FBX clips...`);
+    console.info(`[AnimationController] Loading ${files.length} animation clips...`);
 
     await Promise.all(
       files.map(async (file) => {
         try {
-          const clip = await loadMixamoAnimation(basePath + file, this.vrm);
+          const url = basePath + file;
+          const clip = file.endsWith('.vrma')
+            ? await loadVRMAAnimation(url, this.vrm)
+            : await loadMixamoAnimation(url, this.vrm);
           clip.name = file;
           this.clipCache.set(file, clip);
         } catch (err) {
