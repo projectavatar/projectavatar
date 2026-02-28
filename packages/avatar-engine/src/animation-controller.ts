@@ -19,6 +19,8 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
 import { TransitionStabilizer } from './transition-stabilizer.ts';
+import { IdleLayer } from './idle-layer.ts';
+import type { IdleMode } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
 
@@ -129,6 +131,9 @@ export class AnimationController {
   /** Foot IK stabilizer — pins feet during animation transitions. */
   private stabilizer: TransitionStabilizer;
 
+  /** Procedural idle layer — hover/breathing on top of mixer clips. */
+  private idleLayer: IdleLayer;
+
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
@@ -140,6 +145,7 @@ export class AnimationController {
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.stabilizer = new TransitionStabilizer(vrm);
+    this.idleLayer = new IdleLayer(vrm, 'air');
   }
 
   /**
@@ -247,6 +253,9 @@ export class AnimationController {
       // Stabilizer: pin feet/hips during crossfade to prevent sliding
       this.stabilizer.update(dt);
 
+      // Procedural idle layer: hover bob, breathing, etc.
+      this.idleLayer.update(dt, this._loaded);
+
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
         this.loopCycleElapsed += dt;
@@ -288,6 +297,21 @@ export class AnimationController {
     return result;
   }
 
+  /** Set the idle layer mode (air = hovering, ground = breathing/sway). */
+  setIdleMode(mode: IdleMode): void {
+    this.idleLayer.setMode(mode);
+  }
+
+  /** Get the current idle layer mode. */
+  getIdleMode(): IdleMode {
+    return this.idleLayer.getMode();
+  }
+
+  /** Enable/disable the procedural idle layer. */
+  setIdleLayerEnabled(enabled: boolean): void {
+    this.idleLayer.setEnabled(enabled);
+  }
+
   dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.vrm.scene);
@@ -298,6 +322,7 @@ export class AnimationController {
       this.durationTimer = null;
     }
     this.stabilizer.dispose();
+    this.idleLayer.dispose();
   }
 
   // ─── Private: blended action playback ───────────────────────────────────
