@@ -27,8 +27,6 @@ export {
   ALL_BONES,
   getBonesForParts,
   normalizeBodyParts,
-
-
 } from './body-parts.ts';
 export type { BodyPart } from './body-parts.ts';
 

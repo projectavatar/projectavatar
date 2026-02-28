@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "clips": {
     "asking-a-question-with-one-hand": {
       "file": "asking-a-question-with-one-hand.fbx",
@@ -1137,240 +1137,447 @@
   },
   "actions": {
     "idle": {
-      "primary": {
-        "clip": "female-standing-idle",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "female-standing-idle",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "talking": {
-      "primary": {
-        "clip": "happy-forward-hand-gesture",
-        "weight": 0.85
-      },
-      "layers": [
+      "clips": [
+        {
+          "clip": "happy-forward-hand-gesture",
+          "weight": 0.85,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        },
         {
           "clip": "nodding-head-yes",
-          "weight": 0.2
+          "weight": 0.2,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
         }
       ],
       "durationOverride": null
     },
     "typing": {
-      "primary": {
-        "clip": "sitting-at-a-computer-and-typing",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "sitting-at-a-computer-and-typing",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "nodding": {
-      "primary": {
-        "clip": "nodding-head-yes",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "nodding-head-yes",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 1.8
     },
     "waving": {
-      "primary": {
-        "clip": "emotional-waving-forward",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "emotional-waving-forward",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2.5
     },
     "greeting": {
-      "primary": {
-        "clip": "greeting-while-standing",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "greeting-while-standing",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2.5
     },
     "laughing": {
-      "primary": {
-        "clip": "talking-finding-something-funny",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "talking-finding-something-funny",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 3
     },
     "pointing": {
-      "primary": {
-        "clip": "pointing-behind-with-thumb",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "pointing-behind-with-thumb",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2
     },
     "fist_pump": {
-      "primary": {
-        "clip": "high-enthusiasm-fist-pump",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "high-enthusiasm-fist-pump",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2
     },
     "dismissive": {
-      "primary": {
-        "clip": "dismissing-with-back-hand",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "dismissing-with-back-hand",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2
     },
     "plotting": {
-      "primary": {
-        "clip": "evil-plotting",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "evil-plotting",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "sarcastic": {
-      "primary": {
-        "clip": "sarcastically-looking-away",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "sarcastically-looking-away",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "looking_around": {
-      "primary": {
-        "clip": "standing-up-and-looking-around",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "standing-up-and-looking-around",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "shading_eyes": {
-      "primary": {
-        "clip": "looking-with-hand-shading-eyes",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "looking-with-hand-shading-eyes",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "telling_secret": {
-      "primary": {
-        "clip": "telling-a-secret",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "telling-a-secret",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "victory": {
-      "primary": {
-        "clip": "big-vegas-victory-idle",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "big-vegas-victory-idle",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 3
     },
     "head_shake": {
-      "primary": {
-        "clip": "gesturing-head-side-to-side",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "gesturing-head-side-to-side",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 1.8
     },
     "relief": {
-      "primary": {
-        "clip": "shaking-it-off-in-relief",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "shaking-it-off-in-relief",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2.5
     },
     "cautious_agree": {
-      "primary": {
-        "clip": "step-back-cautiously-agreeing",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "step-back-cautiously-agreeing",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2
     },
     "angry_fist": {
-      "primary": {
-        "clip": "vexed-shaking-of-the-fist",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "vexed-shaking-of-the-fist",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 2
     },
     "rallying": {
-      "primary": {
-        "clip": "rallying-the-crowd-to-make-them-cheer",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "rallying-the-crowd-to-make-them-cheer",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 3
     },
     "sad_idle": {
-      "primary": {
-        "clip": "standing-in-a-sad-disposition",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "standing-in-a-sad-disposition",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "nervous_look": {
-      "primary": {
-        "clip": "nervously-looking-around-left-to-right-loop",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "nervously-looking-around-left-to-right-loop",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "terrified": {
-      "primary": {
-        "clip": "being-terrified-while-standing",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "being-terrified-while-standing",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "scratching_head": {
-      "primary": {
-        "clip": "right-hand-behind-head",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "right-hand-behind-head",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "cocky": {
-      "primary": {
-        "clip": "cocky-lean-back",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "cocky-lean-back",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "questioning": {
-      "primary": {
-        "clip": "asking-a-question-with-one-hand",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "asking-a-question-with-one-hand",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "phone": {
-      "primary": {
-        "clip": "female-standing-talking-on-phone",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "female-standing-talking-on-phone",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": null
     },
     "celebrating": {
-      "primary": {
-        "clip": "restrained-enthusiasm-standing-fist-pump",
-        "weight": 1
-      },
-      "layers": [],
+      "clips": [
+        {
+          "clip": "restrained-enthusiasm-standing-fist-pump",
+          "weight": 1,
+          "bodyParts": [
+            "head",
+            "torso",
+            "arms",
+            "legs"
+          ]
+        }
+      ],
       "durationOverride": 3.5
     }
   },

@@ -1,5 +1,5 @@
 /**
- * Clip Manager App — three-panel layout.
+ * Clip Manager App — three-panel layout (v2).
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
@@ -10,13 +10,12 @@ import { ClipLibrary } from './components/clip-library.tsx';
 import { ClipDetail } from './components/clip-detail.tsx';
 import { ActionEditor } from './components/action-editor.tsx';
 import { EmotionEditor } from './components/emotion-editor.tsx';
-import { MatrixView } from './components/matrix-view.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
 // Import clips.json — Vite resolves this at build time
 import clipsData from '@data/clips.json';
 
-// ─── Model options (from web app's manifest) ─────────────────────────────────
+// ─── Model options ────────────────────────────────────────────────────────────
 
 const MODEL_OPTIONS = [
   { id: 'maid', url: '/models/maid.vrm' },
@@ -44,7 +43,6 @@ const mainStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// Panel widths: left=clip library, right=3D preview (needs space for model)
 const leftPanelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
@@ -90,10 +88,6 @@ const rightPanelStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// ─── Animation base path ─────────────────────────────────────────────────────
-
-// FBX files are served from the web app's public dir.
-// In dev, we symlink or use Vite proxy. For now, use relative path.
 const ANIM_BASE = '/animations/';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -164,8 +158,6 @@ export function App() {
         return <ActionEditor data={state.data} expandedAction={state.expandedAction} dispatch={dispatch} />;
       case 'emotions':
         return <EmotionEditor data={state.data} expandedEmotion={state.expandedEmotion} dispatch={dispatch} />;
-      case 'matrix':
-        return <MatrixView data={state.data} dispatch={dispatch} />;
       default:
         return null;
     }
@@ -206,9 +198,6 @@ export function App() {
             </button>
             <button style={tabStyle(state.activeTab === 'emotions')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'emotions' })}>
               Emotions
-            </button>
-            <button style={tabStyle(state.activeTab === 'matrix')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'matrix' })}>
-              Matrix
             </button>
           </div>
           <div style={centerBodyStyle}>

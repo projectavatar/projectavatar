@@ -1,5 +1,6 @@
 /**
  * Clip Manager state — useReducer-based, separate from avatar app's Zustand.
+ * v2: actions use clips[] array instead of primary + layers.
  */
 import { useReducer } from 'react';
 import type { ClipsJson, ClipData, ActionData, EmotionData, ClipStatus } from './types.ts';
@@ -11,7 +12,7 @@ export interface AppState {
   /** Currently selected clip id in the library panel */
   selectedClip: string | null;
   /** Currently active center panel tab */
-  activeTab: 'detail' | 'actions' | 'emotions' | 'matrix';
+  activeTab: 'detail' | 'actions' | 'emotions';
   /** Currently expanded action (in actions tab) */
   expandedAction: string | null;
   /** Currently expanded emotion (in emotions tab) */
@@ -127,7 +128,7 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'CREATE_EMOTION': {
       const emotions = { ...state.data.emotions };
-      if (emotions[action.emotion]) return state; // already exists
+      if (emotions[action.emotion]) return state;
       emotions[action.emotion] = { weightScale: 1.0, overrides: {}, layers: [] };
       return { ...state, data: { ...state.data, emotions }, dirty: true };
     }
@@ -142,12 +143,11 @@ function reducer(state: AppState, action: Action): AppState {
 
 // ─── Computed helpers ─────────────────────────────────────────────────────────
 
-/** Get the status of a clip: mapped (used by action/emotion), orphan (in json but unused), unregistered */
+/** Get the status of a clip: mapped (used by action/emotion), orphan (in json but unused) */
 export function getClipStatus(clipId: string, data: ClipsJson): ClipStatus {
   // Check if referenced by any action
   for (const action of Object.values(data.actions)) {
-    if (action.primary.clip === clipId) return 'mapped';
-    if (action.layers.some(l => l.clip === clipId)) return 'mapped';
+    if (action.clips.some(c => c.clip === clipId)) return 'mapped';
   }
   // Check if referenced by any emotion
   for (const emotion of Object.values(data.emotions)) {
@@ -165,7 +165,7 @@ export function getClipUsage(clipId: string, data: ClipsJson): { actions: string
   const emotions: string[] = [];
 
   for (const [name, action] of Object.entries(data.actions)) {
-    if (action.primary.clip === clipId || action.layers.some(l => l.clip === clipId)) {
+    if (action.clips.some(c => c.clip === clipId)) {
       actions.push(name);
     }
   }
@@ -193,7 +193,7 @@ export function getStats(data: ClipsJson) {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const EMPTY_DATA: ClipsJson = { version: 1, clips: {}, actions: {}, emotions: {} };
+const EMPTY_DATA: ClipsJson = { version: 2, clips: {}, actions: {}, emotions: {} };
 
 export function useAppState(initialData?: ClipsJson) {
   const initial: AppState = {

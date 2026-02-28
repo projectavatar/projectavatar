@@ -1,8 +1,14 @@
-/** clips.json schema types */
+/** clips.json schema types — v2 */
 
 export interface ClipRef {
   clip: string; // clip id (key in clips record)
   weight: number;
+}
+
+export interface ClipLayer {
+  clip: string;
+  weight: number;
+  bodyParts: string[];
 }
 
 export interface ClipData {
@@ -33,8 +39,7 @@ export interface ClipData {
 }
 
 export interface ActionData {
-  primary: ClipRef;
-  layers: ClipRef[];
+  clips: ClipLayer[];
   durationOverride: number | null;
 }
 
