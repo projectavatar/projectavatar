@@ -1,3 +1,2 @@
 export * from './schema.js';
 export * from './constants.js';
-export * from './skill-template.js';
