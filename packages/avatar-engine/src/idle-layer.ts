@@ -85,11 +85,6 @@ export class IdleLayer {
    */
   private legBendSign = 1;
 
-  /**
-   * Sign for head yaw direction. VRM 0.x faces opposite direction
-   * after rotateVRM0(), so yaw needs to be negated.
-   */
-  private headYawSign = 1;
 
   constructor(vrm: VRM, mode: IdleMode = 'air') {
     this.vrm = vrm;
@@ -184,8 +179,6 @@ export class IdleLayer {
     // Detect leg bend direction from bone chain geometry.
     this._detectLegBendDirection();
 
-    // Detect head yaw direction — VRM 0.x is rotated 180° by rotateVRM0()
-    this._detectHeadYawDirection();
   }
 
   /**
@@ -259,41 +252,6 @@ export class IdleLayer {
     }
   }
 
-  /**
-   * Detect head yaw sign. VRM 0.x models are rotated 180° by rotateVRM0(),
-   * which flips the local Z axis. We test by checking the head's forward
-   * direction relative to the camera.
-   */
-  private _detectHeadYawDirection(): void {
-    if (!this.head || !this.camera) return;
-
-    const _v = new THREE.Vector3();
-    const _headFwd = new THREE.Vector3();
-
-    // Get head's local Z direction in world space
-    this.vrm.scene.updateMatrixWorld(true);
-    this.head.getWorldDirection(_headFwd);
-
-    // Get direction from head to camera
-    this.head.getWorldPosition(_v);
-    const toCamera = new THREE.Vector3()
-      .copy(this.camera.position)
-      .sub(_v)
-      .normalize();
-
-    // If head forward and camera direction are roughly opposite,
-    // the model faces away (VRM 0.x after rotation) — negate yaw
-    const dot = _headFwd.dot(toCamera);
-    if (dot > 0) {
-      // Head forward points toward camera — normal
-      this.headYawSign = 1;
-      console.info('[IdleLayer] Head yaw: normal direction');
-    } else {
-      // Head forward points away from camera — VRM 0.x, negate
-      this.headYawSign = -1;
-      console.info('[IdleLayer] Head yaw: negated (VRM 0.x)');
-    }
-  }
 
   // ─── Private: air mode ────────────────────────────────────────────────
 
@@ -411,7 +369,7 @@ export class IdleLayer {
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
     // Apply as additive rotation scaled by influence
-    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE * this.headYawSign;
+    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE * this.legBendSign;
     this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
   }
 
