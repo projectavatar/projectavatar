@@ -221,6 +221,7 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
             </button>
           ))}
 
+          <div style={{ width: 50, flexShrink: 0 }} />
           {action.clips.length > 1 && (
             <button
               style={removeBtnStyle}
