@@ -1,7 +1,7 @@
 /**
  * Clip Manager App — three-panel layout.
  */
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
 import type { ClipsJson } from './types.ts';
 import { Header } from './components/header.tsx';
@@ -116,28 +116,20 @@ export function App() {
     return clip?.bodyParts;
   }, [state.previewClip, state.data.clips]);
 
-  // File System Access API handle for saving
-  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
-
   const handleSave = useCallback(async () => {
     try {
-      if (!fileHandleRef.current) {
-        fileHandleRef.current = await (window as any).showSaveFilePicker({
-          suggestedName: 'clips.json',
-          types: [{
-            description: 'JSON',
-            accept: { 'application/json': ['.json'] },
-          }],
-        });
+      const res = await fetch('/api/save-clips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? 'Save failed');
       }
-      const writable = await fileHandleRef.current!.createWritable();
-      await writable.write(JSON.stringify(state.data, null, 2) + '\n');
-      await writable.close();
       dispatch({ type: 'MARK_SAVED' });
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('[ClipManager] Save failed:', err);
-      }
+      console.error('[ClipManager] Save failed:', err);
     }
   }, [state.data, dispatch]);
 

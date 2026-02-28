@@ -894,8 +894,7 @@
       "bodyParts": [
         "head",
         "torso",
-        "arms",
-        "legs"
+        "arms"
       ],
       "symmetric": true,
       "layerPriority": 0,
