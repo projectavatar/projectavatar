@@ -10,7 +10,7 @@
 // Never duplicate these values elsewhere.
 
 export const EMOTIONS    = ['idle', 'thinking', 'excited', 'confused', 'happy', 'angry', 'sad', 'surprised', 'bashful', 'nervous'] as const;
-export const ACTIONS     = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad_idle', 'plotting', 'greeting'] as const;
+export const ACTIONS     = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
 export const PROPS       = ['none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll'] as const;
 export const INTENSITIES = ['low', 'medium', 'high'] as const;
 

@@ -32,7 +32,7 @@ export const ACTIONS = [
   'dismissive',
   'searching',
   'nervous',
-  'sad_idle',
+  'sad',
   'plotting',
   'greeting',
 ] as const;

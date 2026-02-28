@@ -1211,26 +1211,6 @@
       ],
       "durationOverride": null
     },
-    "sad_idle": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "standing-in-a-sad-disposition",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
     "plotting": {
       "groups": [
         {
@@ -1315,6 +1295,26 @@
         }
       ],
       "durationOverride": 2.5
+    },
+    "sad": {
+      "groups": [
+        {
+          "rarity": 1,
+          "clips": [
+            {
+              "clip": "standing-in-a-sad-disposition",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        }
+      ],
+      "durationOverride": null
     }
   },
   "emotions": {

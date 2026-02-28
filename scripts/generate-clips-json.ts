@@ -113,7 +113,7 @@ const ACTION_CLIPS: Record<string, ActionMapping> = {
     primary: { file: 'rallying-the-crowd-to-make-them-cheer.fbx', weight: 1.0, loop: false, fadeIn: 0.2, fadeOut: 0.5 },
     duration: 3.0,
   },
-  sad_idle: {
+  sad: {
     primary: { file: 'standing-in-a-sad-disposition.fbx', weight: 1.0, loop: true, fadeIn: 0.6, fadeOut: 0.8 },
   },
   nervous_look: {
