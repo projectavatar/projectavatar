@@ -112,10 +112,8 @@ export class AnimationController {
   private currentEmotion: Emotion = 'idle';
   private currentIntensity: Intensity = 'medium';
 
-  /** Active sub-actions for the IDLE clip (always playing). */
-  private idleSubActions: SubAction[] = [];
-  /** Active sub-actions for the current ACTION clips (on top of idle). */
-  private actionSubActions: SubAction[] = [];
+  /** Active sub-actions for the current blended action. */
+  private activeSubActions: SubAction[] = [];
 
   /** VRM 0.x vs 1.0 axis flip for additive idle layer. */
   private flipXZ: boolean;
@@ -229,7 +227,7 @@ export class AnimationController {
     this.layers[layer] = enabled;
 
     if (layer === 'fbxClips') {
-      const allSubs = [...this.idleSubActions, ...this.actionSubActions];
+      const allSubs = this.activeSubActions;
       for (const sub of allSubs) {
         sub.action.paused = !enabled;
       }
@@ -256,7 +254,7 @@ export class AnimationController {
 
   getActiveClips(): ActiveClipInfo[] {
     const result: ActiveClipInfo[] = [];
-    const allSubs = [...this.idleSubActions, ...this.actionSubActions];
+    const allSubs = this.activeSubActions;
 
     for (const sub of allSubs) {
       if (sub.action.isRunning() || sub.action.getEffectiveWeight() > 0.001) {
@@ -264,7 +262,7 @@ export class AnimationController {
           name: sub.action.getClip().name,
           weight: sub.action.getEffectiveWeight(),
           timeScale: sub.action.getEffectiveTimeScale(),
-          isPrimary: this.idleSubActions.includes(sub),
+          isPrimary: false,
           isLooping: sub.action.loop === THREE.LoopRepeat,
           time: sub.action.time,
           duration: sub.action.getClip().duration,
@@ -280,8 +278,7 @@ export class AnimationController {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.vrm.scene);
     this.clipCache.clear();
-    this.idleSubActions.length = 0;
-    this.actionSubActions.length = 0;
+    this.activeSubActions.length = 0;
     this.boneNodes.clear();
     this.restPositions.clear();
     this.restRotations.clear();
@@ -335,6 +332,17 @@ export class AnimationController {
    * 4. Normalize weights per group so they sum to 1.0
    * 5. Create sub-actions (one per clip×group) with normalized weights
    */
+  /**
+   * Core blending logic — explicit clips only, no implicit idle.
+   *
+   * 1. Resolve the action's clips (each with body part scoping + weight)
+   * 2. For each body part group, collect clips that claim it
+   * 3. Normalize weights per group so they sum to 1.0
+   * 4. Create sub-actions (one per clip×group) with normalized weights
+   *
+   * If you want idle blended into an action, add the idle clip explicitly
+   * to that action's clips[] in clips.json.
+   */
   private _playBlendedAction(action: Action, emotion: Emotion, intensity: Intensity): void {
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
@@ -342,67 +350,31 @@ export class AnimationController {
     }
 
     // Fade out all existing sub-actions
-    for (const sub of [...this.idleSubActions, ...this.actionSubActions]) {
+    for (const sub of this.activeSubActions) {
       sub.action.fadeOut(DEFAULT_FADE_OUT);
     }
-    this.idleSubActions = [];
-    this.actionSubActions = [];
+    this.activeSubActions = [];
 
     // Resolve action clips
-    const { clips: actionClips } = this.registry.resolveClips(action, emotion, intensity);
+    const { clips } = this.registry.resolveClips(action, emotion, intensity);
 
-    // Resolve idle clips (always present as base)
-    const { clips: idleClips } = this.registry.resolveClips('idle', emotion, intensity);
-
-    // For the idle action itself, we just play idle clips at full weight
-    const isIdle = action === 'idle';
-
-    if (isIdle) {
-      // Just play idle clips, all body parts, full weight
-      for (const entry of idleClips) {
-        for (const group of BODY_PARTS) {
-          const sub = this._createSubAction(entry, group, 1.0);
-          if (sub) this.idleSubActions.push(sub);
+    // For each body part group, collect claiming clips and normalize weights
+    for (const group of BODY_PARTS) {
+      const claiming: { entry: ClipEntry; weight: number }[] = [];
+      for (const entry of clips) {
+        if (entry.bodyParts.includes(group)) {
+          claiming.push({ entry, weight: entry.weight });
         }
       }
-    } else {
-      // For each body part group, determine ownership and normalize weights
-      for (const group of BODY_PARTS) {
-        // Collect clips that claim this group
-        const claimedByAction: { entry: ClipEntry; weight: number }[] = [];
-        for (const entry of actionClips) {
-          if (entry.bodyParts.includes(group)) {
-            claimedByAction.push({ entry, weight: entry.weight });
-          }
-        }
 
-        // Idle always contributes to every group
-        const idleWeight = idleClips[0]?.weight ?? 1.0;
+      if (claiming.length === 0) continue; // No clip covers this group — rest pose
 
-        if (claimedByAction.length === 0) {
-          // No action clip claims this group → idle at full strength
-          for (const idleEntry of idleClips) {
-            const sub = this._createSubAction(idleEntry, group, 1.0);
-            if (sub) this.idleSubActions.push(sub);
-          }
-        } else {
-          // Action clips + idle all contribute — normalize
-          const totalRaw = claimedByAction.reduce((sum, c) => sum + c.weight, 0) + idleWeight;
-
-          // Idle gets its share
-          const normalizedIdleWeight = idleWeight / totalRaw;
-          for (const idleEntry of idleClips) {
-            const sub = this._createSubAction(idleEntry, group, normalizedIdleWeight);
-            if (sub) this.idleSubActions.push(sub);
-          }
-
-          // Action clips get their share
-          for (const claimed of claimedByAction) {
-            const normalizedWeight = claimed.weight / totalRaw;
-            const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
-            if (sub) this.actionSubActions.push(sub);
-          }
-        }
+      // Normalize so weights sum to 1.0
+      const totalWeight = claiming.reduce((sum, c) => sum + c.weight, 0);
+      for (const claimed of claiming) {
+        const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
+        const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
+        if (sub) this.activeSubActions.push(sub);
       }
     }
 
