@@ -361,7 +361,9 @@
               "clip": "idle",
               "weight": 0.5,
               "bodyParts": [
-                "legs"
+                "legs",
+                "torso",
+                "arms"
               ]
             }
           ]
