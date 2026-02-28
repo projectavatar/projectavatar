@@ -1,8 +1,14 @@
-/** clips.json schema types */
+/** clips.json schema types — v2 */
 
 export interface ClipRef {
   clip: string; // clip id (key in clips record)
   weight: number;
+}
+
+export interface ClipLayer {
+  clip: string;
+  weight: number;
+  bodyParts: string[];
 }
 
 export interface ClipData {
@@ -10,9 +16,6 @@ export interface ClipData {
 
   // Playback
   loop: boolean;
-  mustFinish: boolean;
-  returnToIdle: boolean;
-  minPlayTime: number;
   fadeIn: number;
   fadeOut: number;
 
@@ -20,21 +23,13 @@ export interface ClipData {
   category: 'idle' | 'gesture' | 'reaction' | 'emotion' | 'continuous';
   energy: 'low' | 'medium' | 'high';
   bodyParts: string[];
-  symmetric: boolean;
-
-  // Layering
-  layerPriority: number;
-  additiveCompatible: boolean;
-  baseOnly: boolean;
 
   // Tags
   tags: string[];
-  incompatibleWith: string[];
 }
 
 export interface ActionData {
-  primary: ClipRef;
-  layers: ClipRef[];
+  clips: ClipLayer[];
   durationOverride: number | null;
 }
 

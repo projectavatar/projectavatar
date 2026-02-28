@@ -19,9 +19,9 @@ const containerStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 14,
-  fontWeight: 600,
-  color: 'var(--color-accent)',
+  fontSize: 16,
+  fontWeight: 700,
+  color: '#fff',
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -30,7 +30,7 @@ const sectionStyle: React.CSSProperties = {
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.8px',
   color: 'var(--color-text-muted)',
@@ -107,7 +107,7 @@ const statusBadgeStyle = (status: string): React.CSSProperties => ({
   padding: '2px 8px',
   borderRadius: 10,
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
   fontFamily: 'var(--font-mono)',
   color: status === 'mapped' ? 'var(--color-success)' : 'var(--color-orphan)',
   border: `1px solid ${status === 'mapped' ? 'var(--color-success)' : 'var(--color-orphan)'}`,
@@ -157,20 +157,6 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
         </div>
 
         <div style={rowStyle}>
-          <span style={labelStyle}>Must Finish</span>
-          <div style={toggleStyle(clip.mustFinish)} onClick={() => update({ mustFinish: !clip.mustFinish })}>
-            <div style={knobStyle(clip.mustFinish)} />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Return to Idle</span>
-          <div style={toggleStyle(clip.returnToIdle)} onClick={() => update({ returnToIdle: !clip.returnToIdle })}>
-            <div style={knobStyle(clip.returnToIdle)} />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
           <span style={labelStyle}>Fade In</span>
           <input
             type="number"
@@ -193,18 +179,6 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
             min={0}
             max={2}
             onChange={(e) => update({ fadeOut: parseFloat(e.target.value) || 0 })}
-          />
-        </div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Min Play Time</span>
-          <input
-            type="number"
-            style={numberStyle}
-            value={clip.minPlayTime}
-            step={0.1}
-            min={0}
-            onChange={(e) => update({ minPlayTime: parseFloat(e.target.value) || 0 })}
           />
         </div>
       </div>
@@ -233,44 +207,6 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
           >
             {ENERGIES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
-        </div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Symmetric</span>
-          <div style={toggleStyle(clip.symmetric)} onClick={() => update({ symmetric: !clip.symmetric })}>
-            <div style={knobStyle(clip.symmetric)} />
-          </div>
-        </div>
-      </div>
-
-      {/* Layering */}
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Layering</div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Additive Compatible</span>
-          <div style={toggleStyle(clip.additiveCompatible)} onClick={() => update({ additiveCompatible: !clip.additiveCompatible })}>
-            <div style={knobStyle(clip.additiveCompatible)} />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Base Only</span>
-          <div style={toggleStyle(clip.baseOnly)} onClick={() => update({ baseOnly: !clip.baseOnly })}>
-            <div style={knobStyle(clip.baseOnly)} />
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <span style={labelStyle}>Layer Priority</span>
-          <input
-            type="number"
-            style={numberStyle}
-            value={clip.layerPriority}
-            step={1}
-            min={0}
-            onChange={(e) => update({ layerPriority: parseInt(e.target.value) || 0 })}
-          />
         </div>
       </div>
 

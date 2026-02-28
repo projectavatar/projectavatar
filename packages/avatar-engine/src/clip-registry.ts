@@ -1,15 +1,17 @@
 /**
- * Clip Registry — data-driven clip resolver.
+ * Clip Registry — data-driven clip resolver (v2).
  *
- * Accepts clips data at init time instead of importing a static JSON file.
- * Both web and clip-manager pass their own clips data when constructing.
+ * v2 actions use `clips[]` (ordered array of clip layers with body parts)
+ * instead of v1's `primary` + `layers` split.
  *
- * The resolver API is unchanged: resolveClips(), getActionDuration(), getAllClipFiles().
+ * Resolves the final set of clips for a given action + emotion + intensity,
+ * with per-clip body part scoping for weight-based blending.
  */
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/** Resolved clip entry with playback parameters and body part scope. */
 export interface ClipEntry {
   /** FBX filename in /animations/ */
   file: string;
@@ -21,12 +23,13 @@ export interface ClipEntry {
   fadeIn?: number;
   /** Crossfade duration in seconds when transitioning AWAY from this clip. */
   fadeOut?: number;
+  /** Which body part groups this clip affects. */
+  bodyParts: string[];
 }
 
 /** Resolved clip set after combining action + emotion + intensity. */
 export interface ResolvedClips {
-  primary: ClipEntry;
-  layers: ClipEntry[];
+  clips: ClipEntry[];
 }
 
 // ─── JSON shape ───────────────────────────────────────────────────────────────
@@ -37,29 +40,29 @@ export interface ClipJson {
   loop: boolean;
   fadeIn: number;
   fadeOut: number;
-  mustFinish: boolean;
-  returnToIdle: boolean;
-  minPlayTime: number;
   category: 'idle' | 'gesture' | 'reaction' | 'emotion' | 'continuous';
   energy: 'low' | 'medium' | 'high';
   bodyParts: string[];
-  symmetric: boolean;
-  layerPriority: number;
-  additiveCompatible: boolean;
-  baseOnly: boolean;
   tags: string[];
-  incompatibleWith: string[];
 }
 
+/** v2 clip layer within an action. */
+interface ClipLayerJson {
+  clip: string;
+  weight: number;
+  bodyParts: string[];
+}
+
+/** v2 action definition. */
+interface ActionJson {
+  clips: ClipLayerJson[];
+  durationOverride: number | null;
+}
+
+/** v1 clip reference (for emotion overrides/layers, kept simple). */
 interface ClipRefJson {
   clip: string;
   weight: number;
-}
-
-interface ActionJson {
-  primary: ClipRefJson;
-  layers: ClipRefJson[];
-  durationOverride: number | null;
 }
 
 interface EmotionJson {
@@ -68,7 +71,7 @@ interface EmotionJson {
   layers: ClipRefJson[];
 }
 
-/** Shape of the clips.json data object. */
+/** Shape of the clips.json data object (v2). */
 export interface ClipsJsonData {
   version: number;
   clips: Record<string, ClipJson>;
@@ -100,6 +103,7 @@ export class ClipRegistry {
 
   /**
    * Resolve the final set of clips for a given action + emotion + intensity.
+   * Returns an ordered array of clip entries, each with body part scope.
    */
   resolveClips(
     action: Action,
@@ -114,40 +118,48 @@ export class ClipRegistry {
 
     const effectiveAction = actionData ?? this.data.actions['idle']!;
 
+    const clips: ClipEntry[] = [];
+
+    // Check if emotion has an override for this action's first clip
     const overrideRef = emotionData?.overrides[action as string];
-    const primaryRef = overrideRef ?? effectiveAction.primary;
-    const primaryEntry = this._refToEntry(primaryRef);
 
-    const primary: ClipEntry = primaryEntry ?? {
-      file: 'female-standing-idle.fbx',
-      weight: 1.0,
-      loop: true,
-      fadeIn: 0.5,
-      fadeOut: 0.5,
-    };
+    for (let i = 0; i < effectiveAction.clips.length; i++) {
+      const layer = effectiveAction.clips[i]!;
 
-    const scaledPrimary: ClipEntry = {
-      ...primary,
-      weight: Math.min(primary.weight * totalScale, 1.0),
-    };
-
-    const layers: ClipEntry[] = [];
-
-    for (const layerRef of effectiveAction.layers) {
-      const entry = this._refToEntry(layerRef);
-      if (entry) {
-        layers.push({
-          ...entry,
-          weight: Math.min(entry.weight * totalScale, 1.0),
-        });
+      // Emotion override replaces the first clip only
+      if (i === 0 && overrideRef) {
+        const entry = this._refToEntry(overrideRef, layer.bodyParts);
+        if (entry) {
+          clips.push({
+            ...entry,
+            weight: Math.min(entry.weight * totalScale, 1.0),
+          });
+          continue;
+        }
       }
+
+      const clipData = this.data.clips[layer.clip];
+      if (!clipData) {
+        console.warn(`[ClipRegistry] Unknown clip: "${layer.clip}" — check clips.json for typos`);
+        continue;
+      }
+
+      clips.push({
+        file: clipData.file,
+        weight: Math.min(layer.weight * totalScale, 1.0),
+        loop: clipData.loop,
+        fadeIn: clipData.fadeIn,
+        fadeOut: clipData.fadeOut,
+        bodyParts: layer.bodyParts,
+      });
     }
 
+    // Add emotion layers (extra clips added by emotion)
     if (emotionData?.layers) {
       for (const layerRef of emotionData.layers) {
         const entry = this._refToEntry(layerRef);
         if (entry) {
-          layers.push({
+          clips.push({
             ...entry,
             weight: Math.min(entry.weight * totalScale, 1.0),
           });
@@ -155,7 +167,20 @@ export class ClipRegistry {
       }
     }
 
-    return { primary: scaledPrimary, layers };
+    // Fallback: if nothing resolved, use idle
+    if (clips.length === 0) {
+      const idleClip = this.data.clips['female-standing-idle'];
+      clips.push({
+        file: idleClip?.file ?? 'female-standing-idle.fbx',
+        weight: 1.0,
+        loop: true,
+        fadeIn: 0.5,
+        fadeOut: 0.5,
+        bodyParts: ['head', 'torso', 'arms', 'legs'],
+      });
+    }
+
+    return { clips };
   }
 
   /**
@@ -164,10 +189,11 @@ export class ClipRegistry {
    */
   getActionDuration(action: Action): number | null {
     const actionData = this.data.actions[action as string];
-    if (!actionData) return null;
+    if (!actionData || actionData.clips.length === 0) return null;
 
-    const clip = this.data.clips[actionData.primary.clip];
-    if (clip?.loop) return null;
+    // Check the first clip (primary equivalent)
+    const firstClip = this.data.clips[actionData.clips[0]!.clip];
+    if (firstClip?.loop) return null;
 
     return actionData.durationOverride ?? null;
   }
@@ -184,8 +210,7 @@ export class ClipRegistry {
     };
 
     for (const action of Object.values(this.data.actions)) {
-      addClipFile(action.primary.clip);
-      for (const layer of action.layers) {
+      for (const layer of action.clips) {
         addClipFile(layer.clip);
       }
     }
@@ -202,7 +227,8 @@ export class ClipRegistry {
     return [...files];
   }
 
-  private _refToEntry(ref: ClipRefJson): ClipEntry | null {
+  /** Convert a v1-style clip ref to an entry (used for emotion overrides/layers). */
+  private _refToEntry(ref: ClipRefJson, bodyParts?: string[]): ClipEntry | null {
     const clip = this.data.clips[ref.clip];
     if (!clip) {
       console.warn(`[ClipRegistry] Unknown clip: "${ref.clip}" — check clips.json for typos`);
@@ -214,6 +240,7 @@ export class ClipRegistry {
       loop: clip.loop,
       fadeIn: clip.fadeIn,
       fadeOut: clip.fadeOut,
+      bodyParts: bodyParts ?? clip.bodyParts,
     };
   }
 }

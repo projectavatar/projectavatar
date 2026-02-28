@@ -1,5 +1,8 @@
 /**
- * Clip Manager App — three-panel layout.
+ * Clip Manager App — consistent 3-column layout across all tabs.
+ *
+ * Header: tabs (Clips / Actions / Emotions) + model selector + save
+ * Body: [left list | center detail | right preview]
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
@@ -8,15 +11,15 @@ import { Header } from './components/header.tsx';
 import { StatusBar } from './components/status-bar.tsx';
 import { ClipLibrary } from './components/clip-library.tsx';
 import { ClipDetail } from './components/clip-detail.tsx';
+import { ActionList } from './components/action-list.tsx';
 import { ActionEditor } from './components/action-editor.tsx';
+import { EmotionList } from './components/emotion-list.tsx';
 import { EmotionEditor } from './components/emotion-editor.tsx';
-import { MatrixView } from './components/matrix-view.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
-// Import clips.json — Vite resolves this at build time
 import clipsData from '@data/clips.json';
 
-// ─── Model options (from web app's manifest) ─────────────────────────────────
+// ─── Model options ────────────────────────────────────────────────────────────
 
 const MODEL_OPTIONS = [
   { id: 'maid', url: '/models/maid.vrm' },
@@ -44,7 +47,6 @@ const mainStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// Panel widths: left=clip library, right=3D preview (needs space for model)
 const leftPanelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
@@ -57,26 +59,7 @@ const centerPanelStyle: React.CSSProperties = {
   flexDirection: 'column',
   minWidth: 0,
   borderLeft: '1px solid var(--color-border)',
-  borderRight: '1px solid var(--color-border)',
 };
-
-const tabBarStyle: React.CSSProperties = {
-  display: 'flex',
-  borderBottom: '1px solid var(--color-border)',
-  flexShrink: 0,
-};
-
-const tabStyle = (active: boolean): React.CSSProperties => ({
-  padding: '8px 16px',
-  fontSize: 11,
-  fontFamily: 'var(--font-mono)',
-  fontWeight: 600,
-  color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
-  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
-  cursor: 'pointer',
-  transition: 'color 0.1s, border-color 0.1s',
-  background: 'none',
-});
 
 const centerBodyStyle: React.CSSProperties = {
   flex: 1,
@@ -90,10 +73,6 @@ const rightPanelStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-// ─── Animation base path ─────────────────────────────────────────────────────
-
-// FBX files are served from the web app's public dir.
-// In dev, we symlink or use Vite proxy. For now, use relative path.
 const ANIM_BASE = '/animations/';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -103,20 +82,23 @@ export function App() {
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Resolve preview clip path
+  // Preview clip path (Clips tab — single clip)
   const previewClipPath = useMemo(() => {
+    if (state.activeTab !== 'clips') return null;
     if (!state.previewClip) return null;
     const clip = state.data.clips[state.previewClip];
     if (!clip) return null;
     return ANIM_BASE + clip.file;
-  }, [state.previewClip, state.data.clips]);
+  }, [state.previewClip, state.data.clips, state.activeTab]);
 
-  // Resolve body parts for preview clip
   const previewClipBodyParts = useMemo(() => {
     if (!state.previewClip) return undefined;
     const clip = state.data.clips[state.previewClip];
     return clip?.bodyParts;
   }, [state.previewClip, state.data.clips]);
+
+  // Preview action (Actions tab — blended action)
+  const previewAction = state.activeTab === 'actions' ? state.previewAction : null;
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
@@ -138,7 +120,6 @@ export function App() {
     }
   }, [state.data, dispatch]);
 
-  // Ctrl+S keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -150,79 +131,85 @@ export function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleSave]);
 
-  const renderCenterContent = () => {
-    switch (state.activeTab) {
-      case 'detail':
-        return state.selectedClip ? (
-          <ClipDetail clipId={state.selectedClip} data={state.data} dispatch={dispatch} />
-        ) : (
-          <div style={{ padding: 20, color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 12 }}>
-            Select a clip from the library to view details
-          </div>
-        );
-      case 'actions':
-        return <ActionEditor data={state.data} expandedAction={state.expandedAction} dispatch={dispatch} />;
-      case 'emotions':
-        return <EmotionEditor data={state.data} expandedEmotion={state.expandedEmotion} dispatch={dispatch} />;
-      case 'matrix':
-        return <MatrixView data={state.data} dispatch={dispatch} />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div style={layoutStyle}>
       <Header
         dirty={state.dirty}
         data={state.data}
         modelUrl={modelUrl}
+        activeTab={state.activeTab}
+        onTabChange={(tab) => dispatch({ type: 'SET_TAB', tab })}
         onModelChange={setModelUrl}
         onSave={handleSave}
         modelOptions={MODEL_OPTIONS}
       />
 
       <div style={mainStyle}>
-        {/* Left — Clip Library */}
+        {/* Left panel — list */}
         <div style={leftPanelStyle}>
-          <ClipLibrary
-            data={state.data}
-            selectedClip={state.selectedClip}
-            searchQuery={state.searchQuery}
-            categoryFilter={state.categoryFilter}
-            energyFilter={state.energyFilter}
-            dispatch={dispatch}
-          />
+          {state.activeTab === 'clips' && (
+            <ClipLibrary
+              data={state.data}
+              selectedClip={state.selectedClip}
+              searchQuery={state.searchQuery}
+              categoryFilter={state.categoryFilter}
+              energyFilter={state.energyFilter}
+              dispatch={dispatch}
+            />
+          )}
+          {state.activeTab === 'actions' && (
+            <ActionList
+              data={state.data}
+              selectedAction={state.expandedAction}
+              dispatch={dispatch}
+            />
+          )}
+          {state.activeTab === 'emotions' && (
+            <EmotionList
+              data={state.data}
+              selectedEmotion={state.expandedEmotion}
+              dispatch={dispatch}
+            />
+          )}
         </div>
 
-        {/* Center — Tabs + Editor */}
+        {/* Center panel — detail */}
         <div style={centerPanelStyle}>
-          <div style={tabBarStyle}>
-            <button style={tabStyle(state.activeTab === 'detail')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'detail' })}>
-              Detail
-            </button>
-            <button style={tabStyle(state.activeTab === 'actions')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'actions' })}>
-              Actions
-            </button>
-            <button style={tabStyle(state.activeTab === 'emotions')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'emotions' })}>
-              Emotions
-            </button>
-            <button style={tabStyle(state.activeTab === 'matrix')} onClick={() => dispatch({ type: 'SET_TAB', tab: 'matrix' })}>
-              Matrix
-            </button>
-          </div>
           <div style={centerBodyStyle}>
-            {renderCenterContent()}
+            {state.activeTab === 'clips' && (
+              state.selectedClip ? (
+                <ClipDetail clipId={state.selectedClip} data={state.data} dispatch={dispatch} />
+              ) : (
+                <div style={{ padding: 20, color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 12 }}>
+                  Select a clip from the library
+                </div>
+              )
+            )}
+            {state.activeTab === 'actions' && (
+              <ActionEditor
+                data={state.data}
+                selectedAction={state.expandedAction}
+                dispatch={dispatch}
+              />
+            )}
+            {state.activeTab === 'emotions' && (
+              <EmotionEditor
+                data={state.data}
+                selectedEmotion={state.expandedEmotion}
+                dispatch={dispatch}
+              />
+            )}
           </div>
         </div>
 
-        {/* Right — Preview */}
+        {/* Right panel — preview */}
         <div style={rightPanelStyle}>
           <PreviewPanel
             clipPath={previewClipPath}
             modelUrl={modelUrl}
             clipBodyParts={previewClipBodyParts}
             clipsData={state.data}
+            previewAction={previewAction}
           />
         </div>
       </div>

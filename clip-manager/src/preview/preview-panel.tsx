@@ -1,8 +1,11 @@
 /**
  * Preview Panel — right side of the clip manager.
- * Renders a VRM model and plays FBX clips on it.
- * Body part masking is driven by the clip's bodyParts from ClipDetail.
- * Layer toggles mirror the web app's dev panel behavior.
+ *
+ * Two modes:
+ * 1. Clip preview: plays a single FBX (Clips tab)
+ * 2. Action preview: plays blended action through full engine (Actions tab)
+ *
+ * Layer toggles available in both modes when engine is active.
  */
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { ClipPreview } from './clip-preview.ts';
@@ -10,6 +13,7 @@ import type { ClipInfo } from './clip-preview.ts';
 import { getBonesForParts } from '@project-avatar/avatar-engine';
 import { LAYER_LABELS } from '@project-avatar/avatar-engine';
 import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
+import type { Action as ActionName } from '@project-avatar/shared';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -99,7 +103,6 @@ const speedRowStyle: React.CSSProperties = {
   color: 'var(--color-text-muted)',
 };
 
-// Layer toggle styles
 const layerSectionStyle: React.CSSProperties = {
   borderTop: '1px solid var(--color-border)',
   padding: '8px 0 0',
@@ -148,13 +151,10 @@ const toggleKnobStyle = (on: boolean): React.CSSProperties => ({
   transition: 'left 0.15s',
 });
 
-// ─── Layer Labels ─────────────────────────────────────────────────────────────
-
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface PreviewPanelProps {
-  /** FBX clip path to play (relative to web/public/) */
+  /** FBX clip path to play — single clip mode (Clips tab) */
   clipPath: string | null;
   /** VRM model URL to use */
   modelUrl: string;
@@ -162,13 +162,17 @@ interface PreviewPanelProps {
   clipBodyParts?: string[];
   /** clips.json data — passed to enable the full animation engine */
   clipsData?: ClipsJsonData;
+  /** Action name to preview via engine (Actions tab — blended preview) */
+  previewAction?: string | null;
   /** Called when preview is ready */
   onReady?: () => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
-export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onReady }: PreviewPanelProps) {
+export function PreviewPanel({
+  clipPath, modelUrl, clipBodyParts, clipsData, previewAction, onReady,
+}: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
   const clipsDataRef = useRef(clipsData);
@@ -180,15 +184,13 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
   const [speed, setSpeed] = useState(1.0);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
+  const [actionLabel, setActionLabel] = useState<string | null>(null);
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
-    idleNoise: true,
     expressions: true,
-    headOffset: true,
     blink: true,
   });
 
-  // Serialize body parts for stable dependency tracking
   const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
 
   // Initialize preview engine
@@ -207,7 +209,7 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
     };
   }, []);
 
-  // Load model (only re-runs on model URL change — NOT on clipsData change)
+  // Load model
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelUrl) return;
@@ -219,14 +221,13 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
       setModelLoaded(true);
       onReady?.();
 
-      // Enable the full animation engine if clips data is available
       const data = clipsDataRef.current;
       if (data) {
         try {
           await preview.enableEngine(data as ClipsJsonData);
           setEngineReady(true);
         } catch (err) {
-          console.warn('[PreviewPanel] Engine init failed (layer toggles unavailable):', err);
+          console.warn('[PreviewPanel] Engine init failed:', err);
         }
       }
     }).catch(err => {
@@ -234,11 +235,13 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
     });
   }, [modelUrl, onReady]);
 
-  // Play clip when clipPath changes
+  // Play single clip when clipPath changes (Clips tab)
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !clipPath) return;
+    if (previewAction) return; // Action preview takes priority
 
+    setActionLabel(null);
     const boneMask = clipBodyParts ? getBonesForParts(clipBodyParts) : null;
     preview.setBoneMask(boneMask);
     setPaused(false);
@@ -247,24 +250,48 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
     preview.playClip(clipPath, looping).catch(err => {
       console.error('[PreviewPanel] Failed to play clip:', err);
     });
-    // Only replay when clip or loop setting changes — NOT on body part change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipPath, modelLoaded, looping]);
+  }, [clipPath, modelLoaded, looping, previewAction]);
 
-  // Update bone mask smoothly when body parts change (no clip replay)
+  // Update bone mask when body parts change (Clips tab)
   useEffect(() => {
     const preview = previewRef.current;
-    if (!preview || !modelLoaded || !clipPath) return;
+    if (!preview || !modelLoaded || !clipPath || previewAction) return;
 
     const boneMask = clipBodyParts ? getBonesForParts(clipBodyParts) : null;
     preview.setBoneMask(boneMask);
-
-    // Re-play current clip with new mask (smooth crossfade, same clip)
     preview.playClip(clipPath, preview.looping).catch(err => {
       console.error('[PreviewPanel] Failed to replay clip with new mask:', err);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partsKey]);
+
+  // Play blended action through engine (Actions tab)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !modelLoaded || !previewAction) return;
+
+    const data = clipsDataRef.current;
+    if (!data) return;
+
+    const playAction = async () => {
+      if (!preview.engineActive) {
+        try {
+          await preview.enableEngine(data as ClipsJsonData);
+          setEngineReady(true);
+        } catch (err) {
+          console.warn('[PreviewPanel] Engine init failed for action preview:', err);
+          return;
+        }
+      } else {
+        preview.updateEngineData(data as ClipsJsonData);
+      }
+
+      preview.playEngineAction(previewAction as ActionName);
+      setActionLabel(previewAction);
+    };
+
+    void playAction();
+  }, [previewAction, modelLoaded, clipsData]);
+
 
   const handleTogglePause = useCallback(() => {
     const preview = previewRef.current;
@@ -279,6 +306,7 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
     preview.stop();
     setClipInfo(null);
     setPaused(false);
+    setActionLabel(null);
   }, []);
 
   const handleToggleLoop = useCallback(() => {
@@ -313,22 +341,24 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
     return m > 0 ? `${m}:${sec.padStart(4, '0')}` : `${sec}s`;
   };
 
+  const showingAction = previewAction && actionLabel;
+
   return (
     <div style={containerStyle}>
       <div ref={containerRef} style={canvasWrapStyle} />
 
       <div style={controlsStyle}>
-        {/* Clip name */}
-        {clipInfo ? (
-          <div style={clipNameStyle} title={clipInfo.name}>
-            ▶ {clipInfo.name}
-          </div>
+        {/* Label */}
+        {showingAction ? (
+          <div style={clipNameStyle}>▶ Action: {actionLabel}</div>
+        ) : clipInfo ? (
+          <div style={clipNameStyle} title={clipInfo.name}>▶ {clipInfo.name}</div>
         ) : (
-          <div style={noClipStyle}>No clip loaded — click a clip to preview</div>
+          <div style={noClipStyle}>No clip loaded — select a clip or expand an action</div>
         )}
 
-        {/* Timeline */}
-        {clipInfo && (
+        {/* Timeline (clip mode only) */}
+        {clipInfo && !showingAction && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={timeStyle}>{formatTime(clipInfo.time)}</span>
             <input
@@ -349,23 +379,24 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onR
           <button
             style={paused ? activeBtnStyle : btnStyle}
             onClick={handleTogglePause}
-            disabled={!clipInfo}
+            disabled={!clipInfo && !showingAction}
           >
             {paused ? '▶' : '⏸'}
           </button>
-          <button style={btnStyle} onClick={handleStop} disabled={!clipInfo}>
+          <button style={btnStyle} onClick={handleStop} disabled={!clipInfo && !showingAction}>
             ⏹
           </button>
-          <button
-            style={looping ? activeBtnStyle : btnStyle}
-            onClick={handleToggleLoop}
-          >
-            🔁
-          </button>
+          {!showingAction && (
+            <button
+              style={looping ? activeBtnStyle : btnStyle}
+              onClick={handleToggleLoop}
+            >
+              🔁
+            </button>
+          )}
 
           <div style={{ flex: 1 }} />
 
-          {/* Speed */}
           <div style={speedRowStyle}>
             {SPEEDS.map(s => (
               <button

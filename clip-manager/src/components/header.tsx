@@ -1,8 +1,9 @@
 /**
- * Header bar — model selector, save/export, unsaved indicator.
+ * Header bar — tabs (Clips/Actions/Emotions), model selector, save/export, unsaved indicator.
  */
 import { useCallback } from 'react';
 import type { ClipsJson } from '../types.ts';
+import type { AppState } from '../state.ts';
 
 const headerStyle: React.CSSProperties = {
   display: 'flex',
@@ -21,7 +22,25 @@ const titleStyle: React.CSSProperties = {
   fontWeight: 700,
   color: 'var(--color-accent)',
   letterSpacing: '0.3px',
+  marginRight: 8,
 };
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '6px 14px',
+  fontSize: 11,
+  fontFamily: 'var(--font-mono)',
+  fontWeight: 600,
+  color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+  cursor: 'pointer',
+  transition: 'color 0.1s, border-color 0.1s',
+  background: 'none',
+  border: 'none',
+  marginBottom: -1,
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+});
 
 const spacerStyle: React.CSSProperties = { flex: 1 };
 
@@ -61,12 +80,16 @@ interface HeaderProps {
   dirty: boolean;
   data: ClipsJson;
   modelUrl: string;
+  activeTab: AppState['activeTab'];
+  onTabChange: (tab: AppState['activeTab']) => void;
   onModelChange: (url: string) => void;
   onSave: () => void;
   modelOptions: { id: string; url: string }[];
 }
 
-export function Header({ dirty, data, modelUrl, onModelChange, onSave, modelOptions }: HeaderProps) {
+export function Header({
+  dirty, data, modelUrl, activeTab, onTabChange, onModelChange, onSave, modelOptions,
+}: HeaderProps) {
   const handleExport = useCallback(() => {
     const blob = new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -80,6 +103,17 @@ export function Header({ dirty, data, modelUrl, onModelChange, onSave, modelOpti
   return (
     <div style={headerStyle}>
       <span style={titleStyle}>Clip Manager</span>
+
+      {/* Tabs */}
+      <button style={tabStyle(activeTab === 'clips')} onClick={() => onTabChange('clips')}>
+        Clips
+      </button>
+      <button style={tabStyle(activeTab === 'actions')} onClick={() => onTabChange('actions')}>
+        Actions
+      </button>
+      <button style={tabStyle(activeTab === 'emotions')} onClick={() => onTabChange('emotions')}>
+        Emotions
+      </button>
 
       <div style={spacerStyle} />
 

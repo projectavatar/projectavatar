@@ -1,57 +1,38 @@
 /**
- * AnimationController — hybrid FBX + procedural animation system.
+ * AnimationController — weight-based multi-clip blending with body part scoping.
  *
  * Architecture:
- *   Layer 1 (base):     FBX clip playback via THREE.AnimationMixer
- *   Layer 2 (additive): Procedural idle noise (breathing, sway, head drift)
- *   Layer 3 (external): Expression controller adds blend shapes + head offset
+ *   - Idle clip always plays as base layer (full body, weight 1.0)
+ *   - Action clips play simultaneously, each scoped to body part groups
+ *   - Each clip is split into sub-actions per body-part group for independent weight control
+ *   - Per-group weight normalization ensures total influence always sums to 1.0
+ *   - Expression controller adds blend shapes externally
  *
- * The mixer drives the primary motion from Mixamo FBX clips.
- * The procedural idle layer adds organic variation on top — subtle enough
- * to not fight the clip, but enough that no two loops feel identical.
- *
- * Usage:
- *   const registry = new ClipRegistry(clipsData);
- *   const ctrl = new AnimationController(vrm, registry);
- *   await ctrl.loadAnimations();
- *   ctrl.playAction('waving', 'high', 'excited');
- *   ctrl.update(delta);
- *   ctrl.dispose();
+ * Blending model (inspired by three.js webgl_animation_skinning_blending):
+ *   All clips play simultaneously via AnimationMixer. Each clip is split into
+ *   per-body-part sub-clips (track filtering). Weights are normalized per group
+ *   so that if only idle owns legs, legs play at full idle strength.
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
-import { evaluateIdleLayer } from './procedural/idle-layer.ts';
-import type { AnimBone, BoneState } from './procedural/types.ts';
+import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
+import type { BodyPart } from './body-parts.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const IDLE_INFLUENCE_DURING_CLIP = 0.4;
-const IDLE_INFLUENCE_DURING_IDLE = 1.0;
 const DEFAULT_FADE_IN = 0.3;
 const DEFAULT_FADE_OUT = 0.5;
-
-// ─── Bones for additive idle layer ────────────────────────────────────────────
-
-const IDLE_BONES: AnimBone[] = [
-  'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
-  'leftShoulder', 'rightShoulder',
-  'leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm',
-];
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
 export interface LayerState {
   /** FBX clip playback enabled */
   fbxClips: boolean;
-  /** Procedural idle noise (breathing, sway, head drift) */
-  idleNoise: boolean;
   /** Expression blend shapes (happy, sad, etc.) */
   expressions: boolean;
-  /** Expression head bone offset */
-  headOffset: boolean;
   /** Blink + micro-glance */
   blink: boolean;
 }
@@ -64,32 +45,38 @@ export interface ActiveClipInfo {
   weight: number;
   /** Current effective time scale */
   timeScale: number;
-  /** Whether this is the primary clip (vs additive layer) */
-  isPrimary: boolean;
   /** Whether the clip is looping */
   isLooping: boolean;
   /** Current playback time in seconds */
   time: number;
   /** Total clip duration in seconds */
   duration: number;
+  /** Body part group this sub-action covers */
+  bodyPartGroup?: string;
 }
 
 const DEFAULT_LAYERS: LayerState = {
   fbxClips: true,
-  idleNoise: true,
   expressions: true,
-  headOffset: true,
   blink: true,
 };
 
 /** Human-readable labels for each animation layer. */
 export const LAYER_LABELS: Record<keyof LayerState, string> = {
   fbxClips: 'FBX Clips',
-  idleNoise: 'Idle Noise',
   expressions: 'Expressions',
-  headOffset: 'Head Offset',
   blink: 'Blink',
 };
+
+// ─── Sub-action: one mixer action per (clip × body-part-group) ────────────────
+
+interface SubAction {
+  action: THREE.AnimationAction;
+  clipId: string;
+  bodyPartGroup: BodyPart;
+  /** The configured weight before normalization. */
+  baseWeight: number;
+}
 
 // ─── AnimationController ──────────────────────────────────────────────────────
 
@@ -98,26 +85,12 @@ export class AnimationController {
   private registry: ClipRegistry;
   private mixer: THREE.AnimationMixer;
   private clipCache = new Map<string, THREE.AnimationClip>();
-  private activeActions: THREE.AnimationAction[] = [];
   private currentAction: Action = 'idle';
   private currentEmotion: Emotion = 'idle';
   private currentIntensity: Intensity = 'medium';
 
-  /** VRM 0.x vs 1.0 axis flip for additive idle layer. */
-  private flipXZ: boolean;
-
-  /** Bone node references for additive idle layer. */
-  private boneNodes = new Map<AnimBone, THREE.Object3D>();
-  /** Rest-pose positions captured once on init (for hip translation). */
-  private restPositions = new Map<AnimBone, THREE.Vector3>();
-  /** Rest-pose rotations captured once on init (for reset when FBX off). */
-  private restRotations = new Map<AnimBone, THREE.Euler>();
-
-  /** Global elapsed time for idle layer noise. */
-  private elapsed = 0;
-
-  /** Reusable frame buffer for idle layer evaluation. */
-  private idleBuffer = new Map<AnimBone, BoneState>();
+  /** Active sub-actions for the current blended action. */
+  private activeSubActions: SubAction[] = [];
 
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
@@ -138,8 +111,6 @@ export class AnimationController {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
-    this.flipXZ = (vrm.meta as any)?.metaVersion !== '0';
-    this._captureBones();
   }
 
   /**
@@ -166,26 +137,21 @@ export class AnimationController {
 
     console.info(`[AnimationController] Loaded ${this.clipCache.size}/${files.length} clips`);
 
-    const missing = files.filter((f) => !this.clipCache.has(f));
-    if (missing.length > 0) {
-      console.error('[AnimationController] Missing clips after load:', missing);
-    }
-
-    // Start with idle clip
-    this._playClipSet('idle', 'idle', 'medium');
+    // Start idle
+    this._playBlendedAction('idle', 'idle', 'medium');
     this._loaded = true;
   }
 
   /**
    * Play an action with the given intensity, influenced by current emotion.
    */
-  playAction(action: Action, intensity: Intensity = 'medium', emotion?: Emotion): void {
+  playAction(action: Action, intensity: Intensity = 'medium', emotion?: Emotion, force?: boolean): void {
     if (emotion !== undefined) {
       this.currentEmotion = emotion;
     }
 
     if (
-      action === this.currentAction &&
+      action === this.currentAction && !force &&
       intensity === this.currentIntensity &&
       (emotion === undefined || emotion === this.currentEmotion)
     ) {
@@ -195,7 +161,7 @@ export class AnimationController {
     this.currentAction = action;
     this.currentIntensity = intensity;
 
-    this._playClipSet(action, this.currentEmotion, intensity);
+    this._playBlendedAction(action, this.currentEmotion, intensity);
   }
 
   /**
@@ -204,21 +170,9 @@ export class AnimationController {
    */
   setEmotion(emotion: Emotion): void {
     if (emotion === this.currentEmotion) return;
-
-    const before = this.registry.resolveClips(this.currentAction, this.currentEmotion, this.currentIntensity);
-    const after = this.registry.resolveClips(this.currentAction, emotion, this.currentIntensity);
-
     this.currentEmotion = emotion;
-
-    if (
-      before.primary.file === after.primary.file &&
-      before.layers.length === after.layers.length &&
-      before.layers.every((l, i) => l.file === after.layers[i]?.file)
-    ) {
-      return;
-    }
-
-    this._playClipSet(this.currentAction, emotion, this.currentIntensity);
+    // Re-resolve in case emotion changes clip selection
+    this._playBlendedAction(this.currentAction, emotion, this.currentIntensity);
   }
 
   stopAll(): void {
@@ -229,14 +183,9 @@ export class AnimationController {
     this.layers[layer] = enabled;
 
     if (layer === 'fbxClips') {
-      if (!enabled) {
-        for (const action of this.activeActions) {
-          action.paused = true;
-        }
-      } else {
-        for (const action of this.activeActions) {
-          action.paused = false;
-        }
+      const allSubs = this.activeSubActions;
+      for (const sub of allSubs) {
+        sub.action.paused = !enabled;
       }
     }
   }
@@ -246,100 +195,109 @@ export class AnimationController {
    */
   update(delta: number): void {
     const dt = Math.min(delta, 0.1);
-    this.elapsed += dt;
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-    } else {
-      this._resetBonesToRest();
     }
 
-    if (this.layers.idleNoise && this._loaded) {
-      this._applyIdleLayer();
-    }
   }
 
   getActiveClips(): ActiveClipInfo[] {
-    return this.activeActions
-      .filter((a) => a.isRunning() || a.getEffectiveWeight() > 0.001)
-      .map((a, i) => ({
-        name: a.getClip().name,
-        weight: a.getEffectiveWeight(),
-        timeScale: a.getEffectiveTimeScale(),
-        isPrimary: i === 0,
-        isLooping: a.loop === THREE.LoopRepeat,
-        time: a.time,
-        duration: a.getClip().duration,
-      }));
+    const result: ActiveClipInfo[] = [];
+    const allSubs = this.activeSubActions;
+
+    for (const sub of allSubs) {
+      if (sub.action.isRunning() || sub.action.getEffectiveWeight() > 0.001) {
+        result.push({
+          name: sub.action.getClip().name,
+          weight: sub.action.getEffectiveWeight(),
+          timeScale: sub.action.getEffectiveTimeScale(),
+          isLooping: sub.action.loop === THREE.LoopRepeat,
+          time: sub.action.time,
+          duration: sub.action.getClip().duration,
+          bodyPartGroup: sub.bodyPartGroup,
+        });
+      }
+    }
+
+    return result;
   }
 
   dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.vrm.scene);
     this.clipCache.clear();
-    this.activeActions.length = 0;
-    this.boneNodes.clear();
-    this.restPositions.clear();
-    this.restRotations.clear();
-    this.idleBuffer.clear();
+    this.activeSubActions.length = 0;
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
   }
 
-  // ─── Private ────────────────────────────────────────────────────────────
+  // ─── Private: bone setup ────────────────────────────────────────────────
 
-  private _captureBones(): void {
-    for (const boneName of IDLE_BONES) {
-      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName);
-      if (node) {
-        this.boneNodes.set(boneName, node);
-        this.restPositions.set(boneName, node.position.clone());
-        this.restRotations.set(boneName, node.rotation.clone());
-      }
-    }
-  }
+  // ─── Private: blended action playback ───────────────────────────────────
 
-  private _resetBonesToRest(): void {
-    for (const [boneName, node] of this.boneNodes) {
-      const restRot = this.restRotations.get(boneName);
-      const restPos = this.restPositions.get(boneName);
-      if (restRot) {
-        node.rotation.copy(restRot);
-      }
-      if (restPos) {
-        node.position.copy(restPos);
-      }
-    }
-  }
-
-  private _playClipSet(action: Action, emotion: Emotion, intensity: Intensity): void {
+  /**
+   * Core blending logic — explicit clips only.
+   *
+   * 1. Resolve the action's clips (each with body part scoping + weight)
+   * 2. For each body part group, collect clips that claim it
+   * 3. Normalize weights per group so they sum to 1.0
+   * 4. Create sub-actions (one per clip×group) with normalized weights
+   */
+  /**
+   * Core blending logic — explicit clips only, no implicit idle.
+   *
+   * 1. Resolve the action's clips (each with body part scoping + weight)
+   * 2. For each body part group, collect clips that claim it
+   * 3. Normalize weights per group so they sum to 1.0
+   * 4. Create sub-actions (one per clip×group) with normalized weights
+   *
+   * If you want idle blended into an action, add the idle clip explicitly
+   * to that action's clips[] in clips.json.
+   */
+  private _playBlendedAction(action: Action, emotion: Emotion, intensity: Intensity): void {
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
 
-    const { primary, layers } = this.registry.resolveClips(action, emotion, intensity);
-
-    const fadeOutDuration = primary.fadeOut ?? DEFAULT_FADE_OUT;
-    for (const activeAction of this.activeActions) {
-      activeAction.fadeOut(fadeOutDuration);
+    // Fade out and uncache old sub-actions (prevents mixer memory leak)
+    for (const sub of this.activeSubActions) {
+      sub.action.fadeOut(DEFAULT_FADE_OUT);
+      const clip = sub.action.getClip();
+      setTimeout(() => {
+        this.mixer.uncacheClip(clip);
+        this.mixer.uncacheAction(clip);
+      }, (DEFAULT_FADE_OUT + 0.1) * 1000);
     }
-    this.activeActions = [];
+    this.activeSubActions = [];
 
-    const primaryAction = this._playClip(primary);
-    if (primaryAction) {
-      this.activeActions.push(primaryAction);
-    }
+    // Resolve action clips
+    const { clips } = this.registry.resolveClips(action, emotion, intensity);
 
-    for (const layer of layers) {
-      const layerAction = this._playClip(layer);
-      if (layerAction) {
-        this.activeActions.push(layerAction);
+    // For each body part group, collect claiming clips and normalize weights
+    for (const group of BODY_PARTS) {
+      const claiming: { entry: ClipEntry; weight: number }[] = [];
+      for (const entry of clips) {
+        if (entry.bodyParts.includes(group)) {
+          claiming.push({ entry, weight: entry.weight });
+        }
+      }
+
+      if (claiming.length === 0) continue; // No clip covers this group — rest pose
+
+      // Normalize so weights sum to 1.0
+      const totalWeight = claiming.reduce((sum, c) => sum + c.weight, 0);
+      for (const claimed of claiming) {
+        const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
+        const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
+        if (sub) this.activeSubActions.push(sub);
       }
     }
 
+    // Duration timer for non-looping actions
     const duration = this.registry.getActionDuration(action);
     if (duration !== null) {
       this.durationTimer = setTimeout(() => {
@@ -349,52 +307,68 @@ export class AnimationController {
     }
   }
 
-  private _playClip(entry: ClipEntry): THREE.AnimationAction | null {
-    const clip = this.clipCache.get(entry.file);
-    if (!clip) {
+  /**
+   * Create a sub-action: a mixer action for a specific clip filtered to a single body-part group.
+   */
+  private _createSubAction(
+    entry: ClipEntry,
+    group: BodyPart,
+    normalizedWeight: number,
+  ): SubAction | null {
+    const fullClip = this.clipCache.get(entry.file);
+    if (!fullClip) {
       console.warn(`[AnimationController] Clip not loaded: ${entry.file}`);
       return null;
     }
 
-    const action = this.mixer.clipAction(clip);
+    // Filter tracks to only include bones in this group
+    const filteredClip = this._filterClipToGroup(fullClip, group);
+    if (filteredClip.tracks.length === 0) return null;
+
+    const action = this.mixer.clipAction(filteredClip);
     action.setLoop(
       entry.loop ? THREE.LoopRepeat : THREE.LoopOnce,
       entry.loop ? Infinity : 1,
     );
     action.clampWhenFinished = !entry.loop;
-    action.setEffectiveWeight(entry.weight);
+    action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
     action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
     action.reset().play();
 
-    return action;
+    return {
+      action,
+      clipId: entry.file,
+      bodyPartGroup: group,
+      baseWeight: normalizedWeight,
+    };
   }
 
-  private _applyIdleLayer(): void {
-    const influence = this.currentAction === 'idle'
-      ? IDLE_INFLUENCE_DURING_IDLE
-      : IDLE_INFLUENCE_DURING_CLIP;
+  /**
+   * Filter an animation clip to only include tracks for bones in the given body part group.
+   * Creates a new clip with a unique name so the mixer caches it separately.
+   */
+  private _filterClipToGroup(clip: THREE.AnimationClip, group: BodyPart): THREE.AnimationClip {
+    const groupBones = BODY_PART_BONES[group];
+    const groupNodeNames = new Set<string>();
 
-    if (influence <= 0.001) return;
-
-    this.idleBuffer.clear();
-    evaluateIdleLayer(this.elapsed, this.idleBuffer, influence);
-
-    const s = this.flipXZ ? -1 : 1;
-
-    for (const [boneName, node] of this.boneNodes) {
-      const state = this.idleBuffer.get(boneName);
-      if (!state) continue;
-
-      node.rotation.x += state.rx * s;
-      node.rotation.y += state.ry;
-      node.rotation.z += state.rz * s;
-
-      if (state.px !== 0 || state.py !== 0 || state.pz !== 0) {
-        node.position.x += state.px * s;
-        node.position.y += state.py;
-        node.position.z += state.pz * s;
-      }
+    for (const boneName of groupBones) {
+      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
+      if (node) groupNodeNames.add(node.name);
     }
+
+    const filteredTracks = clip.tracks.filter((track) => {
+      const dotIdx = track.name.indexOf('.');
+      if (dotIdx === -1) return false;
+      const nodeName = track.name.slice(0, dotIdx);
+      return groupNodeNames.has(nodeName);
+    });
+
+    return new THREE.AnimationClip(
+      `${clip.name}:${group}`,
+      clip.duration,
+      filteredTracks,
+    );
   }
+
 }
