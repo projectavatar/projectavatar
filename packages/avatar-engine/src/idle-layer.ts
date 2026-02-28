@@ -29,8 +29,8 @@ const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Air mode — leg dangle
-const KNEE_BEND_ANGLE   = 0.18;    // radians (~10°) — base knee bend
-const TOE_DROOP_ANGLE   = 0.12;    // radians (~7°) — toes pointing slightly down
+const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
+const TOE_DROOP_ANGLE   = 0.14;    // radians — toes pointing slightly down
 
 // Ground mode
 const BREATHE_AMPLITUDE = 0.003;   // chest rotation oscillation
@@ -284,7 +284,7 @@ export class IdleLayer {
 
     // Toes droop — more on the tucked leg
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 3.0 * this.legBendSign;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 2.5 * this.legBendSign;
     }
     if (this.rightFoot) {
       this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5 * this.legBendSign;

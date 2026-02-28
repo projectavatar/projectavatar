@@ -148,6 +148,7 @@ export class ClipPreview {
 
     const vrm = await this.vrmManager.load(url);
     this.vrm = vrm;
+    this.vrmManager.setLookAtTarget(this.avatarScene.camera);
     this.mixer = new THREE.AnimationMixer(vrm.scene);
 
     this.mixer.addEventListener('finished', () => {

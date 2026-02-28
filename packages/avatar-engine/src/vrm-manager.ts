@@ -75,6 +75,17 @@ export class VrmManager {
     }
   }
 
+  /**
+   * Make the VRM's eyes track a target object (typically the camera).
+   * Uses VRM's built-in lookAt system with autoUpdate.
+   */
+  setLookAtTarget(target: THREE.Object3D): void {
+    if (this.currentVrm?.lookAt) {
+      this.currentVrm.lookAt.target = target;
+      this.currentVrm.lookAt.autoUpdate = true;
+    }
+  }
+
   /** Clean up current model/placeholder. */
   dispose(): void {
     this.removeCurrent();

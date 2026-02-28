@@ -107,6 +107,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
         try {
           const vrm = await vrmManager.load(modelUrl);
           if (cancelled) return;
+          vrmManager.setLookAtTarget(avatarScene.camera);
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;
