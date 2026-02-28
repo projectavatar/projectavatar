@@ -1,5 +1,5 @@
 import { validateAvatarEvent, isValidModelId } from '../../packages/shared/src/schema.js';
-import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS } from '../../packages/shared/src/constants.js';
+import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS, KEEPALIVE } from '../../packages/shared/src/constants.js';
 import type {
   AvatarEvent,
   ChannelState,
@@ -31,6 +31,11 @@ const SESSION_ACTIVE_WINDOW_MS = 10_000;
  * Sessions that stop pushing (crash, end) are removed after this window.
  */
 const SESSION_EVICT_AFTER_MS = 60_000;
+
+// Keepalive interval imported from shared constants (KEEPALIVE.pingIntervalMs)
+
+/** Pre-serialized keepalive ping payload. */
+const PING_PAYLOAD = JSON.stringify({ type: 'ping' });
 
 /**
  * In-memory registry entry for a single session.
@@ -111,14 +116,33 @@ function toClientEvent(event: AvatarEvent): AvatarEvent {
  * Responsibilities:
  * - Holds the set of connected WebSocket clients (via hibernation API)
  * - Receives pushed avatar events and fans them out to connected clients
- * - Arbitrates between multiple concurrent sessions:
- *     - Lower priority number wins (0 = main session, 1 = sub-agent, depth-based)
- *     - On priority tie, the session that pushed FIRST holds until it goes idle
- *     - Lower-priority or later-starting same-priority events are silently absorbed
+ * - Arbitrates between multiple concurrent sessions
  * - Persists the last known event, model, and lastAgentEventAt to DO storage
  * - Sends full channel state to new clients on WebSocket connect
  * - Handles `set_model` messages from clients and broadcasts `model_changed`
+ * - Sends periodic keepalive pings to prevent client-side timeouts
  * - Exposes GET /state for the plugin's share-link generation
+ *
+ * ## Multi-session arbitration (details)
+ *
+ * - Lower priority number wins (0 = main session, 1 = sub-agent, depth-based)
+ * - On priority tie, the session that pushed FIRST holds until it goes idle
+ * - Lower-priority or later-starting same-priority events are silently absorbed
+ *
+ * ## Keepalive mechanism
+ *
+ * The DO uses Cloudflare's alarm API to send `{"type":"ping"}` to all connected
+ * WebSocket clients every KEEPALIVE.pingIntervalMs (30s). This prevents the client's
+ * 60s dead-connection timer from firing during idle periods when no avatar events
+ * are being pushed.
+ *
+ * The alarm is scheduled when the first WebSocket connects and self-reschedules
+ * as long as clients remain connected. When the last client disconnects, the
+ * alarm is not rescheduled and the DO can hibernate cleanly.
+ *
+ * On hibernation wake (alarm fires after DO was hibernated), the alarm handler
+ * runs normally — getWebSockets() returns the hibernated sockets, pings go out,
+ * and the alarm reschedules if clients are still connected.
  *
  * ## lastAgentEventAt semantics
  *
@@ -191,6 +215,41 @@ export class Channel implements DurableObject {
     }
 
     return new Response('Not Found', { status: 404 });
+  }
+
+  // ─── Alarm Handler (Keepalive Pings) ───────────────────────────────────────
+
+  async alarm(): Promise<void> {
+    const sockets = this.state.getWebSockets();
+
+    if (sockets.length === 0) {
+      // No clients connected — don't reschedule. The DO can hibernate.
+      return;
+    }
+
+    // Send ping to all connected clients
+    for (const ws of sockets) {
+      try {
+        ws.send(PING_PAYLOAD);
+      } catch {
+        // Dead socket — hibernation API handles cleanup
+      }
+    }
+
+    // Reschedule for the next ping
+    await this.state.storage.setAlarm(Date.now() + KEEPALIVE.pingIntervalMs);
+  }
+
+  /**
+   * Ensure the keepalive alarm is scheduled.
+   * Called when a new WebSocket connects. Safe to call multiple times —
+   * only schedules if no alarm is currently pending.
+   */
+  private async ensurePingAlarm(): Promise<void> {
+    const existing = await this.state.storage.getAlarm();
+    if (existing === null) {
+      await this.state.storage.setAlarm(Date.now() + KEEPALIVE.pingIntervalMs);
+    }
   }
 
   // ─── Push Handler ──────────────────────────────────────────────────────────
@@ -267,13 +326,9 @@ export class Channel implements DurableObject {
     }
 
     if (!shouldFanOut) {
-      // Suppressed: a higher-priority or earlier-started same-priority session is active.
-      // Return 200 so the plugin doesn't surface an error — suppression is intentional.
-      // lastAgentEventAt is NOT updated for suppressed pushes — see class doc for rationale.
       return jsonResponse({ ok: true, clients: 0, suppressed: true }, 200);
     }
 
-    // Persist event + activity timestamp in a single atomic write
     await this.state.storage.put({
       [LAST_EVENT_KEY]:          event,
       [LAST_AGENT_EVENT_AT_KEY]: now,
@@ -281,8 +336,6 @@ export class Channel implements DurableObject {
     this.lastEventCache        = event;
     this.lastAgentEventAtCache = now;
 
-    // Fan out to all connected WebSocket clients.
-    // Strip sessionId/priority before sending — clients have no use for relay internals.
     const clientEvent = toClientEvent(event);
     const sockets     = this.state.getWebSockets();
     const message: AvatarEventMessage = {
@@ -329,7 +382,6 @@ export class Channel implements DurableObject {
     ]);
 
     // Send channel_state FIRST — client needs model before rendering avatar.
-    // Strip relay-internal fields from lastEvent before sending.
     const channelStateMsg: ChannelStateMessage = {
       type:    'channel_state',
       version: PROTOCOL_VERSION,
@@ -342,6 +394,9 @@ export class Channel implements DurableObject {
       timestamp: Date.now(),
     };
     server.send(JSON.stringify(channelStateMsg));
+
+    // Ensure keepalive alarm is running now that we have a client
+    await this.ensurePingAlarm();
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -383,6 +438,10 @@ export class Channel implements DurableObject {
       const model = m['model'] ?? null;
       if (model !== null && !isValidModelId(model)) return;
       void this.handleSetModel(model as string | null);
+    } else if (m['type'] === 'pong') {
+      // Client keepalive response — acknowledged, no action needed.
+      // The Hibernation API keeps the socket alive regardless; this is
+      // just confirmation the client is responsive.
     } else {
       console.debug('[Channel] Unknown WebSocket message type:', m['type']);
     }
@@ -390,6 +449,8 @@ export class Channel implements DurableObject {
 
   webSocketClose(_ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
     console.debug('[Channel] WebSocket closed:', code, reason || '(no reason)');
+    // No explicit cleanup needed — hibernation API manages socket lifecycle.
+    // The ping alarm checks getWebSockets().length and stops when 0.
   }
 
   webSocketError(ws: WebSocket, error: unknown): void {

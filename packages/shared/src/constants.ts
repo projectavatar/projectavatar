@@ -54,3 +54,18 @@ export const CORS_HEADERS = Object.freeze({
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Max-Age': '86400',
 } as const) as Record<string, string>;
+
+/**
+ * Keepalive timing constants — shared between relay (server) and web (client).
+ *
+ * INVARIANT: PING_INTERVAL_MS < KEEPALIVE_TIMEOUT_MS
+ * The server pings every PING_INTERVAL_MS. The client disconnects if no message
+ * arrives within KEEPALIVE_TIMEOUT_MS. As long as the ping interval is shorter
+ * than the timeout, idle connections survive.
+ */
+export const KEEPALIVE = {
+  /** Server sends a ping every 30s */
+  pingIntervalMs: 30_000,
+  /** Client closes + reconnects if no message in 60s */
+  timeoutMs: 60_000,
+} as const;
