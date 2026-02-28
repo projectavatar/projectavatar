@@ -20,6 +20,8 @@ export type { EventLogEntry } from './state-machine.ts';
 
 export { loadMixamoAnimation } from './mixamo-loader.ts';
 
+export { FootIK } from './foot-ik.ts';
+
 // ─── Body parts ───────────────────────────────────────────────────────────────
 export {
   BODY_PARTS,
