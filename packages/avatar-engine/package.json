@@ -1,0 +1,15 @@
+{
+  "name": "@project-avatar/avatar-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "@pixiv/three-vrm": "^3.3.3",
+    "@project-avatar/shared": "*",
+    "three": "^0.172.0"
+  }
+}

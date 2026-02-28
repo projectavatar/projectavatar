@@ -7,7 +7,7 @@ import type { ClipsJson, ClipData } from '../types.ts';
 import { getClipUsage, getClipStatus } from '../state.ts';
 import type { Action } from '../state.ts';
 import { BodyPartPicker } from './body-part-picker.tsx';
-import { normalizeBodyParts } from '../body-parts.ts';
+import { normalizeBodyParts } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

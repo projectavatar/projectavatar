@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ACTIONS, EMOTIONS, INTENSITIES } from '@project-avatar/shared';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { useStore } from '../state/store.ts';
-import type { StateMachine } from '../avatar/state-machine.ts';
-import type { LayerState, ActiveClipInfo } from '../avatar/animation-controller.ts';
+import type { StateMachine, LayerState, ActiveClipInfo } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

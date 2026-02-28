@@ -11,49 +11,30 @@
  * to not fight the clip, but enough that no two loops feel identical.
  *
  * Usage:
- *   const ctrl = new AnimationController(vrm);
- *   await ctrl.loadAnimations();   // preloads all FBX clips
+ *   const registry = new ClipRegistry(clipsData);
+ *   const ctrl = new AnimationController(vrm, registry);
+ *   await ctrl.loadAnimations();
  *   ctrl.playAction('waving', 'high', 'excited');
- *   ctrl.update(delta);            // call every frame
+ *   ctrl.update(delta);
  *   ctrl.dispose();
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
-import { resolveClips, getAllClipFiles, getActionDuration } from './clip-registry.ts';
-import type { ClipEntry } from './clip-registry.ts';
+import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
 import { evaluateIdleLayer } from './procedural/idle-layer.ts';
 import type { AnimBone, BoneState } from './procedural/types.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-/**
- * When a FBX clip is playing, idle layer influence is reduced.
- * This prevents breathing/sway from fighting the clip's motion.
- * 0 = fully suppressed, 1 = full idle influence.
- */
 const IDLE_INFLUENCE_DURING_CLIP = 0.4;
-
-/**
- * Idle layer influence when only the idle clip is playing.
- * Higher because the idle clip is subtle and benefits from extra life.
- */
 const IDLE_INFLUENCE_DURING_IDLE = 1.0;
-
-/**
- * Default crossfade duration if not specified in clip entry.
- */
 const DEFAULT_FADE_IN = 0.3;
 const DEFAULT_FADE_OUT = 0.5;
 
 // ─── Bones for additive idle layer ────────────────────────────────────────────
 
-/**
- * Bones the idle layer may write to. Must be a superset of what
- * evaluateIdleLayer() actually touches — if the idle layer adds
- * new bones, add them here too.
- */
 const IDLE_BONES: AnimBone[] = [
   'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
   'leftShoulder', 'rightShoulder',
@@ -74,7 +55,6 @@ export interface LayerState {
   /** Blink + micro-glance */
   blink: boolean;
 }
-
 
 /** Info about an active animation clip — exposed for dev panel. */
 export interface ActiveClipInfo {
@@ -106,6 +86,7 @@ const DEFAULT_LAYERS: LayerState = {
 
 export class AnimationController {
   private vrm: VRM;
+  private registry: ClipRegistry;
   private mixer: THREE.AnimationMixer;
   private clipCache = new Map<string, THREE.AnimationClip>();
   private activeActions: THREE.AnimationAction[] = [];
@@ -129,6 +110,9 @@ export class AnimationController {
   /** Reusable frame buffer for idle layer evaluation. */
   private idleBuffer = new Map<AnimBone, BoneState>();
 
+  /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
+  private _loaded = false;
+
   /** Timer for non-looping action completion. */
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -138,19 +122,20 @@ export class AnimationController {
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
 
-  constructor(vrm: VRM) {
+  constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
+    this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.flipXZ = (vrm.meta as any)?.metaVersion !== '0';
     this._captureBones();
   }
 
   /**
-   * Load all FBX animations referenced in the clip map.
+   * Load all FBX animations referenced in the clip registry.
    * Should be called once after construction, before any playAction calls.
    */
   async loadAnimations(): Promise<void> {
-    const files = getAllClipFiles();
+    const files = this.registry.getAllClipFiles();
     const basePath = '/animations/';
 
     console.info(`[AnimationController] Loading ${files.length} FBX clips...`);
@@ -170,7 +155,6 @@ export class AnimationController {
     const loaded = results.filter((r) => r.status === 'fulfilled').length;
     console.info(`[AnimationController] Loaded ${loaded}/${files.length} clips`);
 
-    // Dev-mode: warn about any clip-map references that failed to load
     const missing = files.filter((f) => !this.clipCache.has(f));
     if (missing.length > 0) {
       console.error('[AnimationController] Missing clips after load:', missing);
@@ -178,6 +162,7 @@ export class AnimationController {
 
     // Start with idle clip
     this._playClipSet('idle', 'idle', 'medium');
+    this._loaded = true;
   }
 
   /**
@@ -188,7 +173,6 @@ export class AnimationController {
       this.currentEmotion = emotion;
     }
 
-    // Same action with same parameters (including emotion) — skip
     if (
       action === this.currentAction &&
       intensity === this.currentIntensity &&
@@ -206,47 +190,34 @@ export class AnimationController {
   /**
    * Update the current emotion. May change the active clip if the emotion
    * has overrides for the current action.
-   *
-   * Compares resolved clips before and after — only triggers a fade cycle
-   * if the actual clip set changes.
    */
   setEmotion(emotion: Emotion): void {
     if (emotion === this.currentEmotion) return;
 
-    // Check if the clip set actually changes before triggering a fade cycle
-    const before = resolveClips(this.currentAction, this.currentEmotion, this.currentIntensity);
-    const after = resolveClips(this.currentAction, emotion, this.currentIntensity);
+    const before = this.registry.resolveClips(this.currentAction, this.currentEmotion, this.currentIntensity);
+    const after = this.registry.resolveClips(this.currentAction, emotion, this.currentIntensity);
 
     this.currentEmotion = emotion;
 
-    // Compare primary + all layer files
     if (
       before.primary.file === after.primary.file &&
       before.layers.length === after.layers.length &&
       before.layers.every((l, i) => l.file === after.layers[i]?.file)
     ) {
-      // Same clips — update emotion state without re-triggering animation
       return;
     }
 
-    // Different clips — trigger crossfade
     this._playClipSet(this.currentAction, emotion, this.currentIntensity);
   }
 
-  /**
-   * Stop all animations and return to idle.
-   */
   stopAll(): void {
     this.playAction('idle', 'medium');
   }
 
-  /**
-   * Set a layer toggle. Used by dev panel.
-   */
+
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this.layers[layer] = enabled;
 
-    // If FBX clips toggled off, pause the mixer
     if (layer === 'fbxClips') {
       if (!enabled) {
         for (const action of this.activeActions) {
@@ -262,33 +233,22 @@ export class AnimationController {
 
   /**
    * Tick the animation system. Call every frame.
-   *
-   * Order of operations:
-   * 1. THREE.AnimationMixer updates bone transforms from FBX clip
-   * 2. Idle layer adds procedural noise on top (additive)
    */
   update(delta: number): void {
     const dt = Math.min(delta, 0.1);
     this.elapsed += dt;
 
-    // Step 1: FBX mixer updates bones (if layer enabled)
-    if (this.layers.fbxClips) {
+    if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
     } else {
-      // When FBX clips are disabled, reset bones to rest pose so the
-      // idle layer doesn't add offsets to a stale/T-pose state.
       this._resetBonesToRest();
     }
 
-    // Step 2: Additive idle layer on top (if layer enabled)
-    if (this.layers.idleNoise) {
+    if (this.layers.idleNoise && this._loaded) {
       this._applyIdleLayer();
     }
   }
 
-  /**
-   * Get info about currently active clips for dev panel display.
-   */
   getActiveClips(): ActiveClipInfo[] {
     return this.activeActions
       .filter((a) => a.isRunning() || a.getEffectiveWeight() > 0.001)
@@ -303,9 +263,6 @@ export class AnimationController {
       }));
   }
 
-  /**
-   * Clean up.
-   */
   dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.vrm.scene);
@@ -334,10 +291,6 @@ export class AnimationController {
     }
   }
 
-  /**
-   * Reset bones to their rest pose. Used when FBX clips are disabled
-   * so the idle layer has a clean base to add offsets to.
-   */
   private _resetBonesToRest(): void {
     for (const [boneName, node] of this.boneNodes) {
       const restRot = this.restRotations.get(boneName);
@@ -351,32 +304,25 @@ export class AnimationController {
     }
   }
 
-  /**
-   * Resolve and play the clip set for an action + emotion + intensity.
-   */
   private _playClipSet(action: Action, emotion: Emotion, intensity: Intensity): void {
-    // Clear duration timer
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
 
-    const { primary, layers } = resolveClips(action, emotion, intensity);
+    const { primary, layers } = this.registry.resolveClips(action, emotion, intensity);
 
-    // Fade out all current actions
     const fadeOutDuration = primary.fadeOut ?? DEFAULT_FADE_OUT;
     for (const activeAction of this.activeActions) {
       activeAction.fadeOut(fadeOutDuration);
     }
     this.activeActions = [];
 
-    // Play primary clip
     const primaryAction = this._playClip(primary);
     if (primaryAction) {
       this.activeActions.push(primaryAction);
     }
 
-    // Play layer clips
     for (const layer of layers) {
       const layerAction = this._playClip(layer);
       if (layerAction) {
@@ -384,8 +330,7 @@ export class AnimationController {
       }
     }
 
-    // Set up duration timer for non-looping actions
-    const duration = getActionDuration(action);
+    const duration = this.registry.getActionDuration(action);
     if (duration !== null) {
       this.durationTimer = setTimeout(() => {
         this.durationTimer = null;
@@ -394,10 +339,6 @@ export class AnimationController {
     }
   }
 
-  /**
-   * Start playing a single clip entry. Returns the THREE.AnimationAction, or null
-   * if the clip wasn't loaded.
-   */
   private _playClip(entry: ClipEntry): THREE.AnimationAction | null {
     const clip = this.clipCache.get(entry.file);
     if (!clip) {
@@ -419,39 +360,26 @@ export class AnimationController {
     return action;
   }
 
-  /**
-   * Apply the procedural idle layer additively on top of the mixer's bone poses.
-   *
-   * The mixer has already written bone rotations from the FBX clip.
-   * We evaluate the idle layer (breathing, sway, head drift) and ADD
-   * small euler offsets and position offsets on top for organic variation.
-   */
   private _applyIdleLayer(): void {
-    // Determine idle influence based on current action
     const influence = this.currentAction === 'idle'
       ? IDLE_INFLUENCE_DURING_IDLE
       : IDLE_INFLUENCE_DURING_CLIP;
 
     if (influence <= 0.001) return;
 
-    // Evaluate idle layer into buffer
     this.idleBuffer.clear();
     evaluateIdleLayer(this.elapsed, this.idleBuffer, influence);
 
-    // Apply idle offsets additively to bones
     const s = this.flipXZ ? -1 : 1;
 
     for (const [boneName, node] of this.boneNodes) {
       const state = this.idleBuffer.get(boneName);
       if (!state) continue;
 
-      // Add idle rotation offsets on top of whatever the mixer wrote.
-      // Idle values are small (< 0.02 rad) so euler addition is fine.
       node.rotation.x += state.rx * s;
       node.rotation.y += state.ry;
       node.rotation.z += state.rz * s;
 
-      // Add position offsets (hip lateral sway from weight shift)
       if (state.px !== 0 || state.py !== 0 || state.pz !== 0) {
         node.position.x += state.px * s;
         node.position.y += state.py;

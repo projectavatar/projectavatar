@@ -10,6 +10,7 @@
     "clip-manager"
   ],
   "scripts": {
+    "dev": "cd web && npm run dev",
     "relay:dev": "cd relay && npm run dev",
     "relay:deploy": "cd relay && npm run deploy",
     "relay:test": "cd relay && npm run test",

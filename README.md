@@ -121,6 +121,7 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 | 3D Rendering | Three.js + @pixiv/three-vrm | Industry standard WebGL + first-class VRM support |
 | Avatar Format | VRM | Open standard, huge ecosystem, VRoid Hub compatible |
 | Relay Server | Cloudflare Workers + Durable Objects | Edge-deployed, WebSocket native, zero cold starts |
+| Avatar Engine | `@project-avatar/avatar-engine` | Shared rendering package for web + clip-manager |
 | Skill Install | Dynamic markdown endpoint | Agent fetches URL, installs skill with token pre-baked |
 | Skill Layer | Prompt template + regex output filter | Agent-agnostic, no SDK required, works everywhere |
 
@@ -128,72 +129,16 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 ## Features (v1)
 
-- **7 emotions** — idle, thinking, focused, excited, confused, satisfied, concerned
-- **7 actions** — responding, searching, coding, reading, waiting, error, celebrating
+- **14 emotions** — idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous
+- **28 actions** — idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating
 - **6 reactive props** — keyboard, magnifying glass, coffee cup, book, phone, scroll
-- **3-5 bundled VRM models** — import your own from VRoid Hub or anywhere
+- **Bundled VRM models** — import your own from VRoid Hub or anywhere
 - **Intensity levels** — low, medium, high — affects animation energy and expression strength
+- **Hybrid animation system** — Mixamo FBX clips + procedural idle layer (breathing, sway, head drift)
+- **Layer toggles** — enable/disable FBX clips, idle noise, expressions, head offset, blink independently
 - **One-URL skill install** — agent installs its own skill by fetching a link
 - **OBS Browser Source** — works out of the box, transparent background
 - **Cross-machine** — agent on a server, avatar on your laptop, works over the internet
-
----
-
-## Roadmap
-
-### v1.0 (MVP) ✅
-- [x] **Relay server** — deployed at `relay.projectavatar.io` (Cloudflare Workers + Durable Objects)
-- [x] **One-URL skill install** — `GET /skill/install?token=...` serves pre-configured SKILL.md
-- [x] **Browser app** at `app.projectavatar.io` — primary experience, zero install
-- [x] **Core avatar rendering** — Three.js + @pixiv/three-vrm
-- [x] **Expression system** — 7 emotions → VRM blend shapes, exponential decay lerp
-- [x] **Animation system** — 7 actions → Mixamo FBX clips retargeted to VRM 0.x via AnimationMixer, smooth crossfades
-- [x] **Prop system** — 6 reactive objects, hand bone attachment
-- [x] **Blink controller** — random blink, idle micro-animations
-- [x] **State machine** — coordinates expressions, animations, props, idle timeout
-- [x] **Skill layer** — universal prompt template + output filters (Node.js, Python, OpenClaw)
-- [x] **Streaming support** — 200-char buffer for tag extraction in token streams
-- [x] **OBS Browser Source** — transparent background, URL-based token
-- [x] **Shared schema** — `@project-avatar/shared` with types, validation, skill template generation
-
-### v1.1 (OpenClaw Plugin) ✅
-- [x] **`@projectavatar/openclaw-avatar` plugin** — deep lifecycle integration via OpenClaw plugin API
-  - `before_tool_call` / `after_tool_call` hooks — avatar reacts the instant a tool call starts
-  - Optional `avatar` agent tool for explicit LLM-driven state control
-  - Plugin-internal state machine with debouncing and priority
-- [x] **Identity persistence** — model selection stored in Durable Object, survives page refresh
-- [x] **Multi-screen sync** — model change on one screen propagates to all connected instances in real-time
-- [x] **Agent presence indicator** — status badge shows active/idle/away based on last event timestamp
-- [x] **`/avatar` command** — `/avatar link` for share URL, `/avatar status` for channel info
-- [x] **WebSocket keepalive** — 60s dead-connection detection, auto-reconnect
-- [x] **No-build plugin** — OpenClaw loads TypeScript directly via jiti, no compile step
-
-### v1.1.1 (Mixamo Animations) ✅
-- [x] **Real Mixamo FBX animations** — idle, responding, searching, coding, reading, error, celebrating
-- [x] **Retargeting pipeline** — `mixamo-loader.ts` converts FBX → VRM 0.x `AnimationClip` with coordinate flip
-- [x] **AnimationMixer** — replaces procedural bone system, native Three.js crossfade
-- [x] **potato.vrm** — first bundled model from open-source-avatars (CC0)
-
-### v1.2 (Expression + Polish)
-- [ ] Tauri desktop app — always-on-top, system tray (optional)
-- [x] Expression system — richer blend shape weights, head bone movement per emotion, idle breathing micro-animation
-- [x] AvatarSample C bundled (official Pixiv VRoid CC0, full expression set)
-- [x] **Multi-session arbitration** — multiple concurrent agent sessions share one avatar gracefully; priority-based + first-mover tiebreaker, no thrashing
-- [ ] More bundled VRM models
-- [ ] Voice lip-sync (connect to TTS output)
-- [ ] Custom animation import
-
-### v2
-- [ ] Live2D support (alternative to VRM)
-- [ ] Physics-based secondary motion (hair, clothes)
-- [ ] Multi-agent support (multiple avatars)
-- [ ] IK-based prop interaction
-- [ ] Mobile companion app (iOS/Android)
-
-### v3 (dreaming)
-- [ ] VR/AR mode (the avatar in your space)
-- [ ] Procedural animation (no pre-authored clips)
-- [ ] Multi-modal input (voice tone → expression)
 
 ---
 
@@ -202,43 +147,56 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 ```
 project-avatar/
 ├── packages/
-│   ├── shared/             # Shared types, schema, constants, skill template
+│   ├── shared/               # Shared types, schema, constants, skill template
+│   ├── avatar-engine/        # 3D rendering engine (Three.js + VRM)
 │   │   └── src/
-│   │       ├── schema.ts   # AvatarEvent types, enums, validateAvatarEvent
-│   │       ├── constants.ts# Protocol version, defaults, rate limits, token utils
-│   │       └── skill-template.ts  # Single source of truth for skill doc (gen-skill-md.ts)
-│   └── openclaw-avatar/    # @projectavatar/openclaw-avatar — OpenClaw plugin
-├── web/                    # Browser app — PRIMARY (Cloudflare Pages → app.projectavatar.io)
+│   │       ├── avatar-scene.ts        # Three.js scene, camera, lights, render loop
+│   │       ├── vrm-manager.ts         # VRM model loading + placeholder
+│   │       ├── animation-controller.ts # Hybrid FBX + procedural animation
+│   │       ├── expression-controller.ts# VRM blend shapes + head bone offset
+│   │       ├── blink-controller.ts    # Eye blink + micro-glance
+│   │       ├── prop-manager.ts        # Hand prop attachment
+│   │       ├── clip-registry.ts       # clips.json resolver (data-driven)
+│   │       ├── state-machine.ts       # Event → controller coordination
+│   │       ├── mixamo-loader.ts       # FBX → VRM retargeting
+│   │       ├── body-parts.ts          # Bone ↔ body part mapping
+│   │       └── procedural/            # Idle layer (breathing, sway, drift)
+│   └── openclaw-avatar/      # @projectavatar/openclaw-avatar — OpenClaw plugin
+├── web/                       # Browser app (Cloudflare Pages → app.projectavatar.io)
 │   └── src/
-│       ├── avatar/         # Three.js + VRM renderer
-│       │   ├── avatar-scene.ts, vrm-manager.ts, expression-controller.ts
-│       │   ├── animation-controller.ts, blink-controller.ts
-│       │   ├── prop-manager.ts, state-machine.ts
-│       ├── ws/             # WebSocket client (exponential backoff reconnect)
-│       ├── state/          # Zustand store
-│       ├── components/     # settings-drawer, status-badge (WS + agent presence)
-│       ├── model-picker-overlay.tsx  # post-connect model selection
-│       └── token-setup.tsx           # first-visit token generation
-├── relay/                  # Cloudflare Workers relay server (→ relay.projectavatar.io)
+│       ├── avatar/
+│       │   └── avatar-canvas.tsx      # React wrapper for engine + WebSocket
+│       ├── ws/                        # WebSocket client
+│       ├── state/                     # Zustand store
+│       ├── components/                # Dev panel, settings, status badge
+│       └── data/clips.json           # Animation mapping (source of truth)
+├── clip-manager/              # Animation clip editor (dev tool, :5174)
 │   └── src/
-│       ├── index.ts        # Worker entry + routing
-│       ├── channel.ts      # Durable Object (WebSocket hibernation + fan-out)
-│       ├── skill-install.ts# GET /skill/install?token=... endpoint
-│       ├── auth.ts, rate-limit.ts, types.ts
-├── skill/                  # Agent skill layer
-│   ├── prompt.md           # Universal prompt template
-│   ├── openclaw/           # OpenClaw skill package
-│   │   ├── SKILL.md        # Auto-generated via scripts/gen-skill-md.ts
-│   │   ├── filter.ts       # OpenClaw output filter hook (onOutput export)
-│   │   └── config.json     # {relayUrl, token, enabled, bufferLimit}
-│   └── filters/
-│       ├── node/           # Node.js filter + streaming filter + CLI
-│       └── python/         # Python parity
-├── scripts/
-│   └── gen-skill-md.ts     # Regenerates skill/openclaw/SKILL.md from template
-└── docs/
-    ├── SCHEMA.md, RELAY.md, SKILL.md, AVATAR_APP.md
+│       ├── preview/                   # 3D preview (uses avatar-engine)
+│       ├── components/                # Clip library, action/emotion editors
+│       └── state.ts                   # useReducer state management
+├── relay/                     # Cloudflare Workers relay server
+├── scripts/                   # CLI tools (gen-skill-md, extract-pose, etc.)
+└── docs/                      # Documentation
 ```
+
+---
+
+## `@project-avatar/avatar-engine`
+
+The engine package contains all rendering and animation logic shared between the web app and clip manager:
+
+- **AvatarScene** — Three.js scene with camera, lighting, render loop. Optional grid floor for preview tools.
+- **VrmManager** — VRM model loading with VRM 0.x/1.0 normalization.
+- **AnimationController** — Hybrid FBX playback (via `THREE.AnimationMixer`) + procedural idle layer. Accepts a `ClipRegistry` for data-driven clip resolution.
+- **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
+- **BlinkController** — Random eye blink + micro-glance.
+- **PropManager** — GLB prop loading + hand bone attachment.
+- **ClipRegistry** — Resolves action + emotion + intensity → clip set from clips.json data. Dependency-injected (no static import).
+- **StateMachine** — Coordinates all controllers, dispatches avatar events, manages idle timeout.
+- **Layer toggles** — FBX clips, idle noise, expressions, head offset, blink — each independently toggleable via dev panel or clip manager.
+
+Both `web/` and `clip-manager/` depend on `@project-avatar/avatar-engine`. Three.js and `@pixiv/three-vrm` are peer dependencies.
 
 ---
 

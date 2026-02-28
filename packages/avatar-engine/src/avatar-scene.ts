@@ -4,6 +4,16 @@ import * as THREE from 'three';
  * Core Three.js scene: camera, lighting, renderer, render loop.
  * Pure Three.js — no React, no VRM-specific logic.
  */
+
+export interface AvatarSceneOptions {
+  /** Show a grid floor (useful for clip previews). Default: false. */
+  grid?: boolean;
+  /** Grid size (default: 4). */
+  gridSize?: number;
+  /** Grid divisions (default: 16). */
+  gridDivisions?: number;
+}
+
 export class AvatarScene {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -13,9 +23,8 @@ export class AvatarScene {
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
-  // isBackground tracked by presence of backgroundIntervalId
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options?: AvatarSceneOptions) {
     this.scene = new THREE.Scene();
 
     // Camera: positioned for upper body framing
@@ -53,6 +62,18 @@ export class AvatarScene {
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.5);
     this.scene.add(ambient);
+
+    // Optional grid floor
+    if (options?.grid) {
+      const grid = new THREE.GridHelper(
+        options.gridSize ?? 4,
+        options.gridDivisions ?? 16,
+        0x2a2a3a,
+        0x1a1a2a,
+      );
+      grid.position.y = 0;
+      this.scene.add(grid);
+    }
 
     this.clock = new THREE.Clock();
 
@@ -127,14 +148,12 @@ export class AvatarScene {
 
   private handleVisibilityChange(): void {
     if (document.hidden) {
-      // Tab is hidden — switch to low-fps interval to stay alive
       if (this.animationFrameId !== null) {
         cancelAnimationFrame(this.animationFrameId);
         this.animationFrameId = null;
       }
       this.startBackgroundRenderer();
     } else {
-      // Tab visible again — return to rAF
       this.stopBackgroundRenderer();
       if (this.animationFrameId === null) {
         this.loop();
@@ -144,7 +163,6 @@ export class AvatarScene {
 
   private startBackgroundRenderer(): void {
     if (this.backgroundIntervalId !== null) return;
-    // 10 fps in background — enough for state changes
     this.backgroundIntervalId = setInterval(() => this.tick(), 100);
   }
 
