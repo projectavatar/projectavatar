@@ -442,7 +442,9 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
             },
           ];
           updateAction(selectedAction, { groups: newGroups });
-          setExpandedGroup(newGroups.length - 1);
+          const newIdx = newGroups.length - 1;
+          setExpandedGroup(newIdx);
+          dispatch({ type: 'SET_PREVIEW_GROUP_INDEX', index: newIdx });
         }}
       >
         + Add Group
