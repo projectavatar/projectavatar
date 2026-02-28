@@ -140,6 +140,9 @@ export class AnimationController {
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
 
+  /** When true, next _playBlendedAction skips crossfade — clean cut. */
+  private _skipCrossfade = false;
+
   constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
     this.registry = registry;
@@ -401,19 +404,9 @@ export class AnimationController {
           if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
           else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
 
-          if (outgoing && outgoing.length > 0) {
+          if (outgoing && outgoing.length > 0 && !this._skipCrossfade) {
             const outSub = outgoing.shift()!;
-            // If the outgoing action is clamped (non-looping clip finished),
-            // crossFadeTo with warp can produce wild interpolations.
-            // Use regular fadeIn + fadeOut instead.
-            const isClamped = outSub.action.clampWhenFinished &&
-              outSub.action.time >= outSub.action.getClip().duration - 0.01;
-            if (isClamped) {
-              outSub.action.fadeOut(fadeDuration);
-              sub.action.fadeIn(fadeDuration);
-            } else {
-              outSub.action.crossFadeTo(sub.action, fadeDuration, true);
-            }
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
           } else {
             sub.action.fadeIn(fadeDuration);
           }
@@ -458,12 +451,23 @@ export class AnimationController {
     this.loopCycleDuration = Math.max(maxClipDuration, 1.0);
     this.loopCycleElapsed = 0;
 
+    // Reset skip-crossfade flag
+    this._skipCrossfade = false;
+
     // Duration timer for non-looping actions
     if (!isLooping) {
       const duration = this.registry.getActionDuration(action);
       if (duration !== null) {
         this.durationTimer = setTimeout(() => {
           this.durationTimer = null;
+          // Stop all current actions immediately before transitioning to idle.
+          // This prevents crossfading from a clamped end-pose which causes
+          // wild quaternion interpolation (spinning limbs).
+          for (const sub of this.activeSubActions) {
+            sub.action.stop();
+          }
+          this.activeSubActions = [];
+          this._skipCrossfade = true;
           this.onActionFinished?.();
         }, duration * 1000);
       }
