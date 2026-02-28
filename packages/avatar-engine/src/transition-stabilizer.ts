@@ -11,6 +11,13 @@
  *   - Feet:  procedural step arc — lifts feet proportional to horizontal
  *            drift, peaking mid-transition. Masks skating as a weight-shift step.
  *
+ * Foot arc uses two drift sources (whichever is larger wins):
+ *   1. Pre-computed: animation controller samples the incoming clip's foot
+ *      positions and passes them via lockWithTargets(). Drift is known
+ *      immediately — no sampling delay.
+ *   2. Runtime: continuously tracks max horizontal drift throughout the
+ *      first half of the arc duration (fallback if targets weren't provided).
+ *
  * Fade philosophy (documented convention):
  *   - Gestures: fast fadeIn (0.1–0.15s) for responsive entry, slower fadeOut
  *   - Idle/continuous: symmetric fades (0.4–0.6s) for gentle transitions
@@ -37,10 +44,10 @@ interface FootTarget {
   bone: StabilizedBone;
   /** Foot position at lock time (start of transition). */
   startPosition: THREE.Vector3;
-  /** Peak horizontal drift measured across first few frames. */
+  /** Max horizontal drift observed so far. */
   horizontalDrift: number;
-  /** Number of frames drift has been sampled. */
-  driftSamples: number;
+  /** Whether drift has been committed (stops growing). */
+  driftCommitted: boolean;
 }
 
 interface GroupTiming {
@@ -65,12 +72,19 @@ const MAX_STEP_HEIGHT_FRAC = 0.08;
 
 /**
  * Minimum horizontal drift (meters) before a step arc triggers.
- * Set to 2mm to avoid triggering on numerical jitter at 60fps.
+ * Lowered from 2mm to 0.5mm — with body-part-scoped track filtering,
+ * the crossfade drift is smaller than full-body clip swaps but still
+ * produces visible skating.
  */
-const MIN_DRIFT_FOR_STEP = 0.002;
+const MIN_DRIFT_FOR_STEP = 0.0005;
 
-/** Number of frames to sample drift before committing the arc height. */
-const DRIFT_SAMPLE_FRAMES = 3;
+/**
+ * Fraction of FOOT_ARC_DURATION during which runtime drift is sampled.
+ * After this point, drift is committed and the arc height is locked.
+ * Set to 0.5 (half the arc) — by mid-crossfade, most displacement
+ * has occurred and the arc should start descending with stable height.
+ */
+const DRIFT_SAMPLE_FRACTION = 0.5;
 
 /**
  * Max total stabilizer duration across all groups.
@@ -150,27 +164,71 @@ export class TransitionStabilizer {
   }
 
   /**
-   * Call when an animation transition starts.
+   * Call when an animation transition starts (basic lock without target info).
+   *
+   * Captures current bone positions. Foot drift will be measured at runtime
+   * continuously throughout the first half of the arc.
    *
    * If a previous transition is still active (rapid lock), captures
    * the current bone positions (including any in-flight arc offset)
-   * so the new transition starts from where the bones actually are,
-   * not from where the mixer thinks they should be.
+   * so the new transition starts from where the bones actually are.
    */
   lock(): void {
     if (!this.initialized) return;
 
-    // Capture current positions — includes any in-flight stabilizer offsets
-    // because getWorldPosition reads the actual scene graph state.
     this.hipsTarget = this._capture(this.hipsBone);
     this.leftHandTarget = this._capture(this.leftHand);
     this.rightHandTarget = this._capture(this.rightHand);
 
-    this.leftFootTarget = this._captureFoot(this.leftFoot);
-    this.rightFootTarget = this._captureFoot(this.rightFoot);
+    this.leftFootTarget = this._captureFoot(this.leftFoot, null);
+    this.rightFootTarget = this._captureFoot(this.rightFoot, null);
 
     this.elapsed = 0;
     this.active = true;
+  }
+
+  /**
+   * Call when an animation transition starts, providing the incoming clip's
+   * target foot positions. This lets the stabilizer know the total expected
+   * displacement immediately instead of waiting to measure it at runtime.
+   *
+   * @param leftFootWorldPos  World position where the left foot will end up
+   *                          in the incoming animation (null if unknown)
+   * @param rightFootWorldPos World position where the right foot will end up
+   *                          in the incoming animation (null if unknown)
+   */
+  lockWithTargets(
+    leftFootWorldPos: THREE.Vector3 | null,
+    rightFootWorldPos: THREE.Vector3 | null,
+  ): void {
+    if (!this.initialized) return;
+
+    this.hipsTarget = this._capture(this.hipsBone);
+    this.leftHandTarget = this._capture(this.leftHand);
+    this.rightHandTarget = this._capture(this.rightHand);
+
+    this.leftFootTarget = this._captureFoot(this.leftFoot, leftFootWorldPos);
+    this.rightFootTarget = this._captureFoot(this.rightFoot, rightFootWorldPos);
+
+    this.elapsed = 0;
+    this.active = true;
+  }
+
+  /**
+   * Update foot drift on an already-locked stabilizer with pre-computed
+   * target positions. Call after lock() when you know where the feet will
+   * end up in the incoming animation.
+   *
+   * Takes the max of the pre-computed drift and any existing drift
+   * (e.g., from a prior lockWithTargets or runtime sampling).
+   */
+  setFootTargets(
+    leftFootWorldPos: THREE.Vector3 | null,
+    rightFootWorldPos: THREE.Vector3 | null,
+  ): void {
+    if (!this.active) return;
+    this._updateFootDrift(this.leftFootTarget, leftFootWorldPos);
+    this._updateFootDrift(this.rightFootTarget, rightFootWorldPos);
   }
 
   /**
@@ -287,15 +345,52 @@ export class TransitionStabilizer {
     return { bone, position: pos };
   }
 
-  private _captureFoot(bone: StabilizedBone | null): FootTarget | null {
+  /**
+   * Update a foot target's drift from a pre-computed target position.
+   */
+  private _updateFootDrift(
+    target: FootTarget | null,
+    targetPos: THREE.Vector3 | null,
+  ): void {
+    if (!target || !targetPos) return;
+    const dx = targetPos.x - target.startPosition.x;
+    const dz = targetPos.z - target.startPosition.z;
+    const drift = Math.sqrt(dx * dx + dz * dz);
+    if (drift > target.horizontalDrift) {
+      target.horizontalDrift = drift;
+    }
+  }
+
+  /**
+   * Capture a foot for step arc tracking.
+   *
+   * @param bone        The foot bone reference
+   * @param targetPos   If provided, the world-space position where this foot
+   *                    will end up in the incoming clip. Drift is computed
+   *                    immediately as the XZ distance between current and target.
+   *                    Runtime sampling will still run and take the max of both.
+   */
+  private _captureFoot(
+    bone: StabilizedBone | null,
+    targetPos: THREE.Vector3 | null,
+  ): FootTarget | null {
     if (!bone) return null;
     const pos = new THREE.Vector3();
     bone.bone.getWorldPosition(pos);
+
+    // Pre-compute drift from target if available
+    let initialDrift = 0;
+    if (targetPos) {
+      const dx = targetPos.x - pos.x;
+      const dz = targetPos.z - pos.z;
+      initialDrift = Math.sqrt(dx * dx + dz * dz);
+    }
+
     return {
       bone,
       startPosition: pos,
-      horizontalDrift: 0,
-      driftSamples: 0,
+      horizontalDrift: initialDrift,
+      driftCommitted: false,
     };
   }
 
@@ -336,17 +431,21 @@ export class TransitionStabilizer {
    * Step arc: lift foot proportional to horizontal drift during crossfade.
    * Lets X/Z blend naturally from the mixer; adds Y lift in a sin arc.
    *
-   * Drift is sampled over the first few frames (running max) to avoid
-   * under-estimating total drift from a single 16ms sample.
+   * Drift is tracked continuously until DRIFT_SAMPLE_FRACTION of the arc
+   * has elapsed (or until pre-computed target drift dominates). This gives
+   * the crossfade enough time to reveal the full displacement — critical
+   * for body-part-scoped track filtering where per-frame drift is small
+   * but cumulative drift over the full crossfade is significant.
    */
   private _applyFootArc(target: FootTarget | null): void {
     if (!target) return;
     if (this.elapsed >= FOOT_ARC_DURATION) return;
 
     const obj = target.bone.bone;
+    const t = Math.min(this.elapsed / FOOT_ARC_DURATION, 1.0);
 
-    // Sample drift over first N frames (running max)
-    if (target.driftSamples < DRIFT_SAMPLE_FRAMES) {
+    // Continuously sample drift until we're past the sampling window
+    if (!target.driftCommitted) {
       obj.getWorldPosition(_v3a);
       const dx = _v3a.x - target.startPosition.x;
       const dz = _v3a.z - target.startPosition.z;
@@ -354,7 +453,11 @@ export class TransitionStabilizer {
       if (drift > target.horizontalDrift) {
         target.horizontalDrift = drift;
       }
-      target.driftSamples++;
+
+      // Commit drift after sampling window closes
+      if (t >= DRIFT_SAMPLE_FRACTION) {
+        target.driftCommitted = true;
+      }
     }
 
     // Skip arc if drift is negligible
@@ -364,8 +467,6 @@ export class TransitionStabilizer {
     const maxHeight = target.bone.refLength * MAX_STEP_HEIGHT_FRAC;
     const height = Math.min(target.horizontalDrift * 0.5, maxHeight);
 
-    // Progress through arc (0→1 over FOOT_ARC_DURATION)
-    const t = Math.min(this.elapsed / FOOT_ARC_DURATION, 1.0);
     const lift = stepArc(t) * height;
 
     // Apply Y offset (world up)
