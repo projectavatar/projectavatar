@@ -31,28 +31,13 @@
       ],
       "tags": []
     },
-    "greeting-standing": {
-      "file": "greeting-standing.fbx",
+    "greeting": {
+      "file": "greeting.fbx",
       "loop": false,
       "fadeIn": 0.3,
       "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": []
-    },
-    "idle-bored": {
-      "file": "idle-bored.fbx",
-      "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
-      "category": "idle",
-      "energy": "low",
       "bodyParts": [
         "head",
         "torso",
@@ -76,43 +61,28 @@
       ],
       "tags": []
     },
-    "idle-static": {
-      "file": "idle-static.fbx",
+    "idle-switch": {
+      "file": "idle-switch.fbx",
+      "loop": true,
+      "fadeIn": 0.5,
+      "fadeOut": 0.5,
+      "category": "idle",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs"
+      ],
+      "tags": []
+    },
+    "idle": {
+      "file": "idle.fbx",
       "loop": true,
       "fadeIn": 0.5,
       "fadeOut": 0.5,
       "category": "idle",
       "energy": "low",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": []
-    },
-    "idle-switch-legs": {
-      "file": "idle-switch-legs.fbx",
-      "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
-      "category": "idle",
-      "energy": "medium",
-      "bodyParts": [
-        "head",
-        "torso",
-        "arms",
-        "legs"
-      ],
-      "tags": []
-    },
-    "idle-texting": {
-      "file": "idle-texting.fbx",
-      "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
-      "category": "idle",
-      "energy": "medium",
       "bodyParts": [
         "head",
         "torso",
@@ -166,8 +136,8 @@
       ],
       "tags": []
     },
-    "planning": {
-      "file": "planning.fbx",
+    "plotting": {
+      "file": "plotting.fbx",
       "loop": true,
       "fadeIn": 0.5,
       "fadeOut": 0.5,
@@ -196,8 +166,8 @@
       ],
       "tags": []
     },
-    "searching-looking": {
-      "file": "searching-looking.fbx",
+    "searching": {
+      "file": "searching.fbx",
       "loop": true,
       "fadeIn": 0.5,
       "fadeOut": 0.5,
@@ -241,8 +211,8 @@
       ],
       "tags": []
     },
-    "typing-touch-screen": {
-      "file": "typing-touch-screen.fbx",
+    "typing-touch": {
+      "file": "typing-touch.fbx",
       "loop": true,
       "fadeIn": 0.5,
       "fadeOut": 0.5,
@@ -261,10 +231,10 @@
     "idle": {
       "groups": [
         {
-          "rarity": 0.1625,
+          "rarity": 0.4,
           "clips": [
             {
-              "clip": "idle-bored",
+              "clip": "idle",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -276,7 +246,7 @@
           ]
         },
         {
-          "rarity": 0.1625,
+          "rarity": 0.3,
           "clips": [
             {
               "clip": "idle-happy",
@@ -291,40 +261,10 @@
           ]
         },
         {
-          "rarity": 0.35,
+          "rarity": 0.3,
           "clips": [
             {
-              "clip": "idle-static",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.1625,
-          "clips": [
-            {
-              "clip": "idle-switch-legs",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.1625,
-          "clips": [
-            {
-              "clip": "idle-texting",
+              "clip": "idle-switch",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -379,7 +319,7 @@
           "rarity": 0.3,
           "clips": [
             {
-              "clip": "typing-touch-screen",
+              "clip": "typing-touch",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -479,7 +419,7 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "searching-looking",
+              "clip": "searching",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -539,7 +479,7 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "planning",
+              "clip": "plotting",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -559,7 +499,7 @@
           "rarity": 1,
           "clips": [
             {
-              "clip": "greeting-standing",
+              "clip": "greeting",
               "weight": 1,
               "bodyParts": [
                 "head",
