@@ -51,9 +51,21 @@ All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into
 
 Body parts: `head`, `torso`, `arms`, `legs` (legs includes hips/root motion).
 
+### Crossfade Convention
+Three.js mixer does NOT normalize weights — if total weight < 1.0, rest pose (T-pose) bleeds through. Outgoing fadeOut duration always matches incoming fadeIn to ensure complementary curves (old + new = 1.0 at every frame).
+
+**Fade philosophy by category:**
+- **Idle** (0.6/0.6): slow, gentle transitions between idle variations
+- **Continuous** (0.4/0.4): responsive but smooth for talking/typing
+- **Emotion** (0.5/0.5): gradual mood shifts
+- **Gesture high-energy** (0.1 in / 0.35 out): snap into the gesture, ease out
+- **Gesture medium** (0.15 in / 0.3 out): slightly softer entry
+
+Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade-out duration used at runtime is always the incoming clip's `fadeIn` (for weight complementarity).
+
 ### Key Engine Classes
 - **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
-- **TransitionStabilizer** — pins hips, feet, and hands during clip transitions using soft positional constraints. Independent timing per bone group (feet: tight lock, hands: loose lock with gentle release).
+- **TransitionStabilizer** — masks crossfade artifacts per bone group. Hips/hands use soft positional pinning. Feet use procedural step arcs: measures horizontal drift on first blended frame, lifts feet in a sin() arc proportional to drift, masking skating as a small weight-shift step.
 - **ClipRegistry** — data-driven clip resolver (v3). Resolves action + emotion + intensity + group index → final clip set with body part scoping. `selectGroup()` for weighted random selection, `isActionLooping()`, `getGroupCount()`. Dynamic fallback chain: action → idle action → first clip in registry.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
 - **BlinkController** — random blink + micro-glance.
@@ -71,7 +83,7 @@ ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getA
     ↓
 AnimationController (avatar-engine) — runtime playback via Three.js AnimationMixer
     ↓ post-mixer
-TransitionStabilizer (avatar-engine) — pins bones during crossfade window
+TransitionStabilizer (avatar-engine) — step arcs for feet, soft pins for hips/hands
 
 Clip Manager (clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)

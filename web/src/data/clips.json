@@ -4,8 +4,8 @@
     "celebrating": {
       "file": "celebrating.fbx",
       "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.3,
+      "fadeIn": 0.1,
+      "fadeOut": 0.35,
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
@@ -19,7 +19,7 @@
     "dismissive": {
       "file": "dismissive.fbx",
       "loop": false,
-      "fadeIn": 0.3,
+      "fadeIn": 0.15,
       "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
@@ -34,7 +34,7 @@
     "greeting": {
       "file": "greeting.fbx",
       "loop": false,
-      "fadeIn": 0.3,
+      "fadeIn": 0.15,
       "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
@@ -49,8 +49,8 @@
     "idle-happy": {
       "file": "idle-happy.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.6,
+      "fadeOut": 0.6,
       "category": "idle",
       "energy": "medium",
       "bodyParts": [
@@ -64,8 +64,8 @@
     "idle-switch": {
       "file": "idle-switch.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.6,
+      "fadeOut": 0.6,
       "category": "idle",
       "energy": "medium",
       "bodyParts": [
@@ -79,8 +79,8 @@
     "idle": {
       "file": "idle.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.6,
+      "fadeOut": 0.6,
       "category": "idle",
       "energy": "low",
       "bodyParts": [
@@ -94,8 +94,8 @@
     "laughing": {
       "file": "laughing.fbx",
       "loop": false,
-      "fadeIn": 0.3,
-      "fadeOut": 0.3,
+      "fadeIn": 0.1,
+      "fadeOut": 0.35,
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
@@ -124,7 +124,7 @@
     "nodding": {
       "file": "nodding.fbx",
       "loop": false,
-      "fadeIn": 0.3,
+      "fadeIn": 0.15,
       "fadeOut": 0.3,
       "category": "gesture",
       "energy": "medium",
@@ -184,8 +184,8 @@
     "talking": {
       "file": "talking.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.4,
+      "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
@@ -199,8 +199,8 @@
     "typing-keyboard": {
       "file": "typing-keyboard.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.4,
+      "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
@@ -214,8 +214,8 @@
     "typing-touch": {
       "file": "typing-touch.fbx",
       "loop": true,
-      "fadeIn": 0.5,
-      "fadeOut": 0.5,
+      "fadeIn": 0.4,
+      "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
@@ -354,10 +354,7 @@
               "clip": "nodding",
               "weight": 1,
               "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
+                "head"
               ]
             }
           ]

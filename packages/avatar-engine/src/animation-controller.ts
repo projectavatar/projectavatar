@@ -24,7 +24,6 @@ import type { BodyPart } from './body-parts.ts';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const DEFAULT_FADE_IN = 0.3;
-const DEFAULT_FADE_OUT = 0.5;
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -228,8 +227,8 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-      // Stabilizer disabled — crossfade blending handles transitions
-      // this.stabilizer.update(dt);
+      // Stabilizer: pin feet/hips during crossfade to prevent sliding
+      this.stabilizer.update(dt);
 
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
@@ -308,24 +307,53 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Stabilizer lock disabled — relying on mixer crossfade blending
-    // if (this.activeSubActions.length > 0) {
-    //   this.stabilizer.lock();
-    // }
+    // Lock stabilizer before crossfade — captures current foot/hip positions
+    if (this.activeSubActions.length > 0) {
+      this.stabilizer.lock();
+    }
 
-    // Fade out and uncache old sub-actions (prevents mixer memory leak)
-    for (const sub of this.activeSubActions) {
-      sub.action.fadeOut(DEFAULT_FADE_OUT);
-      const clip = sub.action.getClip();
+    // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
+    const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
+    let maxFadeIn = DEFAULT_FADE_IN;
+    for (const entry of clips) {
+      const fi = entry.fadeIn ?? DEFAULT_FADE_IN;
+      if (fi > maxFadeIn) maxFadeIn = fi;
+    }
+
+    // Crossfade: fade out old sub-actions.
+    // CRITICAL: fadeOut duration must match the incoming fadeIn duration so
+    // that old weight + new weight ≈ 1.0 at every point during the blend.
+    // If fadeOut < fadeIn, there's a gap where total weight < 1 → T-pose bleed.
+    // If fadeOut > fadeIn, there's a period where total weight > 1 → over-saturated.
+    // Using maxFadeIn for all outgoing clips ensures complementary curves.
+    const outgoing = this.activeSubActions;
+    const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
+    for (const sub of outgoing) {
+      sub.action.fadeOut(crossfadeDuration);
+    }
+    // Clean up after crossfade completes.
+    // Safety: check that each clip isn't still used by activeSubActions
+    // before uncaching — rapid transitions (A→B→C) can cause timer A
+    // to fire while B's filtered sub-clips from the same FBX are still active.
+    if (outgoing.length > 0) {
+      const captured = [...outgoing];
       setTimeout(() => {
-        this.mixer.uncacheClip(clip);
-        this.mixer.uncacheAction(clip);
-      }, (DEFAULT_FADE_OUT + 0.1) * 1000);
+        // Build set of clip names currently in use
+        const activeClipNames = new Set(
+          this.activeSubActions.map((s) => s.action.getClip().name),
+        );
+        for (const sub of captured) {
+          sub.action.stop();
+          const clip = sub.action.getClip();
+          this.mixer.uncacheAction(clip);
+          // Only uncache the clip data if no active sub-action is using it
+          if (!activeClipNames.has(clip.name)) {
+            this.mixer.uncacheClip(clip);
+          }
+        }
+      }, (crossfadeDuration + 0.1) * 1000);
     }
     this.activeSubActions = [];
-
-    // Resolve action clips from the selected group
-    const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
 
     // Track max clip duration for loop cycling
     let maxClipDuration = 0;
@@ -398,10 +426,11 @@ export class AnimationController {
       entry.loop ? Infinity : 1,
     );
     action.clampWhenFinished = !entry.loop;
+    action.reset();
     action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
     action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
-    action.reset().play();
+    action.play();
 
     return {
       action,
