@@ -109,6 +109,13 @@ export function App() {
     return ANIM_BASE + clip.file;
   }, [state.previewClip, state.data.clips]);
 
+  // Resolve body parts for preview clip
+  const previewClipBodyParts = useMemo(() => {
+    if (!state.previewClip) return undefined;
+    const clip = state.data.clips[state.previewClip];
+    return clip?.bodyParts;
+  }, [state.previewClip, state.data.clips]);
+
   // File System Access API handle for saving
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
@@ -217,6 +224,7 @@ export function App() {
           <PreviewPanel
             clipPath={previewClipPath}
             modelUrl={modelUrl}
+            clipBodyParts={previewClipBodyParts}
           />
         </div>
       </div>

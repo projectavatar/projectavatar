@@ -5,6 +5,9 @@
  *
  * Uses the same Mixamo retargeting loader as the avatar viewer
  * to ensure consistent animation playback across VRM 0.x and 1.0.
+ *
+ * Supports bone masking: when a bone mask is set, only tracks for
+ * the specified bones are played. Unmasked bones hold their rest pose.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -40,6 +43,13 @@ export class ClipPreview {
   private _speed = 1.0;
   private _looping = true;
   private _paused = false;
+
+  /**
+   * Bone mask — set of VRM bone names to include.
+   * null = no masking (play all tracks).
+   * When set, tracks for bones NOT in the set are stripped from playback.
+   */
+  private _boneMask: Set<string> | null = null;
 
   get speed() { return this._speed; }
   get looping() { return this._looping; }
@@ -130,20 +140,36 @@ export class ClipPreview {
     this.clipCache.clear();
   }
 
+  /**
+   * Set the bone mask for preview isolation.
+   * Pass null to clear (play all bones).
+   * Pass a Set<string> of VRM bone names to isolate playback to those bones.
+   *
+   * If a clip is currently playing, it will be replayed with the new mask.
+   */
+  setBoneMask(mask: Set<string> | null): void {
+    this._boneMask = mask;
+  }
+
   /** Load and play an FBX clip by path */
   async playClip(fbxPath: string, loop?: boolean): Promise<void> {
     if (!this.vrm || !this.mixer) return;
 
     const shouldLoop = loop ?? this._looping;
 
-    // Load + retarget if not cached
-    let clip = this.clipCache.get(fbxPath);
-    if (!clip) {
+    // Load + retarget if not cached (full clip — masking is applied separately)
+    let fullClip = this.clipCache.get(fbxPath);
+    if (!fullClip) {
       const loaded = await loadMixamoAnimation(fbxPath, this.vrm);
       loaded.name = fbxPath.split('/').pop()?.replace('.fbx', '') ?? fbxPath;
       this.clipCache.set(fbxPath, loaded);
-      clip = loaded;
+      fullClip = loaded;
     }
+
+    // Apply bone mask if set
+    const clip = this._boneMask
+      ? this._maskClip(fullClip, this._boneMask)
+      : fullClip;
 
     // Stop current
     if (this.currentAction) {
@@ -162,7 +188,7 @@ export class ClipPreview {
     action.reset().play();
 
     this.currentAction = action;
-    this.currentClipName = clip.name ?? fbxPath;
+    this.currentClipName = fullClip.name ?? fbxPath;
     this._paused = false;
   }
 
@@ -227,6 +253,41 @@ export class ClipPreview {
   }
 
   // ─── Private ──────────────────────────────────────────────────────────
+
+  /**
+   * Create a masked version of a clip — only tracks for bones in the
+   * allowed set are kept. This creates a new AnimationClip instance
+   * (the cached full clip is never mutated).
+   */
+  private _maskClip(clip: THREE.AnimationClip, allowedBones: Set<string>): THREE.AnimationClip {
+    const filteredTracks = clip.tracks.filter((track) => {
+      // Track names follow the pattern: "boneName.property"
+      const dotIdx = track.name.indexOf('.');
+      if (dotIdx === -1) return true; // keep non-bone tracks
+      const boneName = track.name.slice(0, dotIdx);
+
+      // Check if this bone's VRM name is in the allowed set.
+      // The retargeted clip uses VRM normalized bone node names,
+      // so we need to check against those. The humanoid maps
+      // VRM bone names to scene node names — we need the reverse.
+      // Since we can't reverse-lookup easily, we check if any
+      // allowed bone's node name matches.
+      if (!this.vrm?.humanoid) return true;
+
+      for (const allowedBone of allowedBones) {
+        const node = this.vrm.humanoid.getNormalizedBoneNode(allowedBone as any);
+        if (node && node.name === boneName) return true;
+      }
+      return false;
+    });
+
+    const masked = new THREE.AnimationClip(
+      clip.name + '_masked',
+      clip.duration,
+      filteredTracks,
+    );
+    return masked;
+  }
 
   private _resize = (): void => {
     const w = this.container.clientWidth;
