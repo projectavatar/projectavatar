@@ -274,7 +274,7 @@ export class IdleLayer {
       this.hips.position.y = THREE.MathUtils.lerp(
         this.hips.position.y,
         this.hipsRestY,
-        0.3,
+        0.15,
       );
     }
 
