@@ -355,10 +355,11 @@ export class AnimationController {
     }
 
     // Set up loop cycling for looping actions with multiple groups
-    const isLooping = this.registry.isActionLooping(action);
+    const isLooping = this.registry.isActionLooping(action, groupIndex);
     const groupCount = this.registry.getGroupCount(action);
     this.isLoopCycling = isLooping && groupCount > 1;
-    this.loopCycleDuration = maxClipDuration;
+    // Guard: minimum 1s cycle to prevent infinite re-rolls if all clips fail to load
+    this.loopCycleDuration = Math.max(maxClipDuration, 1.0);
     this.loopCycleElapsed = 0;
 
     // Duration timer for non-looping actions

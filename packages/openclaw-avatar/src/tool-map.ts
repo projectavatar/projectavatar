@@ -79,7 +79,7 @@ export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   },
   tts: {
     before:     { emotion: 'excited',   action: 'talking' },
-    after:      { emotion: 'happy', action: 'nodding' },
+    after:      { emotion: 'happy', action: 'greeting' },
   },
 
   // ── Vision / image ───────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   },
   sessions_spawn: {
     before:     { emotion: 'excited',   action: 'typing',         prop: 'keyboard' },
-    after:      { emotion: 'thinking',   action: 'idle' },
+    after:      { emotion: 'happy',   action: 'celebrating' },
   },
   sessions_list: {
     before:     { emotion: 'thinking',  action: 'searching' },
@@ -139,7 +139,7 @@ export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   // ── Gateway ──────────────────────────────────────────────────────────────────
   gateway: {
     before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard', intensity: 'high' },
-    after:      { emotion: 'happy', action: 'nodding' },
+    after:      { emotion: 'happy', action: 'celebrating' },
     afterError: { emotion: 'confused',  action: 'nervous',      intensity: 'high' },
   },
 };

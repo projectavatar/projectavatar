@@ -247,16 +247,19 @@ export class ClipRegistry {
   }
 
   /**
-   * Check if an action is looping (based on first group's first clip).
+   * Check if an action's group is looping.
+   * Checks the specified group (defaults to 0). Each group can have
+   * independent loop behavior — a non-looping group won't cycle.
    */
-  isActionLooping(action: Action): boolean {
+  isActionLooping(action: Action, groupIndex: number = 0): boolean {
     const actionData = this.data.actions[action as string];
     if (!actionData || actionData.groups.length === 0) return true;
 
-    const firstGroup = actionData.groups[0]!;
-    if (firstGroup.clips.length === 0) return true;
+    const safeIndex = Math.min(groupIndex, actionData.groups.length - 1);
+    const group = actionData.groups[safeIndex]!;
+    if (group.clips.length === 0) return true;
 
-    const firstClip = this.data.clips[firstGroup.clips[0]!.clip];
+    const firstClip = this.data.clips[group.clips[0]!.clip];
     return firstClip?.loop ?? true;
   }
 
