@@ -64,6 +64,9 @@ export class IdleLayer {
   /** Base Y position for the VRM scene (set by VrmManager). */
   private baseY = -0.4;
 
+  /** Hips rest Y position — captured once after first mixer update. */
+  private hipsRestY: number | null = null;
+
   constructor(vrm: VRM, mode: IdleMode = 'air') {
     this.vrm = vrm;
     this.mode = mode;
@@ -149,19 +152,30 @@ export class IdleLayer {
       this.vrm.scene.position.y = this.baseY + bobOffset;
     }
 
-    // 2. Gentle body tilt — spine leans forward/back
+    // 2. Pin hips Y — prevent clips from moving the model up/down.
+    //    Mixer writes hips position every frame (root motion); we override
+    //    the Y component to keep the model locked to the hover plane.
+    if (this.hips) {
+      if (this.hipsRestY === null) {
+        // Capture rest Y on first frame after mixer has written pose
+        this.hipsRestY = this.hips.position.y;
+      }
+      this.hips.position.y = this.hipsRestY;
+    }
+
+    // 3. Gentle body tilt — spine leans forward/back
     if (this.spine) {
       const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE;
       this.spine.rotation.x += tiltX;
     }
 
-    // 3. Slow left/right drift — hips sway
+    // 4. Slow left/right drift — hips sway
     if (this.hips) {
       const driftZ = Math.sin(t * DRIFT_FREQUENCY * Math.PI * 2) * DRIFT_AMPLITUDE;
       this.hips.rotation.z += driftZ;
     }
 
-    // 4. Leg dangle — relaxed hanging pose
+    // 5. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
   }
 
