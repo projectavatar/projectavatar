@@ -268,23 +268,23 @@ export class IdleLayer {
   private _applyLegDangle(): void {
     // Left leg: relaxed, mostly straight — the "weight-bearing" leg
     if (this.leftUpperLeg) {
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 0.8 * this.legBendSign;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.12 * this.legBendSign;
     }
     if (this.leftLowerLeg) {
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 1.0 * this.legBendSign;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 1.4 * this.legBendSign;
     }
 
     // Right leg: visibly tucked up — the "casual" leg
     if (this.rightUpperLeg) {
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.8 * this.legBendSign;
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 2.52 * this.legBendSign;
     }
     if (this.rightLowerLeg) {
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 2.5 * this.legBendSign;
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 3.5 * this.legBendSign;
     }
 
     // Toes droop — more on the tucked leg
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * this.legBendSign;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 1.8 * this.legBendSign;
     }
     if (this.rightFoot) {
       this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5 * this.legBendSign;
