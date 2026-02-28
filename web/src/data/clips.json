@@ -931,46 +931,6 @@
       ],
       "durationOverride": 1.8
     },
-    "waving": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "emotional-waving-forward",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": 2.5
-    },
-    "greeting": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "greeting-while-standing",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": 2.5
-    },
     "laughing": {
       "groups": [
         {
@@ -991,13 +951,13 @@
       ],
       "durationOverride": 3
     },
-    "pointing": {
+    "celebrating": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.25,
           "clips": [
             {
-              "clip": "pointing-behind-with-thumb",
+              "clip": "restrained-enthusiasm-standing-fist-pump",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1007,14 +967,9 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": 2
-    },
-    "fist_pump": {
-      "groups": [
+        },
         {
-          "rarity": 1,
+          "rarity": 0.25,
           "clips": [
             {
               "clip": "high-enthusiasm-fist-pump",
@@ -1027,137 +982,27 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": 2
-    },
-    "dismissive": {
-      "groups": [
+        },
         {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "dismissing-with-back-hand",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": 2
-    },
-    "plotting": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "evil-plotting",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "sarcastic": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "sarcastically-looking-away",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "looking_around": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "standing-up-and-looking-around",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "shading_eyes": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "looking-with-hand-shading-eyes",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "telling_secret": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "telling-a-secret",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "victory": {
-      "groups": [
-        {
-          "rarity": 1,
+          "rarity": 0.25,
           "clips": [
             {
               "clip": "big-vegas-victory-idle",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.25,
+          "clips": [
+            {
+              "clip": "rallying-the-crowd-to-make-them-cheer",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1171,10 +1016,25 @@
       ],
       "durationOverride": 3
     },
-    "head_shake": {
+    "dismissive": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.2,
+          "clips": [
+            {
+              "clip": "dismissing-with-back-hand",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.2,
           "clips": [
             {
               "clip": "gesturing-head-side-to-side",
@@ -1187,17 +1047,12 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": 1.8
-    },
-    "relief": {
-      "groups": [
+        },
         {
-          "rarity": 1,
+          "rarity": 0.2,
           "clips": [
             {
-              "clip": "shaking-it-off-in-relief",
+              "clip": "sarcastically-looking-away",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1207,14 +1062,9 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": 2.5
-    },
-    "cautious_agree": {
-      "groups": [
+        },
         {
-          "rarity": 1,
+          "rarity": 0.2,
           "clips": [
             {
               "clip": "step-back-cautiously-agreeing",
@@ -1227,14 +1077,9 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": 2
-    },
-    "angry_fist": {
-      "groups": [
+        },
         {
-          "rarity": 1,
+          "rarity": 0.2,
           "clips": [
             {
               "clip": "vexed-shaking-of-the-fist",
@@ -1251,13 +1096,43 @@
       ],
       "durationOverride": 2
     },
-    "rallying": {
+    "searching": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.33,
           "clips": [
             {
-              "clip": "rallying-the-crowd-to-make-them-cheer",
+              "clip": "standing-up-and-looking-around",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.33,
+          "clips": [
+            {
+              "clip": "looking-with-hand-shading-eyes",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.33,
+          "clips": [
+            {
+              "clip": "asking-a-question-with-one-hand",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1269,7 +1144,72 @@
           ]
         }
       ],
-      "durationOverride": 3
+      "durationOverride": null
+    },
+    "nervous": {
+      "groups": [
+        {
+          "rarity": 0.25,
+          "clips": [
+            {
+              "clip": "nervously-looking-around-left-to-right-loop",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.25,
+          "clips": [
+            {
+              "clip": "being-terrified-while-standing",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.25,
+          "clips": [
+            {
+              "clip": "shaking-it-off-in-relief",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.25,
+          "clips": [
+            {
+              "clip": "right-hand-behind-head",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        }
+      ],
+      "durationOverride": null
     },
     "sad_idle": {
       "groups": [
@@ -1291,13 +1231,13 @@
       ],
       "durationOverride": null
     },
-    "nervous_look": {
+    "plotting": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.33,
           "clips": [
             {
-              "clip": "nervously-looking-around-left-to-right-loop",
+              "clip": "evil-plotting",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1307,54 +1247,9 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "terrified": {
-      "groups": [
+        },
         {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "being-terrified-while-standing",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "scratching_head": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "right-hand-behind-head",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "cocky": {
-      "groups": [
-        {
-          "rarity": 1,
+          "rarity": 0.33,
           "clips": [
             {
               "clip": "cocky-lean-back",
@@ -1367,17 +1262,12 @@
               ]
             }
           ]
-        }
-      ],
-      "durationOverride": null
-    },
-    "questioning": {
-      "groups": [
+        },
         {
-          "rarity": 1,
+          "rarity": 0.33,
           "clips": [
             {
-              "clip": "asking-a-question-with-one-hand",
+              "clip": "telling-a-secret",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1391,13 +1281,28 @@
       ],
       "durationOverride": null
     },
-    "phone": {
+    "greeting": {
       "groups": [
         {
-          "rarity": 1,
+          "rarity": 0.5,
           "clips": [
             {
-              "clip": "female-standing-talking-on-phone",
+              "clip": "greeting-while-standing",
+              "weight": 1,
+              "bodyParts": [
+                "head",
+                "torso",
+                "arms",
+                "legs"
+              ]
+            }
+          ]
+        },
+        {
+          "rarity": 0.5,
+          "clips": [
+            {
+              "clip": "emotional-waving-forward",
               "weight": 1,
               "bodyParts": [
                 "head",
@@ -1409,27 +1314,7 @@
           ]
         }
       ],
-      "durationOverride": null
-    },
-    "celebrating": {
-      "groups": [
-        {
-          "rarity": 1,
-          "clips": [
-            {
-              "clip": "restrained-enthusiasm-standing-fist-pump",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs"
-              ]
-            }
-          ]
-        }
-      ],
-      "durationOverride": 3.5
+      "durationOverride": 2.5
     }
   },
   "emotions": {
@@ -1448,14 +1333,24 @@
       },
       "layers": []
     },
+    "angry": {
+      "weightScale": 1.15,
+      "overrides": {},
+      "layers": []
+    },
     "excited": {
       "weightScale": 1.2,
       "overrides": {},
       "layers": []
     },
-    "angry": {
-      "weightScale": 1.15,
-      "overrides": {},
+    "confused": {
+      "weightScale": 1,
+      "overrides": {
+        "idle": {
+          "clip": "looking-forward",
+          "weight": 0.9
+        }
+      },
       "layers": []
     },
     "nervous": {
@@ -1468,19 +1363,9 @@
         }
       ]
     },
-    "relaxed": {
-      "weightScale": 0.8,
+    "surprised": {
+      "weightScale": 1.1,
       "overrides": {},
-      "layers": []
-    },
-    "confused": {
-      "weightScale": 1,
-      "overrides": {
-        "idle": {
-          "clip": "looking-forward",
-          "weight": 0.9
-        }
-      },
       "layers": []
     },
     "bashful": {
@@ -1501,11 +1386,6 @@
           "weight": 0.9
         }
       },
-      "layers": []
-    },
-    "surprised": {
-      "weightScale": 1.1,
-      "overrides": {},
       "layers": []
     }
   }

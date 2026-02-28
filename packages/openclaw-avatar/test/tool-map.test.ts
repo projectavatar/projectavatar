@@ -25,26 +25,26 @@ describe('resolveToolSignal', () => {
     const signal = resolveToolSignal('web_search', 'before');
     expect(signal).not.toBeNull();
     expect(signal?.emotion).toBe('thinking');
-    expect(signal?.action).toBe('shading_eyes');
+    expect(signal?.action).toBe('searching');
   });
 
   it('returns after signal for known tools', () => {
     const signal = resolveToolSignal('web_search', 'after');
     expect(signal).not.toBeNull();
-    expect(signal?.emotion).toBe('focused');
+    expect(signal?.emotion).toBe('thinking');
   });
 
   it('returns afterError signal when error is provided', () => {
     const signal = resolveToolSignal('exec', 'after', 'Command failed');
     expect(signal).not.toBeNull();
     expect(signal?.emotion).toBe('confused');
-    expect(signal?.action).toBe('terrified');
+    expect(signal?.action).toBe('nervous');
   });
 
   it('returns after (success) signal when no error', () => {
     const signal = resolveToolSignal('exec', 'after', undefined);
     expect(signal).not.toBeNull();
-    expect(signal?.emotion).toBe('satisfied');
+    expect(signal?.emotion).toBe('happy');
   });
 
   it('returns null for after when no after rule exists', () => {
