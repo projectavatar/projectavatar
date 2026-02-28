@@ -13,6 +13,7 @@ import { useCallback } from 'react';
 import type { ClipsJson, ActionData, ClipLayer } from '../types.ts';
 import type { Action } from '../state.ts';
 import { BODY_PARTS } from '@project-avatar/avatar-engine';
+import { BODY_PART_ICON, BODY_PART_COLOR } from '../constants.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -108,17 +109,23 @@ const bodyPartRowStyle: React.CSSProperties = {
   gap: 6,
 };
 
-const chipStyle = (active: boolean): React.CSSProperties => ({
-  padding: '3px 10px',
+const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
+  padding: '4px 10px',
   borderRadius: 12,
   fontSize: 10,
   fontFamily: 'var(--font-mono)',
-  fontWeight: 600,
+  fontWeight: active ? 600 : 400,
   cursor: 'pointer',
-  transition: 'all 0.12s',
-  border: active ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-  background: active ? 'var(--color-accent-dim)' : 'transparent',
-  color: active ? 'var(--color-accent)' : 'var(--color-text-dim)',
+  transition: 'all 0.15s ease',
+  border: `1.5px solid ${active ? color : 'var(--color-border)'}`,
+  background: active ? `${color}18` : 'transparent',
+  color: active ? color : 'var(--color-text-muted)',
+  opacity: active ? 1 : 0.5,
+  textDecoration: active ? 'none' : 'line-through',
+  userSelect: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
 });
 
 const addBtnStyle: React.CSSProperties = {
@@ -242,10 +249,10 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
             {BODY_PARTS.map(part => (
               <button
                 key={part}
-                style={chipStyle(layer.bodyParts.includes(part))}
+                style={chipStyle(layer.bodyParts.includes(part), BODY_PART_COLOR[part])}
                 onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
               >
-                {part}
+                {BODY_PART_ICON[part]} {part}
               </button>
             ))}
           </div>
@@ -257,7 +264,11 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
         onClick={() => {
           const newClips = [
             ...action.clips,
-            { clip: clipIds[0] ?? '', weight: 0.5, bodyParts: ['head', 'torso', 'arms', 'legs'] },
+            {
+              clip: clipIds[0] ?? '',
+              weight: 0.5,
+              bodyParts: data.clips[clipIds[0] ?? '']?.bodyParts ?? ['head', 'torso', 'arms', 'legs'],
+            },
           ];
           updateAction(selectedAction, { clips: newClips });
         }}
