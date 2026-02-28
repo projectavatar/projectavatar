@@ -66,6 +66,10 @@ export class IdleLayer {
 
   private initialized = false;
 
+  /** Rest pose rotations — captured once so we can reset before applying. */
+  private restRotations = new Map<THREE.Object3D, THREE.Euler>();
+  private restPositions = new Map<THREE.Object3D, THREE.Vector3>();
+
   /** Base Y position for the VRM scene (set by VrmManager). */
   private baseY = -0.4;
 
@@ -118,8 +122,14 @@ export class IdleLayer {
    * @param delta — frame delta time in seconds
    * @param loaded — whether animation clips have finished loading
    */
-  update(delta: number, loaded: boolean): void {
+  update(delta: number, loaded: boolean, mixerActive: boolean = true): void {
     if (!this.enabled || !this.initialized || !loaded) return;
+
+    // When mixer isn't running, bones don't get reset each frame.
+    // We must reset to rest pose before applying additive offsets.
+    if (!mixerActive) {
+      this._resetToRest();
+    }
 
     this.elapsed += delta;
     const t = this.elapsed;
@@ -161,6 +171,9 @@ export class IdleLayer {
     this.head          = get('head');
 
     this.initialized = !!(this.hips || this.spine || this.chest);
+
+    // Capture rest pose for all bones we modify
+    this._captureRestPose();
 
     // Detect leg bend direction from bone chain geometry.
     // Compare upper leg and lower leg world Y positions — if the lower leg
@@ -206,6 +219,37 @@ export class IdleLayer {
     } else {
       this.legBendSign = 1;
       console.info('[IdleLayer] Detected normal leg axis — using positive bend');
+    }
+  }
+
+  /** Capture rest pose rotations/positions for bones we modify. */
+  private _captureRestPose(): void {
+    const bones = [
+      this.hips, this.spine, this.chest,
+      this.leftUpperLeg, this.rightUpperLeg,
+      this.leftLowerLeg, this.rightLowerLeg,
+      this.leftFoot, this.rightFoot,
+      this.head,
+    ];
+    for (const bone of bones) {
+      if (bone) {
+        this.restRotations.set(bone, bone.rotation.clone());
+        this.restPositions.set(bone, bone.position.clone());
+      }
+    }
+  }
+
+  /**
+   * Reset bones to rest pose before applying idle layer.
+   * Only needed when mixer is NOT running (fbxClips off),
+   * because the mixer normally overwrites bone transforms each frame.
+   */
+  private _resetToRest(): void {
+    for (const [bone, rot] of this.restRotations) {
+      bone.rotation.copy(rot);
+    }
+    for (const [bone, pos] of this.restPositions) {
+      bone.position.copy(pos);
     }
   }
 

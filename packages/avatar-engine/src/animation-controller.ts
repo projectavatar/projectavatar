@@ -258,7 +258,7 @@ export class AnimationController {
 
     // Procedural idle layer: hover bob, breathing, etc.
     // Runs independently of FBX clips — has its own toggle.
-    this.idleLayer.update(dt, this._loaded);
+    this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
