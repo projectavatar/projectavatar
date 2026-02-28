@@ -30,5 +30,3 @@ export {
 } from './body-parts.ts';
 export type { BodyPart } from './body-parts.ts';
 
-// ─── Procedural ───────────────────────────────────────────────────────────────
-export type { AnimBone, BoneState } from './procedural/types.ts';

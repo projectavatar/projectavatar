@@ -6,8 +6,7 @@
  *   - Action clips play simultaneously, each scoped to body part groups
  *   - Each clip is split into sub-actions per body-part group for independent weight control
  *   - Per-group weight normalization ensures total influence always sums to 1.0
- *   - Procedural idle noise layer adds organic variation on top
- *   - Expression controller adds blend shapes + head offset externally
+ *   - Expression controller adds blend shapes externally
  *
  * Blending model (inspired by three.js webgl_animation_skinning_blending):
  *   All clips play simultaneously via AnimationMixer. Each clip is split into
@@ -34,8 +33,6 @@ export interface LayerState {
   fbxClips: boolean;
   /** Expression blend shapes (happy, sad, etc.) */
   expressions: boolean;
-  /** Expression head bone offset */
-  headOffset: boolean;
   /** Blink + micro-glance */
   blink: boolean;
 }
@@ -48,8 +45,6 @@ export interface ActiveClipInfo {
   weight: number;
   /** Current effective time scale */
   timeScale: number;
-  /** Whether this is the primary clip (vs additive layer) */
-  isPrimary: boolean;
   /** Whether the clip is looping */
   isLooping: boolean;
   /** Current playback time in seconds */
@@ -63,7 +58,6 @@ export interface ActiveClipInfo {
 const DEFAULT_LAYERS: LayerState = {
   fbxClips: true,
   expressions: true,
-  headOffset: true,
   blink: true,
 };
 
@@ -71,7 +65,6 @@ const DEFAULT_LAYERS: LayerState = {
 export const LAYER_LABELS: Record<keyof LayerState, string> = {
   fbxClips: 'FBX Clips',
   expressions: 'Expressions',
-  headOffset: 'Head Offset',
   blink: 'Blink',
 };
 
@@ -99,7 +92,6 @@ export class AnimationController {
   /** Active sub-actions for the current blended action. */
   private activeSubActions: SubAction[] = [];
 
-
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
 
@@ -115,14 +107,10 @@ export class AnimationController {
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
 
-  /** Map from VRM bone name → normalized bone node name (for track filtering). */
-  private boneNameMap = new Map<string, string>();
-
   constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
-    this._buildBoneNameMap();
   }
 
   /**
@@ -224,7 +212,6 @@ export class AnimationController {
           name: sub.action.getClip().name,
           weight: sub.action.getEffectiveWeight(),
           timeScale: sub.action.getEffectiveTimeScale(),
-          isPrimary: false,
           isLooping: sub.action.loop === THREE.LoopRepeat,
           time: sub.action.time,
           duration: sub.action.getClip().duration,
@@ -249,26 +236,15 @@ export class AnimationController {
 
   // ─── Private: bone setup ────────────────────────────────────────────────
 
-  /** Build a map from VRM normalized bone node names to bone names for track filtering. */
-  private _buildBoneNameMap(): void {
-    const allBones = Object.values(BODY_PART_BONES).flat();
-    for (const boneName of allBones) {
-      const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName as any);
-      if (node) {
-        this.boneNameMap.set(node.name, boneName);
-      }
-    }
-  }
-
   // ─── Private: blended action playback ───────────────────────────────────
 
   /**
-   * Core blending logic:
-   * 1. Resolve the action's clips (with body part scoping)
-   * 2. Resolve idle clips (always full body)
-   * 3. For each body part group, determine which clips own it
-   * 4. Normalize weights per group so they sum to 1.0
-   * 5. Create sub-actions (one per clip×group) with normalized weights
+   * Core blending logic — explicit clips only.
+   *
+   * 1. Resolve the action's clips (each with body part scoping + weight)
+   * 2. For each body part group, collect clips that claim it
+   * 3. Normalize weights per group so they sum to 1.0
+   * 4. Create sub-actions (one per clip×group) with normalized weights
    */
   /**
    * Core blending logic — explicit clips only, no implicit idle.
@@ -287,9 +263,14 @@ export class AnimationController {
       this.durationTimer = null;
     }
 
-    // Fade out all existing sub-actions
+    // Fade out and uncache old sub-actions (prevents mixer memory leak)
     for (const sub of this.activeSubActions) {
       sub.action.fadeOut(DEFAULT_FADE_OUT);
+      const clip = sub.action.getClip();
+      setTimeout(() => {
+        this.mixer.uncacheClip(clip);
+        this.mixer.uncacheAction(clip);
+      }, (DEFAULT_FADE_OUT + 0.1) * 1000);
     }
     this.activeSubActions = [];
 

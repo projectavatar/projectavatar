@@ -160,8 +160,8 @@ export class StateMachine {
 
     // Expression layers respect toggles
     const layers = this.animationCtrl.layers;
-    if (layers.expressions || layers.headOffset) {
-      this.expressionCtrl.update(delta, layers.expressions, layers.headOffset);
+    if (layers.expressions) {
+      this.expressionCtrl.update(delta, layers.expressions);
     }
     if (layers.blink) {
       this.blinkCtrl.update(delta);

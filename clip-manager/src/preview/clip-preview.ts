@@ -59,7 +59,6 @@ export class ClipPreview {
   private _layers: LayerState = {
     fbxClips: true,
     expressions: true,
-    headOffset: true,
     blink: true,
   };
 
@@ -103,10 +102,10 @@ export class ClipPreview {
       if (this._disposed) return;
 
       if (this._engineActive) {
-        this.animCtrl!.update(delta);
+        if (!this._paused) this.animCtrl!.update(delta);
         const layers = this.animCtrl!.layers;
-        if (layers.expressions || layers.headOffset) {
-          this.exprCtrl!.update(delta, layers.expressions, layers.headOffset);
+        if (layers.expressions) {
+          this.exprCtrl!.update(delta, layers.expressions);
         }
         if (layers.blink) {
           this.blinkCtrl!.update(delta);

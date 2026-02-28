@@ -7,31 +7,11 @@ interface ExpressionTarget {
   weight: number;
 }
 
-interface HeadOffset {
-  x: number; // pitch (nod)
-  y: number; // yaw (turn)
-  z: number; // roll (tilt)
-}
-
 /**
  * Emotion → VRM expression mapping with smooth interpolation.
  *
- * Two subsystems:
- * 1. Blend shapes — VRM expressionManager values (happy, sad, etc.)
- * 2. Head bone rotation — small euler offsets per emotion for readability
- *
- * HEAD BONE CONFLICT NOTE:
- * The procedural engine writes bone rotations every frame. ExpressionController
- * adds offsets ON TOP of whatever the engine wrote — it reads the current
- * bone rotation each frame and adds its delta, rather than setting an
- * absolute rotation from a stale base. This requires that ExpressionController
- * runs AFTER the animation update in the render loop.
- * StateMachine.update() calls expressionCtrl.update() after animationCtrl.update()
- * to guarantee this ordering.
- *
- * NOTE: Breathing is handled by the procedural idle layer, NOT here.
- * A previous version had an independent breathing oscillator which
- * conflicted with the idle layer's breathing (different periods = drift).
+ * Manages VRM blend shape expressions (happy, sad, etc.) with smooth interpolation.
+ * Runs AFTER animation update in the render loop.
  */
 
 const EMOTION_MAP: Record<Emotion, ExpressionTarget[]> = {
@@ -51,40 +31,11 @@ const EMOTION_MAP: Record<Emotion, ExpressionTarget[]> = {
   nervous:   [{ name: 'neutral', weight: 0.3 }, { name: 'surprised', weight: 0.4 }],
 };
 
-/**
- * Head bone euler offsets per emotion (radians, small values).
- * Applied ADDITIVELY on top of the mixer's pose — not as absolute rotation.
- *
- * x = pitch (positive = nod down), y = yaw (positive = turn left), z = roll (positive = tilt right)
- */
-const HEAD_OFFSET: Record<Emotion, HeadOffset> = {
-  idle:      { x:  0.00,  y:  0.00,  z:  0.00 },
-  thinking:  { x: -0.06,  y:  0.04,  z:  0.04 }, // head up + slight tilt
-  focused:   { x:  0.04,  y:  0.00,  z:  0.00 }, // slight forward lean
-  excited:   { x: -0.05,  y:  0.00,  z: -0.03 }, // head up, slight tilt
-  confused:  { x:  0.02,  y:  0.00,  z:  0.07 }, // side tilt
-  satisfied: { x:  0.02,  y:  0.00,  z: -0.02 }, // slight nod
-  concerned: { x:  0.05,  y: -0.03,  z: -0.04 }, // head down + slight turn
-  happy:     { x: -0.03,  y:  0.00,  z:  0.00 }, // slight head up
-  angry:     { x:  0.06,  y:  0.00,  z:  0.00 }, // head down (menacing)
-  sad:       { x:  0.08,  y: -0.02,  z: -0.03 }, // head drooped
-  relaxed:   { x:  0.02,  y:  0.02,  z:  0.02 }, // slight tilt, easygoing
-  surprised: { x: -0.06,  y:  0.00,  z:  0.00 }, // head back
-  bashful:   { x:  0.04,  y:  0.05,  z:  0.05 }, // looking away, tilted
-  nervous:   { x:  0.02,  y: -0.03,  z: -0.02 }, // slight turn, uneasy
-};
-
 /** Separate intensity scales for blend shapes and head movement (different sensitivities). */
 const BLEND_INTENSITY_SCALE: Record<Intensity, number> = {
   low: 0.5,
   medium: 1.0,
   high: 1.2,
-};
-
-const HEAD_INTENSITY_SCALE: Record<Intensity, number> = {
-  low: 0.6,
-  medium: 1.0,
-  high: 1.15,
 };
 
 export class ExpressionController {
@@ -93,22 +44,13 @@ export class ExpressionController {
   private currentWeights = new Map<string, number>();
   private blendSpeed = 3.0;
 
-  private headBone: THREE.Object3D | null = null;
-  private headTargetOffset: HeadOffset = { x: 0, y: 0, z: 0 };
-  private headCurrentOffset: HeadOffset = { x: 0, y: 0, z: 0 };
-  private headBlendSpeed = 2.5;
-
   constructor(vrm: VRM) {
     this.vrm = vrm;
-    // getNormalizedBoneNode is the three-vrm v2+ API (VRM 0.x + 1.0 both supported).
-    // Gracefully degrades — headBone stays null and head movement is skipped.
-    this.headBone = vrm.humanoid?.getNormalizedBoneNode('head') ?? null;
   }
 
   /** Set the target emotion with optional intensity scaling. */
   setEmotion(emotion: Emotion, intensity: Intensity = 'medium'): void {
     const blendScale = BLEND_INTENSITY_SCALE[intensity];
-    const headScale  = HEAD_INTENSITY_SCALE[intensity];
 
     const targets = EMOTION_MAP[emotion] ?? EMOTION_MAP.idle;
     this.targetWeights.clear();
@@ -116,12 +58,6 @@ export class ExpressionController {
       this.targetWeights.set(target.name, Math.min(target.weight * blendScale, 1.0));
     }
 
-    const offset = HEAD_OFFSET[emotion] ?? HEAD_OFFSET.idle;
-    this.headTargetOffset = {
-      x: offset.x * headScale,
-      y: offset.y * headScale,
-      z: offset.z * headScale,
-    };
   }
 
   /**
@@ -129,11 +65,9 @@ export class ExpressionController {
    * animation update so the offset applies on top of the mixer's pose.
    *
    * @param enableBlendShapes  Whether to update VRM expression blend shapes (layer toggle)
-   * @param enableHeadOffset   Whether to apply additive head bone rotation (layer toggle)
    */
-  update(delta: number, enableBlendShapes = true, enableHeadOffset = true): void {
+  update(delta: number, enableBlendShapes = true): void {
     if (enableBlendShapes) this._updateBlendShapes(delta);
-    if (enableHeadOffset) this._updateHeadBone(delta);
   }
 
   private _updateBlendShapes(delta: number): void {
@@ -157,23 +91,6 @@ export class ExpressionController {
     }
   }
 
-  private _updateHeadBone(delta: number): void {
-    if (!this.headBone) return;
-
-    const decay = 1 - Math.exp(-this.headBlendSpeed * delta);
-
-    // Lerp current offset toward target
-    this.headCurrentOffset.x += (this.headTargetOffset.x - this.headCurrentOffset.x) * decay;
-    this.headCurrentOffset.y += (this.headTargetOffset.y - this.headCurrentOffset.y) * decay;
-    this.headCurrentOffset.z += (this.headTargetOffset.z - this.headCurrentOffset.z) * decay;
-
-    // Apply ADDITIVELY on top of whatever the procedural engine wrote this frame.
-    // Breathing is handled by the idle layer — no duplicate oscillator here.
-    this.headBone.rotation.x += this.headCurrentOffset.x;
-    this.headBone.rotation.y += this.headCurrentOffset.y;
-    this.headBone.rotation.z += this.headCurrentOffset.z;
-  }
-
   /** Reset all expressions and head offset immediately. */
   reset(): void {
     if (this.vrm.expressionManager) {
@@ -184,8 +101,5 @@ export class ExpressionController {
     this.currentWeights.clear();
     this.targetWeights.clear();
 
-    this.headTargetOffset  = { x: 0, y: 0, z: 0 };
-    this.headCurrentOffset = { x: 0, y: 0, z: 0 };
-    // No need to reset headBone.rotation — the procedural engine owns the base pose.
   }
 }

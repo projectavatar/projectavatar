@@ -193,7 +193,6 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
     expressions: true,
-    headOffset: true,
     blink: true,
   });
 
@@ -305,20 +304,20 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
               padding: "5px 8px",
               marginBottom: 3,
               borderRadius: 4,
-              border: `1px solid ${clip.isPrimary ? "var(--color-accent)" : "var(--color-border)"}`,
-              background: clip.isPrimary ? "rgba(108, 92, 231, 0.08)" : "transparent",
+              border: `1px solid ${"var(--color-border)"}`,
+              background: "transparent",
               fontSize: 10,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{
-                  fontWeight: clip.isPrimary ? 600 : 400,
-                  color: clip.isPrimary ? "var(--color-accent)" : "var(--color-text)",
+                  fontWeight: 400,
+                  color: "var(--color-text)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
                   maxWidth: 180,
                 }} title={clip.name}>
-                  {clip.isPrimary ? "▶ " : "  "}{clip.name.replace(".fbx", "")}
+                  {" "}{clip.name.replace(".fbx", "")}
                 </span>
                 <span style={{ color: "var(--color-text-muted)", flexShrink: 0 }}>
                   {clip.isLooping ? "🔁" : "⏹"}
@@ -340,7 +339,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
                 <div style={{
                   height: "100%",
                   width: `${Math.min(clip.weight * 100, 100)}%`,
-                  background: clip.isPrimary ? "var(--color-accent)" : "var(--color-text-muted)",
+                  background: "var(--color-text-muted)",
                   borderRadius: 1,
                   transition: "width 0.1s",
                 }} />

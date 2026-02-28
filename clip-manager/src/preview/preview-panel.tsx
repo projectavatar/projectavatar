@@ -188,7 +188,6 @@ export function PreviewPanel({
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
     expressions: true,
-    headOffset: true,
     blink: true,
   });
 
@@ -270,7 +269,6 @@ export function PreviewPanel({
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !previewAction) return;
 
-    // Re-enable engine with latest clips data if needed
     const data = clipsDataRef.current;
     if (!data) return;
 
@@ -284,7 +282,6 @@ export function PreviewPanel({
           return;
         }
       } else {
-        // Update the registry data in case clips were edited
         preview.updateEngineData(data as ClipsJsonData);
       }
 
@@ -293,19 +290,8 @@ export function PreviewPanel({
     };
 
     void playAction();
-  }, [previewAction, modelLoaded]);
+  }, [previewAction, modelLoaded, clipsData]);
 
-  // When action clips data changes (weight/bodyParts edits), re-trigger engine action
-  useEffect(() => {
-    const preview = previewRef.current;
-    if (!preview || !modelLoaded || !previewAction || !preview.engineActive) return;
-
-    const data = clipsDataRef.current;
-    if (!data) return;
-
-    preview.updateEngineData(data as ClipsJsonData);
-    preview.playEngineAction(previewAction as ActionName);
-  }, [clipsData, previewAction, modelLoaded]);
 
   const handleTogglePause = useCallback(() => {
     const preview = previewRef.current;
