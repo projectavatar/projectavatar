@@ -275,6 +275,17 @@ export function PreviewPanel({
     const data = clipsDataRef.current;
     if (!data) return;
 
+    // Check if the selected group has valid clips — if not, stop preview
+    const actionData = data.actions[previewAction];
+    const group = actionData?.groups[previewGroupIndex];
+    const hasValidClips = group?.clips.some(c => c.clip && data.clips[c.clip]);
+
+    if (!hasValidClips) {
+      preview.stop();
+      setActionLabel(null);
+      return;
+    }
+
     const playAction = async () => {
       if (!preview.engineActive) {
         try {
