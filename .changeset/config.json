@@ -9,6 +9,8 @@
   "updateInternalDependencies": "patch",
   "ignore": [
     "@project-avatar/shared",
+    "@project-avatar/clip-manager",
+    "@project-avatar/avatar-engine",
     "@project-avatar/relay",
     "@project-avatar/web"
   ]
