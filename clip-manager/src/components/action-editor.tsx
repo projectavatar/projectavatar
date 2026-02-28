@@ -33,7 +33,7 @@ const emptyStyle: React.CSSProperties = {
 const clipRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 40,
   padding: '8px 0',
   borderBottom: '1px solid rgba(42, 42, 58, 0.3)',
 };
@@ -114,7 +114,7 @@ const addBtnStyle: React.CSSProperties = {
 const durationRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 40,
   marginTop: 12,
   paddingTop: 12,
   borderTop: '1px solid var(--color-border)',
@@ -221,7 +221,6 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
             </button>
           ))}
 
-          <div style={{ width: 50, flexShrink: 0 }} />
           {action.clips.length > 1 && (
             <button
               style={removeBtnStyle}
