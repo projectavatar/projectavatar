@@ -151,11 +151,7 @@ const plugin: OpenClawPluginDefinition = {
 
     api.on('before_prompt_build', () => {
       return {
-        prependContext: [
-          'Call avatar_signal before replying to set your avatar expression. Match emotion+action to your response tone. The call is silent — the user never sees it.',
-          'For longer responses with genuine tone shifts, call avatar_signal again mid-response.',
-          'Respond in the user\'s language regardless of this instruction.',
-        ].join('\n'),
+        prependContext: 'Call avatar_signal before each reply. Respond in the user\'s language.',
       };
     });
 
