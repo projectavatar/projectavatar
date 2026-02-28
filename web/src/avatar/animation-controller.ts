@@ -49,6 +49,11 @@ const DEFAULT_FADE_OUT = 0.5;
 
 // ─── Bones for additive idle layer ────────────────────────────────────────────
 
+/**
+ * Bones the idle layer may write to. Must be a superset of what
+ * evaluateIdleLayer() actually touches — if the idle layer adds
+ * new bones, add them here too.
+ */
 const IDLE_BONES: AnimBone[] = [
   'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
   'leftShoulder', 'rightShoulder',
@@ -93,8 +98,8 @@ export class AnimationController {
 
   /** Bone node references for additive idle layer. */
   private boneNodes = new Map<AnimBone, THREE.Object3D>();
-  /** Rest-pose rotations captured once on init. */
-  private restPoses = new Map<AnimBone, THREE.Euler>();
+  /** Rest-pose positions captured once on init (for hip translation). */
+  private restPositions = new Map<AnimBone, THREE.Vector3>();
 
   /** Global elapsed time for idle layer noise. */
   private elapsed = 0;
@@ -143,6 +148,12 @@ export class AnimationController {
     const loaded = results.filter((r) => r.status === 'fulfilled').length;
     console.info(`[AnimationController] Loaded ${loaded}/${files.length} clips`);
 
+    // Dev-mode: warn about any clip-map references that failed to load
+    const missing = files.filter((f) => !this.clipCache.has(f));
+    if (missing.length > 0) {
+      console.error('[AnimationController] Missing clips after load:', missing);
+    }
+
     // Start with idle clip
     this._playClipSet('idle', 'idle', 'medium');
   }
@@ -155,8 +166,12 @@ export class AnimationController {
       this.currentEmotion = emotion;
     }
 
-    // Same action with same parameters — skip
-    if (action === this.currentAction && intensity === this.currentIntensity) {
+    // Same action with same parameters (including emotion) — skip
+    if (
+      action === this.currentAction &&
+      intensity === this.currentIntensity &&
+      (emotion === undefined || emotion === this.currentEmotion)
+    ) {
       return;
     }
 
@@ -169,12 +184,30 @@ export class AnimationController {
   /**
    * Update the current emotion. May change the active clip if the emotion
    * has overrides for the current action.
+   *
+   * Compares resolved clips before and after — only triggers a fade cycle
+   * if the actual clip set changes.
    */
   setEmotion(emotion: Emotion): void {
     if (emotion === this.currentEmotion) return;
+
+    // Check if the clip set actually changes before triggering a fade cycle
+    const before = resolveClips(this.currentAction, this.currentEmotion, this.currentIntensity);
+    const after = resolveClips(this.currentAction, emotion, this.currentIntensity);
+
     this.currentEmotion = emotion;
 
-    // Re-resolve clips with the new emotion
+    // Compare primary + all layer files
+    if (
+      before.primary.file === after.primary.file &&
+      before.layers.length === after.layers.length &&
+      before.layers.every((l, i) => l.file === after.layers[i]?.file)
+    ) {
+      // Same clips — update emotion state without re-triggering animation
+      return;
+    }
+
+    // Different clips — trigger crossfade
     this._playClipSet(this.currentAction, emotion, this.currentIntensity);
   }
 
@@ -223,7 +256,7 @@ export class AnimationController {
 
     // Step 2: Additive idle layer on top (if layer enabled)
     if (this.layers.idleNoise) {
-      this._applyIdleLayer(dt);
+      this._applyIdleLayer();
     }
   }
 
@@ -236,7 +269,7 @@ export class AnimationController {
     this.clipCache.clear();
     this.activeActions.length = 0;
     this.boneNodes.clear();
-    this.restPoses.clear();
+    this.restPositions.clear();
     this.idleBuffer.clear();
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
@@ -251,7 +284,7 @@ export class AnimationController {
       const node = this.vrm.humanoid?.getNormalizedBoneNode(boneName);
       if (node) {
         this.boneNodes.set(boneName, node);
-        this.restPoses.set(boneName, node.rotation.clone());
+        this.restPositions.set(boneName, node.position.clone());
       }
     }
   }
@@ -329,9 +362,9 @@ export class AnimationController {
    *
    * The mixer has already written bone rotations from the FBX clip.
    * We evaluate the idle layer (breathing, sway, head drift) and ADD
-   * small euler offsets on top for organic variation.
+   * small euler offsets and position offsets on top for organic variation.
    */
-  private _applyIdleLayer(_dt: number): void {
+  private _applyIdleLayer(): void {
     // Determine idle influence based on current action
     const influence = this.currentAction === 'idle'
       ? IDLE_INFLUENCE_DURING_IDLE
@@ -343,7 +376,7 @@ export class AnimationController {
     this.idleBuffer.clear();
     evaluateIdleLayer(this.elapsed, this.idleBuffer, influence);
 
-    // Apply base pose + idle offsets additively to bones
+    // Apply idle offsets additively to bones
     const s = this.flipXZ ? -1 : 1;
 
     for (const [boneName, node] of this.boneNodes) {
@@ -355,6 +388,13 @@ export class AnimationController {
       node.rotation.x += state.rx * s;
       node.rotation.y += state.ry;
       node.rotation.z += state.rz * s;
+
+      // Add position offsets (hip lateral sway from weight shift)
+      if (state.px !== 0 || state.py !== 0 || state.pz !== 0) {
+        node.position.x += state.px * s;
+        node.position.y += state.py;
+        node.position.z += state.pz * s;
+      }
     }
   }
 }

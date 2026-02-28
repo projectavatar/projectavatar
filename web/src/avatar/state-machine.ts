@@ -41,7 +41,7 @@ export interface EventLogEntry {
   action: Action;
   prop?: Prop;
   intensity?: Intensity;
-  source: 'relay' | 'dev-panel';
+  source: 'relay' | 'dev-panel' | 'system';
 }
 
 const MAX_LOG_ENTRIES = 50;
@@ -93,7 +93,7 @@ export class StateMachine {
   }
 
   /** Handle an incoming avatar event from the relay. */
-  handleEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' = 'relay'): void {
+  handleEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' | 'system' = 'relay'): void {
     const prev = { ...this.state };
 
     this.state.lastEventTime = Date.now();
@@ -181,11 +181,11 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
     }
     this.idleTimer = setTimeout(() => {
-      this.handleEvent({ emotion: 'idle', action: 'idle', prop: 'none' });
+      this.handleEvent({ emotion: 'idle', action: 'idle', prop: 'none' }, 'system');
     }, this.idleTimeoutMs);
   }
 
-  private _logEvent(event: AvatarEvent, source: 'relay' | 'dev-panel'): void {
+  private _logEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' | 'system'): void {
     this.eventLog.unshift({
       timestamp: Date.now(),
       emotion: event.emotion,

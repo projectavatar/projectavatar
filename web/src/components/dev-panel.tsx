@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ACTIONS, EMOTIONS, INTENSITIES } from '@project-avatar/shared';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { useStore } from '../state/store.ts';
-import type { StateMachine, EventLogEntry } from '../avatar/state-machine.ts';
+import type { StateMachine } from '../avatar/state-machine.ts';
 import type { LayerState } from '../avatar/animation-controller.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ const logEntryStyle = (source: string): React.CSSProperties => ({
   padding: '4px 0',
   borderBottom: '1px solid rgba(42, 42, 58, 0.3)',
   fontSize: 10,
-  color: source === 'dev-panel' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+  color: source === 'dev-panel' ? 'var(--color-accent)' : source === 'system' ? 'var(--color-warning)' : 'var(--color-text-muted)',
 });
 
 const logTimeStyle: React.CSSProperties = {
@@ -195,7 +195,8 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   const [selectedEmotion, setSelectedEmotion] = useState<Emotion>('idle');
   const [selectedAction, setSelectedAction] = useState<Action>('idle');
   const [selectedIntensity, setSelectedIntensity] = useState<Intensity>('medium');
-  const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
+  const [eventLogVersion, setEventLogVersion] = useState(0);
+  void eventLogVersion; // triggers re-render on event log update
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
     idleNoise: true,
@@ -209,10 +210,10 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   // Subscribe to event log updates
   useEffect(() => {
     if (!stateMachine) return;
-    stateMachine.onEventLog = (log) => setEventLog([...log]);
+    stateMachine.onEventLog = () => setEventLogVersion((v) => v + 1);
     // Sync initial layer state
     setLayers({ ...stateMachine.layerState });
-    return () => { stateMachine.onEventLog = undefined; };
+    return () => { stateMachine.onEventLog = undefined; };  // eslint-disable-line react-hooks/exhaustive-deps
   }, [stateMachine]);
 
   const handleSend = useCallback(() => {
@@ -352,14 +353,14 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
 
         {/* Event Log */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>Event Log ({eventLog.length})</div>
+          <div style={sectionTitleStyle}>Event Log ({stateMachine?.eventLog.length ?? 0})</div>
           <div ref={logRef} style={{ maxHeight: 200, overflowY: 'auto' }}>
-            {eventLog.length === 0 && (
+            {(stateMachine?.eventLog.length ?? 0) === 0 && (
               <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: 10 }}>
                 No events yet
               </div>
             )}
-            {eventLog.map((entry, i) => (
+            {(stateMachine?.eventLog ?? []).map((entry, i) => (
               <div key={i} style={logEntryStyle(entry.source)}>
                 <span style={logTimeStyle}>
                   {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -369,7 +370,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
                   <span style={{ marginLeft: 4, opacity: 0.6 }}>({entry.intensity})</span>
                 )}
                 <span style={{ marginLeft: 6, opacity: 0.4 }}>
-                  {entry.source === 'dev-panel' ? '⚡' : '📡'}
+                  {entry.source === 'dev-panel' ? '⚡' : entry.source === 'system' ? '⏱' : '📡'}
                 </span>
               </div>
             ))}

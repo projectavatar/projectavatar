@@ -138,6 +138,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
 
     return () => {
       cancelled = true;
+      onStateMachine?.(null);
       stateMachineRef.current?.dispose();
       stateMachineRef.current = null;
       avatarScene.dispose();
