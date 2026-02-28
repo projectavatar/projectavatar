@@ -351,7 +351,6 @@ export class AnimationController {
         }
       }, (crossfadeDuration + 0.1) * 1000);
     }
-    this.outgoingSubActions = outgoing;
     this.activeSubActions = [];
 
     // Track max clip duration for loop cycling
@@ -381,15 +380,11 @@ export class AnimationController {
       }
     }
 
-    // Lock stabilizer with target foot positions from incoming clips.
-    // Two-phase: (1) lock captures current bone positions (pre-transition),
-    // (2) sample incoming clips' foot positions and feed to stabilizer.
-    // lock() must be called BEFORE sampling because sampling does a mixer
-    // tick that changes the bone state.
+    // Lock stabilizer — captures current bone positions before crossfade.
+    // Foot drift is measured at runtime via continuous sampling throughout
+    // the first half of the arc duration (see TransitionStabilizer).
     if (hadPreviousActions) {
       this.stabilizer.lock();
-      const footTargets = this._sampleIncomingFootPositions();
-      this.stabilizer.setFootTargets(footTargets.left, footTargets.right);
     }
 
     // Set up loop cycling for looping actions with multiple groups
@@ -410,67 +405,6 @@ export class AnimationController {
         }, duration * 1000);
       }
     }
-  }
-
-  /** Outgoing sub-actions — kept for foot target sampling. */
-  private outgoingSubActions: SubAction[] = [];
-
-  /**
-   * Sample foot world positions from the incoming animation clips.
-   *
-   * To get the pure target pose (where feet will end up after crossfade),
-   * we temporarily suppress outgoing clips (weight=0), set incoming clips
-   * to full weight, tick the mixer, read foot positions, then restore
-   * everything. This ensures we measure the incoming animation's foot
-   * positions without contamination from the outgoing animation.
-   */
-  private _sampleIncomingFootPositions(): {
-    left: THREE.Vector3 | null;
-    right: THREE.Vector3 | null;
-  } {
-    const h = this.vrm.humanoid;
-    if (!h) return { left: null, right: null };
-
-    const lFoot = h.getNormalizedBoneNode('leftFoot' as any);
-    const rFoot = h.getNormalizedBoneNode('rightFoot' as any);
-    if (!lFoot && !rFoot) return { left: null, right: null };
-
-    // Save state for ALL actions (incoming + outgoing)
-    type SavedState = { action: THREE.AnimationAction; weight: number; paused: boolean };
-    const saved: SavedState[] = [];
-
-    // Suppress outgoing clips — set weight to 0 and pause
-    for (const sub of this.outgoingSubActions) {
-      const a = sub.action;
-      saved.push({ action: a, weight: a.getEffectiveWeight(), paused: a.paused });
-      a.setEffectiveWeight(0);
-      a.paused = true;
-    }
-
-    // Set incoming clips to full target weight (bypass fadeIn)
-    for (const sub of this.activeSubActions) {
-      const a = sub.action;
-      saved.push({ action: a, weight: a.getEffectiveWeight(), paused: a.paused });
-      a.setEffectiveWeight(sub.baseWeight);
-    }
-
-    // Tick mixer at 0 to evaluate the incoming clips at their start pose
-    this.mixer.update(0);
-    this.vrm.scene.updateMatrixWorld(true);
-
-    // Read foot positions
-    const left = lFoot ? new THREE.Vector3() : null;
-    const right = rFoot ? new THREE.Vector3() : null;
-    if (lFoot && left) lFoot.getWorldPosition(left);
-    if (rFoot && right) rFoot.getWorldPosition(right);
-
-    // Restore ALL weights and paused states
-    for (const s of saved) {
-      s.action.setEffectiveWeight(s.weight);
-      s.action.paused = s.paused;
-    }
-
-    return { left, right };
   }
 
   /**
