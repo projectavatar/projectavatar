@@ -4,13 +4,6 @@
  * The agent calls this to set avatar emotion/action. Tool calls are
  * invisible to the user on Discord (no output shown), so the avatar
  * reacts silently. Works with streaming — no output filtering needed.
- *
- * The agent can send:
- *  - Both emotion + action (full state change)
- *  - Emotion only (face change, body keeps current action)
- *  - Action only (body change, face keeps current emotion)
- *
- * This flexibility lets the agent update one axis without fighting the other.
  */
 
 import type { AvatarStateMachine } from './state-machine.js';
@@ -59,27 +52,13 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
       const prop      = params.prop      as string | undefined;
       const intensity = params.intensity as string | undefined;
 
-      // Build a partial signal — only include valid fields
-      const signal: Record<string, unknown> = {};
-      let hasValidField = false;
-
-      if (emotion && EMOTION_SET.has(emotion)) {
-        signal.emotion = emotion as Emotion;
-        hasValidField = true;
-      }
-      if (action && ACTION_SET.has(action)) {
-        signal.action = action as Action;
-        hasValidField = true;
-      }
-      if (prop && PROP_SET.has(prop)) {
-        signal.prop = prop as Prop;
-      }
-      if (intensity && INTENSITY_SET.has(intensity)) {
-        signal.intensity = intensity as Intensity;
-      }
-
-      if (hasValidField) {
-        stateMachine.transition(signal);
+      if (emotion && EMOTION_SET.has(emotion) && action && ACTION_SET.has(action)) {
+        stateMachine.transition({
+          emotion:   emotion   as Emotion,
+          action:    action    as Action,
+          prop:      (prop && PROP_SET.has(prop)) ? prop as Prop : undefined,
+          intensity: (intensity && INTENSITY_SET.has(intensity)) ? intensity as Intensity : undefined,
+        });
       }
 
       return { content: [{ type: 'text', text: 'ok' }] };

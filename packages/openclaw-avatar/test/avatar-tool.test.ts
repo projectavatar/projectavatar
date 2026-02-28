@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createAvatarTool } from '../src/avatar-signal-tool.js';
+import { createAvatarTool } from '../src/avatar-tool.js';
 import type { AvatarStateMachine } from '../src/state-machine.js';
 
 function makeMockSM() {
@@ -30,17 +30,17 @@ describe('createAvatarTool', () => {
   it('transitions with valid emotion and action', async () => {
     const { sm, calls } = makeMockSM();
     const tool = createAvatarTool(sm);
-    const result = await tool.execute('call-1', { emotion: 'happy', action: 'nodding' });
+    const result = await tool.execute('call-1', { emotion: 'happy', action: 'waving' });
     expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
     expect(calls).toHaveLength(1);
     expect(calls[0].emotion).toBe('happy');
-    expect(calls[0].action).toBe('nodding');
+    expect(calls[0].action).toBe('waving');
   });
 
   it('passes prop and intensity when valid', async () => {
     const { sm, calls } = makeMockSM();
     const tool = createAvatarTool(sm);
-    await tool.execute('call-2', { emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'high' });
+    await tool.execute('call-2', { emotion: 'focused', action: 'typing', prop: 'keyboard', intensity: 'high' });
     expect(calls).toHaveLength(1);
     expect(calls[0].prop).toBe('keyboard');
     expect(calls[0].intensity).toBe('high');
@@ -62,52 +62,40 @@ describe('createAvatarTool', () => {
     expect(calls[0].intensity).toBeUndefined();
   });
 
-  it('transitions with emotion-only (no action)', async () => {
+  it('does not transition on invalid emotion', async () => {
     const { sm, calls } = makeMockSM();
     const tool = createAvatarTool(sm);
-    const result = await tool.execute('call-5', { emotion: 'happy' });
-    expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].emotion).toBe('happy');
-    expect(calls[0].action).toBeUndefined();
-  });
-
-  it('transitions with action-only (no emotion)', async () => {
-    const { sm, calls } = makeMockSM();
-    const tool = createAvatarTool(sm);
-    const result = await tool.execute('call-6', { action: 'typing' });
-    expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].action).toBe('typing');
-    expect(calls[0].emotion).toBeUndefined();
-  });
-
-  it('does not transition on invalid emotion with no valid action', async () => {
-    const { sm, calls } = makeMockSM();
-    const tool = createAvatarTool(sm);
-    const result = await tool.execute('call-7', { emotion: 'furious' });
+    const result = await tool.execute('call-5', { emotion: 'furious', action: 'nodding' });
     expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
     expect(calls).toHaveLength(0);
   });
 
-  it('does not transition when both are invalid', async () => {
+  it('does not transition on invalid action', async () => {
     const { sm, calls } = makeMockSM();
     const tool = createAvatarTool(sm);
-    await tool.execute('call-8', { emotion: 'furious', action: 'dancing' });
+    const result = await tool.execute('call-6', { emotion: 'happy', action: 'dancing' });
+    expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
     expect(calls).toHaveLength(0);
   });
 
-  it('does not transition on empty params', async () => {
+  it('does not transition when emotion is missing', async () => {
     const { sm, calls } = makeMockSM();
     const tool = createAvatarTool(sm);
-    await tool.execute('call-9', {});
+    await tool.execute('call-7', { action: 'nodding' });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('does not transition when action is missing', async () => {
+    const { sm, calls } = makeMockSM();
+    const tool = createAvatarTool(sm);
+    await tool.execute('call-8', { emotion: 'happy' });
     expect(calls).toHaveLength(0);
   });
 
   it('always returns ok even on invalid input', async () => {
     const { sm } = makeMockSM();
     const tool = createAvatarTool(sm);
-    const result = await tool.execute('call-10', {});
+    const result = await tool.execute('call-9', {});
     expect(result).toEqual({ content: [{ type: 'text', text: 'ok' }] });
   });
 });

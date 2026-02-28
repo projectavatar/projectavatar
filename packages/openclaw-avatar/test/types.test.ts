@@ -1,9 +1,12 @@
 /**
- * types.ts tests — validatePluginConfig + new cooldown config fields.
+ * types.ts tests — validatePluginConfig.
+ *
+ * Verifies that the validator returns errors AND a sanitized object that
+ * contains only valid fields (invalid keys are stripped, not passed through).
  */
 
 import { describe, it, expect } from 'vitest';
-import { validatePluginConfig, DEFAULT_CONFIG, ONE_SHOT_ACTIONS } from '../src/types.js';
+import { validatePluginConfig, DEFAULT_CONFIG } from '../src/types.js';
 
 describe('validatePluginConfig', () => {
   it('returns no errors and full sanitized config for a valid config', () => {
@@ -12,18 +15,12 @@ describe('validatePluginConfig', () => {
       enabled: false,
       idleTimeoutMs: 10_000,
       debounceMs: 500,
-      emotionCooldownMs: 3000,
-      actionCooldownMs: 2000,
-      oneShotCooldownMs: 4000,
     });
     expect(errors).toHaveLength(0);
     expect(sanitized.relayUrl).toBe('https://relay.example.com');
     expect(sanitized.enabled).toBe(false);
     expect(sanitized.idleTimeoutMs).toBe(10_000);
     expect(sanitized.debounceMs).toBe(500);
-    expect(sanitized.emotionCooldownMs).toBe(3000);
-    expect(sanitized.actionCooldownMs).toBe(2000);
-    expect(sanitized.oneShotCooldownMs).toBe(4000);
   });
 
   it('strips trailing slash from relayUrl', () => {
@@ -41,7 +38,7 @@ describe('validatePluginConfig', () => {
   it('rejects non-URL strings for relayUrl', () => {
     const { errors, sanitized } = validatePluginConfig({ relayUrl: 'not a url at all' });
     expect(errors.some(e => e.includes('valid URL'))).toBe(true);
-    expect(sanitized.relayUrl).toBeUndefined();
+    expect(sanitized.relayUrl).toBeUndefined(); // invalid key stripped
   });
 
   it('rejects non-string relayUrl', () => {
@@ -53,7 +50,7 @@ describe('validatePluginConfig', () => {
   it('rejects debounceMs below minimum', () => {
     const { errors, sanitized } = validatePluginConfig({ debounceMs: 10 });
     expect(errors.some(e => e.includes('debounceMs'))).toBe(true);
-    expect(sanitized.debounceMs).toBeUndefined();
+    expect(sanitized.debounceMs).toBeUndefined(); // stripped — falls back to DEFAULT_CONFIG
   });
 
   it('rejects non-number debounceMs', () => {
@@ -75,9 +72,12 @@ describe('validatePluginConfig', () => {
   });
 
   it('spreads sanitized onto DEFAULT_CONFIG produces valid config', () => {
+    // Simulate what index.ts does — only valid keys get applied
     const { sanitized } = validatePluginConfig({ debounceMs: 'potato', enabled: false });
     const cfg = { ...DEFAULT_CONFIG, ...sanitized };
+    // Invalid debounceMs was stripped — falls back to default
     expect(cfg.debounceMs).toBe(DEFAULT_CONFIG.debounceMs);
+    // Valid enabled:false was kept
     expect(cfg.enabled).toBe(false);
   });
 
@@ -85,59 +85,5 @@ describe('validatePluginConfig', () => {
     const { errors, sanitized } = validatePluginConfig({});
     expect(errors).toHaveLength(0);
     expect(Object.keys(sanitized)).toHaveLength(0);
-  });
-
-  // ── New cooldown config fields ────────────────────────────────────────────
-
-  it('rejects negative emotionCooldownMs', () => {
-    const { errors, sanitized } = validatePluginConfig({ emotionCooldownMs: -1 });
-    expect(errors.some(e => e.includes('emotionCooldownMs'))).toBe(true);
-    expect(sanitized.emotionCooldownMs).toBeUndefined();
-  });
-
-  it('rejects non-number actionCooldownMs', () => {
-    const { errors, sanitized } = validatePluginConfig({ actionCooldownMs: 'fast' });
-    expect(errors.some(e => e.includes('actionCooldownMs'))).toBe(true);
-    expect(sanitized.actionCooldownMs).toBeUndefined();
-  });
-
-  it('rejects negative oneShotCooldownMs', () => {
-    const { errors, sanitized } = validatePluginConfig({ oneShotCooldownMs: -100 });
-    expect(errors.some(e => e.includes('oneShotCooldownMs'))).toBe(true);
-    expect(sanitized.oneShotCooldownMs).toBeUndefined();
-  });
-
-  it('allows zero for cooldown values (disable cooldown)', () => {
-    const { errors, sanitized } = validatePluginConfig({
-      emotionCooldownMs: 0,
-      actionCooldownMs: 0,
-      oneShotCooldownMs: 0,
-    });
-    expect(errors).toHaveLength(0);
-    expect(sanitized.emotionCooldownMs).toBe(0);
-    expect(sanitized.actionCooldownMs).toBe(0);
-    expect(sanitized.oneShotCooldownMs).toBe(0);
-  });
-
-  it('DEFAULT_CONFIG has sensible cooldown defaults', () => {
-    expect(DEFAULT_CONFIG.emotionCooldownMs).toBeGreaterThan(0);
-    expect(DEFAULT_CONFIG.actionCooldownMs).toBeGreaterThan(0);
-    expect(DEFAULT_CONFIG.oneShotCooldownMs).toBeGreaterThanOrEqual(DEFAULT_CONFIG.actionCooldownMs);
-  });
-});
-
-describe('ONE_SHOT_ACTIONS', () => {
-  it('contains the expected one-shot actions', () => {
-    expect(ONE_SHOT_ACTIONS.has('celebrating')).toBe(true);
-    expect(ONE_SHOT_ACTIONS.has('greeting')).toBe(true);
-    expect(ONE_SHOT_ACTIONS.has('laughing')).toBe(true);
-    expect(ONE_SHOT_ACTIONS.has('dismissive')).toBe(true);
-  });
-
-  it('does not contain sustained/looping actions', () => {
-    expect(ONE_SHOT_ACTIONS.has('idle')).toBe(false);
-    expect(ONE_SHOT_ACTIONS.has('typing')).toBe(false);
-    expect(ONE_SHOT_ACTIONS.has('talking')).toBe(false);
-    expect(ONE_SHOT_ACTIONS.has('searching')).toBe(false);
   });
 });
