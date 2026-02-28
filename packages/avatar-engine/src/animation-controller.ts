@@ -407,10 +407,16 @@ export class AnimationController {
           if (outgoing && outgoing.length > 0) {
             const outSub = outgoing.shift()!;
             if (this._skipCrossfade) {
-              // Non-looping action finished — fade out old, fade in new independently.
-              // Avoids quaternion interpolation from clamped end-pose.
-              outSub.action.fadeOut(fadeDuration * 0.5);
-              sub.action.fadeIn(fadeDuration * 0.5);
+              // Non-looping action finished — clamped end-pose causes spinning
+              // on extremities. Snap-cut hands/feet, short fade for the rest.
+              if (group === 'feet' || group === 'arms') {
+                // Instant swap — no interpolation through bad quaternions
+                outSub.action.stop();
+                // No fadeIn — start at full weight immediately
+              } else {
+                outSub.action.fadeOut(fadeDuration * 0.5);
+                sub.action.fadeIn(fadeDuration * 0.5);
+              }
             } else {
               outSub.action.crossFadeTo(sub.action, fadeDuration, true);
             }
