@@ -192,6 +192,7 @@ export function PreviewPanel({
     fbxClips: true,
     expressions: true,
     blink: true,
+    idleLayer: true,
   });
 
   const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';

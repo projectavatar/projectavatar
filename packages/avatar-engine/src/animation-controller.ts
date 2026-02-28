@@ -50,6 +50,8 @@ export interface LayerState {
   expressions: boolean;
   /** Blink + micro-glance */
   blink: boolean;
+  /** Procedural idle layer (hover/breathing) */
+  idleLayer: boolean;
 }
 
 /** Info about an active animation clip — exposed for dev panel. */
@@ -74,6 +76,7 @@ const DEFAULT_LAYERS: LayerState = {
   fbxClips: true,
   expressions: true,
   blink: true,
+  idleLayer: true,
 };
 
 /** Human-readable labels for each animation layer. */
@@ -81,6 +84,7 @@ export const LAYER_LABELS: Record<keyof LayerState, string> = {
   fbxClips: 'FBX Clips',
   expressions: 'Expressions',
   blink: 'Blink',
+  idleLayer: 'Idle Layer',
 };
 
 // ─── Sub-action: one mixer action per (clip × body-part-group) ────────────────
@@ -233,6 +237,10 @@ export class AnimationController {
 
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this.layers[layer] = enabled;
+
+    if (layer === 'idleLayer') {
+      this.idleLayer.setEnabled(enabled);
+    }
 
     if (layer === 'fbxClips') {
       const allSubs = this.activeSubActions;

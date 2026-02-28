@@ -62,6 +62,7 @@ export class ClipPreview {
     fbxClips: true,
     expressions: true,
     blink: true,
+    idleLayer: true,
   };
 
   get speed() { return this._speed; }
