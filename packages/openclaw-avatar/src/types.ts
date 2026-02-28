@@ -3,6 +3,9 @@
  * Mirrors the AvatarEvent schema from @project-avatar/shared without
  * importing it directly — the plugin must be standalone with no runtime
  * deps on other workspace packages (it ships to npm independently).
+ *
+ * SOURCE OF TRUTH: packages/shared/src/schema.ts
+ * If the schema changes there, update the arrays here to match.
  */
 
 // ── Canonical value arrays — single source of truth ─────────────────────────
@@ -19,22 +22,27 @@ export type Action    = typeof ACTIONS[number];
 export type Prop      = typeof PROPS[number];
 export type Intensity = typeof INTENSITIES[number];
 
+/**
+ * One-shot actions — these play once and should not be interrupted quickly.
+ * They get a longer cooldown to prevent rapid cancellation.
+ *
+ * Note on chaining: if a deferred signal carries a one-shot action (e.g.
+ * dismissive deferred during a celebrating hold), it will start its own
+ * cooldown when it fires. Total hold can reach 2x oneShotCooldownMs.
+ * This is by design — both dramatic actions should play out fully.
+ */
+export const ONE_SHOT_ACTIONS: ReadonlySet<string> = new Set([
+  'celebrating', 'greeting', 'laughing', 'dismissive',
+]);
+
 export interface AvatarEvent {
   emotion:   Emotion;
   action:    Action;
-  prop:      Prop;
-  intensity: Intensity;
-  /**
-   * Opaque session identifier. Included in every push so the relay can
-   * perform multi-session arbitration. Derived from the OpenClaw sessionKey.
-   */
+  prop?:     Prop;
+  intensity?: Intensity;
+  /** Opaque session identifier for relay multi-session arbitration. */
   sessionId?: string;
-  /**
-   * Session priority for relay arbitration. Lower = higher priority.
-   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
-   * When absent, the relay defaults to 0 (highest priority) — but this default
-   * lives in the relay's handlePush, not here. The schema validates the shape only.
-   */
+  /** Session priority (lower = higher). Defaults to 0 in relay when absent. */
   priority?: number;
 }
 
@@ -43,50 +51,39 @@ export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotion' | 'action' | 'pro
 
 /**
  * Session metadata attached to each relay push.
- * Enables the relay to perform multi-session arbitration — suppressing lower-priority
- * sessions while a higher-priority session is active.
- *
- * Defined here (types.ts) rather than relay-client.ts because it is used by
- * relay-client, state-machine, and index — and types.ts is the canonical home
- * for shared plugin types.
+ * Enables the relay to perform multi-session arbitration — suppressing
+ * lower-priority sessions while a higher-priority session is active.
  */
 export interface SessionMeta {
-  /**
-   * Stable identifier for this session, derived from the OpenClaw sessionKey.
-   * Passed as-is to the relay — opaque from the relay's perspective.
-   */
+  /** Opaque identifier derived from OpenClaw sessionKey. */
   sessionId: string;
   /**
    * Priority for relay arbitration. Lower = higher priority.
-   * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
-   * Derived from the number of ':subagent:' segments in the sessionKey.
+   * 0 = main/interactive, 1 = sub-agent, 2+ = background.
    */
   priority: number;
 }
 
-/**
- * Default app URL for share link generation.
- * Override via `appUrl` config if self-hosting the web app at a custom domain.
- */
 export const DEFAULT_APP_URL = 'https://app.projectavatar.io';
 
 export interface PluginConfig {
   relayUrl:         string;
-  /** Base URL for the avatar web app. Used for share link generation.
-   *  Only needed if self-hosting at a custom domain.
-   *  Default: https://app.projectavatar.io */
   appUrl:           string;
   enabled:          boolean;
   idleTimeoutMs:    number;
-  debounceMs:       number;
+  emotionCooldownMs: number;
+  actionCooldownMs:  number;
+  oneShotCooldownMs: number;
 }
 
 export const DEFAULT_CONFIG: PluginConfig = {
-  relayUrl:         'https://relay.projectavatar.io',
-  appUrl:           DEFAULT_APP_URL,
-  enabled:          true,
-  idleTimeoutMs:    5_000,
-  debounceMs:       300,
+  relayUrl:           'https://relay.projectavatar.io',
+  appUrl:             DEFAULT_APP_URL,
+  enabled:            true,
+  idleTimeoutMs:      5_000,
+  emotionCooldownMs:  2_000,
+  actionCooldownMs:   1_500,
+  oneShotCooldownMs:  3_000,
 };
 
 export const IDLE_EVENT: AvatarEvent = {
@@ -96,7 +93,6 @@ export const IDLE_EVENT: AvatarEvent = {
   intensity: 'medium',
 };
 
-/** Response from GET /channel/:token/state */
 export interface ChannelStateResponse {
   model: string | null;
   lastAgentEventAt: number | null;
@@ -104,12 +100,8 @@ export interface ChannelStateResponse {
 }
 
 /**
- * Runtime config validation.
- * Returns a list of error strings (empty = valid), AND a sanitized config object
- * with invalid fields stripped back to their defaults.
- *
- * Always use the returned `sanitized` config — never spread the raw input directly,
- * since invalid values would silently override validated defaults.
+ * Runtime config validation. Returns errors + sanitized config.
+ * Invalid fields are stripped (fall back to DEFAULT_CONFIG when spread).
  */
 export function validatePluginConfig(
   raw: unknown,
@@ -159,12 +151,23 @@ export function validatePluginConfig(
     else sanitized.idleTimeoutMs = cfg.idleTimeoutMs;
   }
 
-  if ('debounceMs' in cfg) {
-    if (typeof cfg.debounceMs !== 'number' || cfg.debounceMs < 50)
-      errors.push('debounceMs must be a number >= 50');
-    else sanitized.debounceMs = cfg.debounceMs;
+  if ('emotionCooldownMs' in cfg) {
+    if (typeof cfg.emotionCooldownMs !== 'number' || cfg.emotionCooldownMs < 0)
+      errors.push('emotionCooldownMs must be a number >= 0');
+    else sanitized.emotionCooldownMs = cfg.emotionCooldownMs;
   }
 
+  if ('actionCooldownMs' in cfg) {
+    if (typeof cfg.actionCooldownMs !== 'number' || cfg.actionCooldownMs < 0)
+      errors.push('actionCooldownMs must be a number >= 0');
+    else sanitized.actionCooldownMs = cfg.actionCooldownMs;
+  }
+
+  if ('oneShotCooldownMs' in cfg) {
+    if (typeof cfg.oneShotCooldownMs !== 'number' || cfg.oneShotCooldownMs < 0)
+      errors.push('oneShotCooldownMs must be a number >= 0');
+    else sanitized.oneShotCooldownMs = cfg.oneShotCooldownMs;
+  }
 
   return { errors, sanitized };
 }

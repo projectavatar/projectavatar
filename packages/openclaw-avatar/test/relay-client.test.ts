@@ -23,7 +23,7 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'test-token-abc123');
-    relay.push({ emotion: 'focused', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
+    relay.push({ emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
 
     // Give the async fire-and-forget a tick
     await new Promise((r) => setTimeout(r, 0));
@@ -52,16 +52,16 @@ describe('createRelayClient', () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', mockFetch);
 
-    const current = { emotion: 'focused' as const, action: 'typing' as const, prop: 'keyboard' as const, intensity: 'high' as const };
+    const current = { emotion: 'thinking' as const, action: 'typing' as const, prop: 'keyboard' as const, intensity: 'high' as const };
     const relay = createRelayClient(DEFAULT_CONFIG, 'tok');
     // Partial signal — only change emotion
-    relay.push({ emotion: 'satisfied' }, current);
+    relay.push({ emotion: 'happy' }, current);
 
     await new Promise((r) => setTimeout(r, 0));
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
-    expect(body.emotion).toBe('satisfied');
+    expect(body.emotion).toBe('happy');
     expect(body.action).toBe('typing');     // from current
     expect(body.prop).toBe('keyboard');      // from current
     expect(body.intensity).toBe('high');     // from current
@@ -74,7 +74,7 @@ describe('createRelayClient', () => {
 
     // Should NOT throw
     expect(() => {
-      relay.push({ emotion: 'focused', action: 'typing' }, IDLE_EVENT);
+      relay.push({ emotion: 'thinking', action: 'typing' }, IDLE_EVENT);
     }).not.toThrow();
 
     // Give async rejection a tick to resolve
@@ -87,7 +87,7 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'my/token+with spaces');
-    relay.push({ emotion: 'focused', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
+    relay.push({ emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
 
     await new Promise((r) => setTimeout(r, 0));
 

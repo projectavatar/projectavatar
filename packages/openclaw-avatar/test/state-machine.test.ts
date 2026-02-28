@@ -1,8 +1,9 @@
 /**
  * State machine tests.
  *
- * These tests focus on the debouncing, priority, and idle-timeout logic
- * without making any HTTP calls — the relay client is mocked.
+ * Tests cover: per-category cooldowns, one-shot action protection,
+ * emotion priority bypass, idle timeout, session metadata threading,
+ * and deferred signal coalescing.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -41,6 +42,9 @@ const fastCfg = {
   ...DEFAULT_CONFIG,
   debounceMs: 50,
   idleTimeoutMs: 100,
+  emotionCooldownMs: 200,
+  actionCooldownMs: 150,
+  oneShotCooldownMs: 300,
 };
 
 const mainSession:     SessionMeta = { sessionId: 'agent:main:discord:channel-1', priority: 0 };
@@ -55,93 +59,264 @@ describe('AvatarStateMachine', () => {
     vi.useRealTimers();
   });
 
-  it('emits a signal immediately when outside debounce window', () => {
+  // ── Basic transitions ───────────────────────────────────────────────────
+
+  it('emits a signal immediately when state changes', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'typing' });
+    sm.transition({ emotion: 'happy', action: 'typing' });
 
     expect(events(calls)).toHaveLength(1);
-    expect(calls[0].event.emotion).toBe('focused');
+    expect(calls[0].event.emotion).toBe('happy');
     expect(calls[0].event.action).toBe('typing');
-  });
-
-  it('debounces rapid lower-priority transitions', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    expect(events(calls)).toHaveLength(1);
-
-    // thinking (priority 1) < focused (priority 2) — deferred
-    sm.transition({ emotion: 'thinking', action: 'looking_around' });
-    expect(events(calls)).toHaveLength(1);
-
-    vi.advanceTimersByTime(fastCfg.debounceMs + 10);
-    expect(events(calls)).toHaveLength(2);
-    expect(calls[1].event.emotion).toBe('thinking');
-  });
-
-  it('higher-priority signal preempts lower-priority pending', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    expect(events(calls)).toHaveLength(1);
-
-    sm.transition({ emotion: 'thinking', action: 'looking_around' });
-    expect(events(calls)).toHaveLength(1);
-
-    // confused = 4 > focused = 2 — emits immediately
-    sm.transition({ emotion: 'confused', action: 'head_shake' });
-    expect(events(calls)).toHaveLength(2);
-    expect(calls[1].event.emotion).toBe('confused');
-  });
-
-  it('higher-priority signal cancels the pending lower-priority timer', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    sm.transition({ emotion: 'thinking', action: 'looking_around' });
-    expect(events(calls)).toHaveLength(1);
-
-    sm.transition({ emotion: 'confused', action: 'head_shake' });
-    expect(events(calls)).toHaveLength(2);
-
-    vi.advanceTimersByTime(fastCfg.debounceMs + 50);
-    expect(events(calls)).toHaveLength(2); // still 2, old timer cancelled
-  });
-
-  it('deferred timer re-evaluates against current state at fire time', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    expect(events(calls)).toHaveLength(1);
-
-    sm.transition({ emotion: 'thinking' }); // lower priority — deferred
-
-    vi.advanceTimersByTime(fastCfg.debounceMs - 5);
-    expect(events(calls)).toHaveLength(1);
-
-    vi.advanceTimersByTime(10);
-    expect(events(calls)).toHaveLength(2);
-    expect(calls[1].event.emotion).toBe('thinking');
-    expect(calls[1].event.action).toBe('typing'); // carried from current
   });
 
   it('does not emit duplicate events', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    vi.advanceTimersByTime(fastCfg.debounceMs + 10);
-    sm.transition({ emotion: 'focused', action: 'typing' }); // same state
-    vi.advanceTimersByTime(fastCfg.debounceMs + 10);
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    sm.transition({ emotion: 'happy', action: 'typing' }); // same state
 
     expect(events(calls)).toHaveLength(1);
   });
+
+  it('merges partial signals onto current state', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing', prop: 'keyboard', intensity: 'high' });
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
+
+    sm.transition({ emotion: 'excited' });
+    expect(calls[calls.length - 1].event.emotion).toBe('excited');
+    expect(calls[calls.length - 1].event.action).toBe('typing');
+    expect(calls[calls.length - 1].event.prop).toBe('keyboard');
+    expect(calls[calls.length - 1].event.intensity).toBe('high');
+  });
+
+  // ── Emotion cooldown ──────────────────────────────────────────────────────
+
+  it('blocks emotion changes within emotion cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    expect(events(calls)).toHaveLength(1);
+
+    // Within emotion cooldown — emotion change blocked, action change allowed
+    sm.transition({ emotion: 'thinking' });
+    // Emotion was blocked, but since action didn't change either, no emit
+    expect(events(calls)).toHaveLength(1);
+
+    // After emotion cooldown expires, deferred signal fires
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
+    expect(events(calls)).toHaveLength(2);
+    expect(calls[1].event.emotion).toBe('thinking');
+  });
+
+  it('allows emotion changes after cooldown expires', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
+
+    sm.transition({ emotion: 'thinking' });
+    expect(calls[calls.length - 1].event.emotion).toBe('thinking');
+  });
+
+  // ── Action cooldown ───────────────────────────────────────────────────────
+
+  it('blocks action changes within action cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'thinking', action: 'typing' });
+    expect(events(calls)).toHaveLength(1);
+
+    // Within action cooldown — action change blocked
+    sm.transition({ action: 'nodding' });
+    expect(events(calls)).toHaveLength(1);
+
+    // After action cooldown, deferred signal fires
+    vi.advanceTimersByTime(fastCfg.actionCooldownMs + 10);
+    expect(events(calls)).toHaveLength(2);
+    expect(calls[1].event.action).toBe('nodding');
+  });
+
+  it('allows action changes after cooldown expires', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'thinking', action: 'typing' });
+    vi.advanceTimersByTime(fastCfg.actionCooldownMs + 10);
+
+    sm.transition({ action: 'nodding' });
+    expect(calls[calls.length - 1].event.action).toBe('nodding');
+  });
+
+  // ── Independent axes ──────────────────────────────────────────────────────
+
+  it('emotion and action cooldowns are independent', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    expect(events(calls)).toHaveLength(1);
+
+    // After action cooldown but before emotion cooldown
+    vi.advanceTimersByTime(fastCfg.actionCooldownMs + 10); // 160ms — action ok, emotion not yet (200ms)
+
+    // Action change allowed, emotion change blocked
+    sm.transition({ emotion: 'sad', action: 'nodding' });
+    const last = calls[calls.length - 1].event;
+    expect(last.action).toBe('nodding'); // action cooldown expired
+    expect(last.emotion).toBe('happy');  // emotion still in cooldown (deferred)
+
+    // After emotion cooldown, the deferred emotion fires
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs);
+    const final = calls[calls.length - 1].event;
+    expect(final.emotion).toBe('sad');
+  });
+
+  // ── Emotion priority bypass ───────────────────────────────────────────────
+
+  it('high-priority emotions bypass cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    expect(events(calls)).toHaveLength(1);
+
+    // Confused (priority 4) bypasses emotion cooldown
+    sm.transition({ emotion: 'confused' });
+    expect(calls[calls.length - 1].event.emotion).toBe('confused');
+  });
+
+  it('nervous bypasses emotion cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    sm.transition({ emotion: 'nervous' });
+    expect(calls[calls.length - 1].event.emotion).toBe('nervous');
+  });
+
+  it('angry bypasses emotion cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    sm.transition({ emotion: 'angry' });
+    expect(calls[calls.length - 1].event.emotion).toBe('angry');
+  });
+
+  it('surprised bypasses emotion cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    sm.transition({ emotion: 'surprised' });
+    expect(calls[calls.length - 1].event.emotion).toBe('surprised');
+  });
+
+  it('low-priority emotions do NOT bypass cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+
+    // thinking (priority 1) does NOT bypass
+    sm.transition({ emotion: 'thinking' });
+    expect(calls[calls.length - 1].event.emotion).toBe('happy');
+  });
+
+  // ── One-shot action protection ──────────────────────────────────────────
+
+  it('blocks action changes during one-shot cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'celebrating' });
+    expect(events(calls)).toHaveLength(1);
+
+    // Action change within one-shot cooldown — blocked
+    sm.transition({ action: 'typing' });
+    expect(calls[calls.length - 1].event.action).toBe('celebrating');
+  });
+
+  it('allows action changes after one-shot cooldown expires', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'celebrating' });
+    vi.advanceTimersByTime(fastCfg.oneShotCooldownMs + 10);
+
+    sm.transition({ action: 'typing' });
+    expect(calls[calls.length - 1].event.action).toBe('typing');
+  });
+
+  it('one-shot protection applies to greeting', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'greeting' });
+    sm.transition({ action: 'typing' });
+    expect(calls[calls.length - 1].event.action).toBe('greeting');
+  });
+
+  it('one-shot protection applies to laughing', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'laughing' });
+    sm.transition({ action: 'typing' });
+    expect(calls[calls.length - 1].event.action).toBe('laughing');
+  });
+
+  it('one-shot protection applies to dismissive', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'nervous', action: 'dismissive' });
+    sm.transition({ action: 'typing' });
+    expect(calls[calls.length - 1].event.action).toBe('dismissive');
+  });
+
+  it('emotion changes still work during one-shot action cooldown', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'celebrating' });
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
+
+    // Emotion change is independent of action cooldown
+    sm.transition({ emotion: 'confused' }); // high-priority, bypasses cooldown
+    expect(calls[calls.length - 1].event.emotion).toBe('confused');
+    expect(calls[calls.length - 1].event.action).toBe('celebrating'); // action still protected
+  });
+
+  // ── Deferred signal coalescing ────────────────────────────────────────────
+
+  it('deferred signals coalesce — last write wins', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'typing' });
+
+    // Multiple rapid emotion changes within cooldown
+    sm.transition({ emotion: 'thinking' });
+    sm.transition({ emotion: 'excited' });
+    sm.transition({ emotion: 'sad' });
+
+    // Only the last one should fire when cooldown expires
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
+    expect(calls[calls.length - 1].event.emotion).toBe('sad');
+  });
+
+  // ── Idle timeout ──────────────────────────────────────────────────────────
 
   it('scheduleIdle fires after idleTimeoutMs', () => {
     const { relay, calls } = makeMockRelay();
@@ -152,11 +327,26 @@ describe('AvatarStateMachine', () => {
 
     sm.scheduleIdle();
     vi.advanceTimersByTime(fastCfg.idleTimeoutMs - 10);
-    expect(events(calls)).toHaveLength(1); // not yet
+    // Should not have idled yet — only initial transition
+    const preIdle = calls.filter(c => c.event.emotion === 'idle');
+    expect(preIdle).toHaveLength(0);
 
     vi.advanceTimersByTime(20);
-    expect(events(calls)).toHaveLength(2);
-    expect(calls[1].event.emotion).toBe('idle');
+    const postIdle = calls.filter(c => c.event.emotion === 'idle');
+    expect(postIdle).toHaveLength(1);
+  });
+
+  it('scheduleIdle bypasses cooldowns and one-shot protection', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'celebrating' });
+    sm.scheduleIdle();
+
+    // Idle timer fires while one-shot celebrating is still protected
+    vi.advanceTimersByTime(fastCfg.idleTimeoutMs + 10);
+    expect(calls[calls.length - 1].event.emotion).toBe('idle');
+    expect(calls[calls.length - 1].event.action).toBe('idle');
   });
 
   it('scheduleIdle called twice only schedules one timer', () => {
@@ -171,6 +361,8 @@ describe('AvatarStateMachine', () => {
     expect(calls.filter(c => c.event.emotion === 'idle')).toHaveLength(1);
   });
 
+  // ── Reset ─────────────────────────────────────────────────────────────────
+
   it('reset cancels idle timer and emits idle immediately', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
@@ -184,6 +376,19 @@ describe('AvatarStateMachine', () => {
 
     vi.advanceTimersByTime(fastCfg.idleTimeoutMs + 100);
     expect(events(calls)).toHaveLength(2);
+  });
+
+  it('reset clears all cooldown state', () => {
+    const { relay, calls } = makeMockRelay();
+    const sm = createAvatarStateMachine(fastCfg, relay);
+
+    sm.transition({ emotion: 'happy', action: 'celebrating' });
+    sm.reset();
+
+    // After reset, should be able to transition immediately without cooldowns
+    sm.transition({ emotion: 'excited', action: 'typing' });
+    expect(calls[calls.length - 1].event.emotion).toBe('excited');
+    expect(calls[calls.length - 1].event.action).toBe('typing');
   });
 
   it('reset sets current to idle before pushing to relay', () => {
@@ -215,15 +420,18 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    sm.transition({ emotion: 'thinking', action: 'looking_around' }); // deferred
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    sm.transition({ emotion: 'thinking' }); // deferred (emotion cooldown)
 
     sm.reset();
     expect(calls[calls.length - 1].event.emotion).toBe('idle');
 
-    vi.advanceTimersByTime(fastCfg.debounceMs + 50);
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 50);
+    // Deferred thinking should NOT fire after reset
     expect(calls.filter(c => c.event.emotion === 'thinking')).toHaveLength(0);
   });
+
+  // ── getCurrent ────────────────────────────────────────────────────────────
 
   it('getCurrent reflects the latest emitted state', () => {
     const { relay } = makeMockRelay();
@@ -231,22 +439,8 @@ describe('AvatarStateMachine', () => {
 
     expect(sm.getCurrent().emotion).toBe('idle');
 
-    sm.transition({ emotion: 'focused', action: 'typing' });
-    expect(sm.getCurrent().emotion).toBe('focused');
-  });
-
-  it('merges partial signals onto current state', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing', prop: 'keyboard', intensity: 'high' });
-    vi.advanceTimersByTime(fastCfg.debounceMs + 10);
-
-    sm.transition({ emotion: 'satisfied' });
-    expect(calls[calls.length - 1].event.emotion).toBe('satisfied');
-    expect(calls[calls.length - 1].event.action).toBe('typing');
-    expect(calls[calls.length - 1].event.prop).toBe('keyboard');
-    expect(calls[calls.length - 1].event.intensity).toBe('high');
+    sm.transition({ emotion: 'happy', action: 'typing' });
+    expect(sm.getCurrent().emotion).toBe('happy');
   });
 
   // ── Session metadata threading ─────────────────────────────────────────────
@@ -255,24 +449,10 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'typing' }, mainSession);
+    sm.transition({ emotion: 'happy', action: 'typing' }, mainSession);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toEqual(mainSession);
-  });
-
-  it('passes session through deferred timer closure', () => {
-    const { relay, calls } = makeMockRelay();
-    const sm = createAvatarStateMachine(fastCfg, relay);
-
-    sm.transition({ emotion: 'focused', action: 'typing' }, mainSession);
-    sm.transition({ emotion: 'thinking' }, subAgentSession); // lower priority — deferred
-
-    vi.advanceTimersByTime(fastCfg.debounceMs + 10);
-
-    // The deferred emit should carry the sub-agent session
-    expect(calls).toHaveLength(2);
-    expect(calls[1].session).toEqual(subAgentSession);
   });
 
   it('passes session through reset()', () => {
@@ -297,7 +477,6 @@ describe('AvatarStateMachine', () => {
 
     const idleCall = calls.find(c => c.event.emotion === 'idle');
     expect(idleCall).toBeDefined();
-    // The idle push must carry the main session so the relay can apply arbitration
     expect(idleCall?.session).toEqual(mainSession);
   });
 
@@ -305,7 +484,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    sm.transition({ emotion: 'focused', action: 'typing' }); // no session
+    sm.transition({ emotion: 'happy', action: 'typing' }); // no session
 
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toBeUndefined();
@@ -316,11 +495,10 @@ describe('AvatarStateMachine', () => {
   it('transition without session inherits lastSession from a previous session-aware call', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
-    const mainSession: SessionMeta = { sessionId: 'main-1', priority: 0 };
 
     // First call WITH session — sets lastSession
-    sm.transition({ emotion: 'thinking', action: 'looking_around' }, mainSession);
-    vi.advanceTimersByTime(fastCfg.debounceMs + 1);
+    sm.transition({ emotion: 'thinking', action: 'searching' }, mainSession);
+    vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
 
     // Second call WITHOUT session — should inherit mainSession
     sm.transition({ emotion: 'happy', action: 'greeting' });
@@ -334,8 +512,7 @@ describe('AvatarStateMachine', () => {
     const { relay, calls } = makeMockRelay();
     const sm = createAvatarStateMachine(fastCfg, relay);
 
-    // Call with no session and no prior session — should be undefined
-    sm.transition({ emotion: 'focused', action: 'typing' });
+    sm.transition({ emotion: 'happy', action: 'typing' });
 
     expect(calls).toHaveLength(1);
     expect(calls[0].session).toBeUndefined();
