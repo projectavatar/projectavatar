@@ -1,17 +1,16 @@
 /**
  * AnimationController — weight-based multi-clip blending with body part scoping.
  *
- * Architecture:
- *   - Idle clip always plays as base layer (full body, weight 1.0)
- *   - Action clips play simultaneously, each scoped to body part groups
- *   - Each clip is split into sub-actions per body-part group for independent weight control
- *   - Per-group weight normalization ensures total influence always sums to 1.0
- *   - Expression controller adds blend shapes externally
+ * v3: Animation groups with weighted random selection.
+ *   - Each action has multiple animation groups, each with a rarity weight
+ *   - When an action fires, one group is randomly selected
+ *   - For looping actions (idle), a new group is selected after each cycle
  *
- * Blending model (inspired by three.js webgl_animation_skinning_blending):
- *   All clips play simultaneously via AnimationMixer. Each clip is split into
- *   per-body-part sub-clips (track filtering). Weights are normalized per group
- *   so that if only idle owns legs, legs play at full idle strength.
+ * Architecture:
+ *   - All clips play simultaneously via AnimationMixer
+ *   - Each clip is split into per-body-part sub-clips (track filtering)
+ *   - Weights are normalized per group so total influence sums to 1.0
+ *   - Expression controller adds blend shapes externally
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
@@ -90,6 +89,9 @@ export class AnimationController {
   private currentEmotion: Emotion = 'idle';
   private currentIntensity: Intensity = 'medium';
 
+  /** Currently selected animation group index for the active action. */
+  private currentGroupIndex = 0;
+
   /** Active sub-actions for the current blended action. */
   private activeSubActions: SubAction[] = [];
 
@@ -101,6 +103,15 @@ export class AnimationController {
 
   /** Timer for non-looping action completion. */
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Tracks the longest looping clip duration for cycle detection. */
+  private loopCycleDuration = 0;
+
+  /** Accumulated time since last loop cycle roll. */
+  private loopCycleElapsed = 0;
+
+  /** Whether the current action is looping and has multiple groups. */
+  private isLoopCycling = false;
 
   /** Foot IK stabilizer — pins feet during animation transitions. */
   private stabilizer: TransitionStabilizer;
@@ -142,8 +153,9 @@ export class AnimationController {
 
     console.info(`[AnimationController] Loaded ${this.clipCache.size}/${files.length} clips`);
 
-    // Start idle
-    this._playBlendedAction('idle', 'idle', 'medium');
+    // Start idle with a random group
+    const groupIndex = this.registry.selectGroup('idle');
+    this._playBlendedAction('idle', 'idle', 'medium', groupIndex);
     this._loaded = true;
   }
 
@@ -166,7 +178,20 @@ export class AnimationController {
     this.currentAction = action;
     this.currentIntensity = intensity;
 
-    this._playBlendedAction(action, this.currentEmotion, intensity);
+    // Select a random group for this action
+    const groupIndex = this.registry.selectGroup(action);
+    this._playBlendedAction(action, this.currentEmotion, intensity, groupIndex);
+  }
+
+  /**
+   * Play an action with a specific group index (used by clip manager preview).
+   * Bypasses random selection to preview a specific animation group.
+   */
+  playActionWithGroup(action: Action, intensity: Intensity = 'medium', emotion: Emotion = 'idle', groupIndex: number): void {
+    this.currentAction = action;
+    this.currentIntensity = intensity;
+    this.currentEmotion = emotion;
+    this._playBlendedAction(action, emotion, intensity, groupIndex);
   }
 
   /**
@@ -176,8 +201,8 @@ export class AnimationController {
   setEmotion(emotion: Emotion): void {
     if (emotion === this.currentEmotion) return;
     this.currentEmotion = emotion;
-    // Re-resolve in case emotion changes clip selection
-    this._playBlendedAction(this.currentAction, emotion, this.currentIntensity);
+    // Re-resolve with current group (emotion change shouldn't re-roll the group)
+    this._playBlendedAction(this.currentAction, emotion, this.currentIntensity, this.currentGroupIndex);
   }
 
   stopAll(): void {
@@ -205,6 +230,24 @@ export class AnimationController {
       this.mixer.update(dt);
       // Apply foot IK correction after mixer (pins feet during transitions)
       this.stabilizer.update(dt);
+
+      // Check if a looping action's cycle has completed → re-roll group
+      if (this.isLoopCycling) {
+        this.loopCycleElapsed += dt;
+        if (this.loopCycleElapsed >= this.loopCycleDuration) {
+          this.loopCycleElapsed = 0;
+          const newGroupIndex = this.registry.selectGroup(this.currentAction);
+          // Only transition if we actually got a different group
+          if (newGroupIndex !== this.currentGroupIndex) {
+            this._playBlendedAction(
+              this.currentAction,
+              this.currentEmotion,
+              this.currentIntensity,
+              newGroupIndex,
+            );
+          }
+        }
+      }
     }
   }
 
@@ -244,21 +287,26 @@ export class AnimationController {
   // ─── Private: blended action playback ───────────────────────────────────
 
   /**
-   * Core blending logic — explicit clips only, no implicit idle.
+   * Core blending logic — plays clips from the selected animation group.
    *
-   * 1. Resolve the action's clips (each with body part scoping + weight)
+   * 1. Select the group's clips (each with body part scoping + weight)
    * 2. For each body part group, collect clips that claim it
    * 3. Normalize weights per group so they sum to 1.0
    * 4. Create sub-actions (one per clip×group) with normalized weights
-   *
-   * If you want idle blended into an action, add the idle clip explicitly
-   * to that action's clips[] in clips.json.
+   * 5. For looping actions with multiple groups, track cycle duration
    */
-  private _playBlendedAction(action: Action, emotion: Emotion, intensity: Intensity): void {
+  private _playBlendedAction(
+    action: Action,
+    emotion: Emotion,
+    intensity: Intensity,
+    groupIndex: number,
+  ): void {
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
+
+    this.currentGroupIndex = groupIndex;
 
     // Lock feet at current position before transition (prevents teleporting)
     if (this.activeSubActions.length > 0) {
@@ -276,8 +324,11 @@ export class AnimationController {
     }
     this.activeSubActions = [];
 
-    // Resolve action clips
-    const { clips } = this.registry.resolveClips(action, emotion, intensity);
+    // Resolve action clips from the selected group
+    const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
+
+    // Track max clip duration for loop cycling
+    let maxClipDuration = 0;
 
     // For each body part group, collect claiming clips and normalize weights
     for (const group of BODY_PARTS) {
@@ -295,17 +346,30 @@ export class AnimationController {
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
         const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
-        if (sub) this.activeSubActions.push(sub);
+        if (sub) {
+          this.activeSubActions.push(sub);
+          const clipDuration = sub.action.getClip().duration;
+          if (clipDuration > maxClipDuration) maxClipDuration = clipDuration;
+        }
       }
     }
 
+    // Set up loop cycling for looping actions with multiple groups
+    const isLooping = this.registry.isActionLooping(action);
+    const groupCount = this.registry.getGroupCount(action);
+    this.isLoopCycling = isLooping && groupCount > 1;
+    this.loopCycleDuration = maxClipDuration;
+    this.loopCycleElapsed = 0;
+
     // Duration timer for non-looping actions
-    const duration = this.registry.getActionDuration(action);
-    if (duration !== null) {
-      this.durationTimer = setTimeout(() => {
-        this.durationTimer = null;
-        this.onActionFinished?.();
-      }, duration * 1000);
+    if (!isLooping) {
+      const duration = this.registry.getActionDuration(action);
+      if (duration !== null) {
+        this.durationTimer = setTimeout(() => {
+          this.durationTimer = null;
+          this.onActionFinished?.();
+        }, duration * 1000);
+      }
     }
   }
 

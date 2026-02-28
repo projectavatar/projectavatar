@@ -6,6 +6,7 @@
  * 2. Full engine: AnimationController + ExpressionController + BlinkController
  *    with layer toggles (for mimicking the main web app's behavior)
  * 3. Action preview: plays a blended action through the engine (for action editing)
+ *    — supports specifying a group index for previewing specific animation groups
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
@@ -175,11 +176,18 @@ export class ClipPreview {
     }
   }
 
-  /** Play a blended action through the animation engine. */
-  playEngineAction(action: ActionName): void {
+  /**
+   * Play a blended action through the animation engine.
+   * Optionally specify a group index to preview a specific animation group.
+   */
+  playEngineAction(action: ActionName, groupIndex?: number): void {
     if (!this.animCtrl || !this._engineActive) return;
-    // Force re-resolve by resetting current action tracking
-    this.animCtrl.playAction(action, 'medium', 'idle', true);
+    // Use playActionWithGroup for explicit group selection
+    if (groupIndex !== undefined) {
+      this.animCtrl.playActionWithGroup(action, 'medium', 'idle', groupIndex);
+    } else {
+      this.animCtrl.playAction(action, 'medium', 'idle', true);
+    }
     this.currentClipName = null; // Clear single-clip info
   }
 
@@ -258,7 +266,6 @@ export class ClipPreview {
 
   togglePause(): void {
     if (this._engineActive) {
-      // For engine mode, we don't have a simple pause — just toggle the flag
       this._paused = !this._paused;
       return;
     }

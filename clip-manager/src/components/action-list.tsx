@@ -1,6 +1,6 @@
 /**
  * Action List — left panel for Actions tab.
- * Lists all actions with clip count and color indicator.
+ * Lists all actions with group count, clip count, and color indicator.
  */
 import { useMemo, useState } from 'react';
 import type { ClipsJson } from '../types.ts';
@@ -95,25 +95,33 @@ export function ActionList({ data, selectedAction, dispatch }: ActionListProps) 
     return sorted.filter(name => name.includes(q));
   }, [searchQuery]);
 
-  const getClipCount = (name: string): number => {
-    return data.actions[name]?.clips.length ?? 0;
+  const getGroupCount = (name: string): number => {
+    return data.actions[name]?.groups.length ?? 0;
+  };
+
+  const getTotalClipCount = (name: string): number => {
+    const action = data.actions[name];
+    if (!action) return 0;
+    return action.groups.reduce((sum, g) => sum + g.clips.length, 0);
   };
 
   const getStatusColor = (name: string): string => {
     const action = data.actions[name];
-    if (!action || action.clips.length === 0) return 'var(--color-orphan)';
-    // Check if all referenced clips exist
-    const allExist = action.clips.every(c => data.clips[c.clip]);
+    if (!action || action.groups.length === 0) return 'var(--color-orphan)';
+    // Check if all referenced clips exist across all groups
+    const allExist = action.groups.every(g =>
+      g.clips.every(c => data.clips[c.clip])
+    );
     if (!allExist) return 'var(--color-warning)';
     return 'var(--color-success)';
   };
 
   const getDurationLabel = (name: string): string | null => {
     const action = data.actions[name];
-    if (!action) return null;
-    const firstClip = action.clips[0];
-    if (!firstClip) return null;
-    const clipData = data.clips[firstClip.clip];
+    if (!action || action.groups.length === 0) return null;
+    const firstGroup = action.groups[0]!;
+    if (firstGroup.clips.length === 0) return null;
+    const clipData = data.clips[firstGroup.clips[0]!.clip];
     if (clipData?.loop) return 'loop';
     if (action.durationOverride) return `${action.durationOverride}s`;
     return 'once';
@@ -132,7 +140,8 @@ export function ActionList({ data, selectedAction, dispatch }: ActionListProps) 
       <div style={listStyle}>
         {filteredActions.map(name => {
           const selected = selectedAction === name;
-          const clipCount = getClipCount(name);
+          const groupCount = getGroupCount(name);
+          const clipCount = getTotalClipCount(name);
           const statusColor = getStatusColor(name);
           const duration = getDurationLabel(name);
 
@@ -149,6 +158,9 @@ export function ActionList({ data, selectedAction, dispatch }: ActionListProps) 
                 <div style={itemNameStyle}>{name}</div>
               </div>
               <div style={itemMetaStyle}>
+                <span style={badgeStyle('var(--color-text-dim)')}>
+                  {groupCount} group{groupCount !== 1 ? 's' : ''}
+                </span>
                 <span style={badgeStyle('var(--color-text-dim)')}>
                   {clipCount} clip{clipCount !== 1 ? 's' : ''}
                 </span>
