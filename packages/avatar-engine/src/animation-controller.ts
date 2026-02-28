@@ -313,17 +313,27 @@ export class AnimationController {
     //   this.stabilizer.lock();
     // }
 
-    // Fade out and uncache old sub-actions (prevents mixer memory leak)
-    for (const sub of this.activeSubActions) {
+    // Crossfade: fade out old sub-actions, clean up after fade completes.
+    // IMPORTANT: do NOT uncacheClip/uncacheAction during the fade — that
+    // instantly removes the action from the mixer, killing the crossfade.
+    // Instead, let the fade-out complete, then stop + uncache.
+    const outgoing = this.activeSubActions;
+    for (const sub of outgoing) {
       sub.action.fadeOut(DEFAULT_FADE_OUT);
-      const clip = sub.action.getClip();
+    }
+    // Clean up after fade-out finishes (with margin)
+    if (outgoing.length > 0) {
+      const captured = [...outgoing];
       setTimeout(() => {
-        this.mixer.uncacheClip(clip);
-        this.mixer.uncacheAction(clip);
-      }, (DEFAULT_FADE_OUT + 0.1) * 1000);
+        for (const sub of captured) {
+          sub.action.stop();
+          const clip = sub.action.getClip();
+          this.mixer.uncacheAction(clip);
+          this.mixer.uncacheClip(clip);
+        }
+      }, (DEFAULT_FADE_OUT + 0.2) * 1000);
     }
     this.activeSubActions = [];
-
     // Resolve action clips from the selected group
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
 
