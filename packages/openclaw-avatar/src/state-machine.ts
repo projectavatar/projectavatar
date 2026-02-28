@@ -15,15 +15,18 @@ import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './typ
 import { IDLE_EVENT } from './types.js';
 import type { RelayClient } from './relay-client.js';
 
-/** Higher number = higher priority. Errors and excitement beat idle/focused. */
+/** Higher number = higher priority. Errors and excitement beat idle/thinking. */
 const EMOTION_PRIORITY: Record<string, number> = {
   idle:      0,
   thinking:  1,
-  focused:   2,
-  satisfied: 2,
+  happy:     2,
+  bashful:   2,
   excited:   3,
   confused:  4,
-  concerned: 5,
+  nervous:   5,
+  angry:     5,
+  sad:       3,
+  surprised: 4,
 };
 
 function priority(emotion: string): number {
