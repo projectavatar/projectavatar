@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: resolve(__dirname, '../web/public'),
   build: {
     target: 'es2022',
     sourcemap: true,
