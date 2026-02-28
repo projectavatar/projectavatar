@@ -48,7 +48,7 @@ for (const [name, action] of Object.entries(raw.actions) as [string, any][]) {
         clips: [{
           clip: clipId,
           weight: 1,
-          bodyParts: ['head', 'torso', 'arms', 'legs'],
+          bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
         }],
       });
     }

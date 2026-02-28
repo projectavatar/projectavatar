@@ -1,15 +1,16 @@
 /**
- * Transition Stabilizer v2 — masks crossfade artifacts on feet, hips, and hands.
+ * Transition Stabilizer — masks crossfade artifacts on hips and hands.
  *
  * Problem: Mixamo clips have different rest poses, so bones interpolate
- * through unnatural positions during crossfades. Most visible as foot
- * sliding, hip popping, and hand snapping.
+ * through unnatural positions during crossfades. Most visible as hip
+ * popping and hand snapping.
  *
  * Strategy per bone group:
  *   - Hips:  soft pin toward locked position (prevents vertical pop)
  *   - Hands: soft pin toward locked position (prevents gesture snap)
- *   - Feet:  procedural step arc — lifts feet proportional to horizontal
- *            drift, peaking mid-transition. Masks skating as a weight-shift step.
+ *
+ * Foot skating is handled separately by per-body-part crossfade timing
+ * in AnimationController (fast feet crossfade, slow hip crossfade).
  *
  * Fade philosophy (documented convention):
  *   - Gestures: fast fadeIn (0.1–0.15s) for responsive entry, slower fadeOut
@@ -33,16 +34,6 @@ interface BoneTarget {
   position: THREE.Vector3;
 }
 
-interface FootTarget {
-  bone: StabilizedBone;
-  /** Foot position at lock time (start of transition). */
-  startPosition: THREE.Vector3;
-  /** Peak horizontal drift measured across first few frames. */
-  horizontalDrift: number;
-  /** Number of frames drift has been sampled. */
-  driftSamples: number;
-}
-
 interface GroupTiming {
   lockDuration: number;
   releaseDuration: number;
@@ -54,32 +45,12 @@ const HIPS_TIMING:  GroupTiming = { lockDuration: 0.25, releaseDuration: 0.20 };
 const HANDS_TIMING: GroupTiming = { lockDuration: 0.15, releaseDuration: 0.25 };
 
 /**
- * Duration of the foot step arc in seconds.
- * Should be >= the longest expected crossfade duration (idle fadeIn = 0.6s).
- * Set to 0.65s to cover the full crossfade + small margin.
- */
-const FOOT_ARC_DURATION = 0.65;
-
-/** Max step height as fraction of leg length. */
-const MAX_STEP_HEIGHT_FRAC = 0.08;
-
-/**
- * Minimum horizontal drift (meters) before a step arc triggers.
- * Set to 2mm to avoid triggering on numerical jitter at 60fps.
- */
-const MIN_DRIFT_FOR_STEP = 0.002;
-
-/** Number of frames to sample drift before committing the arc height. */
-const DRIFT_SAMPLE_FRAMES = 3;
-
-/**
  * Max total stabilizer duration across all groups.
  * Derived from the longest group timing to prevent silent cutoffs.
  */
 const MAX_TOTAL = Math.max(
   HIPS_TIMING.lockDuration + HIPS_TIMING.releaseDuration,
   HANDS_TIMING.lockDuration + HANDS_TIMING.releaseDuration,
-  FOOT_ARC_DURATION,
 );
 
 // ─── Reusable temporaries ─────────────────────────────────────────────────────
@@ -111,14 +82,6 @@ function easeOutCubic(t: number): number {
   return t1 * t1 * t1 + 1;
 }
 
-/**
- * Step arc: sin curve that peaks at t=0.5, returns 0 at t=0 and t=1.
- * Produces a natural lift-and-plant motion.
- */
-function stepArc(t: number): number {
-  return Math.sin(t * Math.PI);
-}
-
 // ─── TransitionStabilizer ─────────────────────────────────────────────────────
 
 export class TransitionStabilizer {
@@ -127,19 +90,13 @@ export class TransitionStabilizer {
 
   // Bone references
   private hipsBone: StabilizedBone | null = null;
-  private leftFoot: StabilizedBone | null = null;
-  private rightFoot: StabilizedBone | null = null;
   private leftHand: StabilizedBone | null = null;
   private rightHand: StabilizedBone | null = null;
 
-  // Active targets — hips/hands use position pinning
+  // Active targets
   private hipsTarget: BoneTarget | null = null;
   private leftHandTarget: BoneTarget | null = null;
   private rightHandTarget: BoneTarget | null = null;
-
-  // Feet use step arc
-  private leftFootTarget: FootTarget | null = null;
-  private rightFootTarget: FootTarget | null = null;
 
   private elapsed = 0;
   private active = false;
@@ -152,22 +109,17 @@ export class TransitionStabilizer {
   /**
    * Call when an animation transition starts.
    *
-   * If a previous transition is still active (rapid lock), captures
-   * the current bone positions (including any in-flight arc offset)
-   * so the new transition starts from where the bones actually are,
-   * not from where the mixer thinks they should be.
+   * Captures current bone positions. If a previous transition is still
+   * active (rapid lock), captures the current positions (including any
+   * in-flight correction) so the new transition starts from where the
+   * bones actually are.
    */
   lock(): void {
     if (!this.initialized) return;
 
-    // Capture current positions — includes any in-flight stabilizer offsets
-    // because getWorldPosition reads the actual scene graph state.
     this.hipsTarget = this._capture(this.hipsBone);
     this.leftHandTarget = this._capture(this.leftHand);
     this.rightHandTarget = this._capture(this.rightHand);
-
-    this.leftFootTarget = this._captureFoot(this.leftFoot);
-    this.rightFootTarget = this._captureFoot(this.rightFoot);
 
     this.elapsed = 0;
     this.active = true;
@@ -194,10 +146,6 @@ export class TransitionStabilizer {
     this._applyCorrection(this.leftHandTarget, handsBlend);
     this._applyCorrection(this.rightHandTarget, handsBlend);
 
-    // Feet: step arc
-    this._applyFootArc(this.leftFootTarget);
-    this._applyFootArc(this.rightFootTarget);
-
     // Single world matrix update after all corrections
     this.vrm.scene.updateMatrixWorld(false);
   }
@@ -209,7 +157,6 @@ export class TransitionStabilizer {
     return Math.max(
       getBlend(this.elapsed, HIPS_TIMING),
       getBlend(this.elapsed, HANDS_TIMING),
-      this.elapsed < FOOT_ARC_DURATION ? 1 : 0,
     );
   }
 
@@ -240,22 +187,6 @@ export class TransitionStabilizer {
       };
     }
 
-    const lUpper = getNode('leftUpperLeg');
-    const lLower = getNode('leftLowerLeg');
-    const lFoot = getNode('leftFoot');
-    if (lUpper && lLower && lFoot) {
-      const legLen = boneLengthWorld(lUpper, lLower) + boneLengthWorld(lLower, lFoot);
-      this.leftFoot = { bone: lFoot, refLength: legLen, maxCorrectionFrac: 0.25 };
-    }
-
-    const rUpper = getNode('rightUpperLeg');
-    const rLower = getNode('rightLowerLeg');
-    const rFoot = getNode('rightFoot');
-    if (rUpper && rLower && rFoot) {
-      const legLen = boneLengthWorld(rUpper, rLower) + boneLengthWorld(rLower, rFoot);
-      this.rightFoot = { bone: rFoot, refLength: legLen, maxCorrectionFrac: 0.25 };
-    }
-
     const lUpperArm = getNode('leftUpperArm');
     const lLowerArm = getNode('leftLowerArm');
     const lHand = getNode('leftHand');
@@ -272,10 +203,7 @@ export class TransitionStabilizer {
       this.rightHand = { bone: rHand, refLength: armLen, maxCorrectionFrac: 0.20 };
     }
 
-    this.initialized = !!(
-      this.hipsBone || this.leftFoot || this.rightFoot ||
-      this.leftHand || this.rightHand
-    );
+    this.initialized = !!(this.hipsBone || this.leftHand || this.rightHand);
   }
 
   // ─── Private: capture ─────────────────────────────────────────────────
@@ -287,24 +215,10 @@ export class TransitionStabilizer {
     return { bone, position: pos };
   }
 
-  private _captureFoot(bone: StabilizedBone | null): FootTarget | null {
-    if (!bone) return null;
-    const pos = new THREE.Vector3();
-    bone.bone.getWorldPosition(pos);
-    return {
-      bone,
-      startPosition: pos,
-      horizontalDrift: 0,
-      driftSamples: 0,
-    };
-  }
-
   private _clearTargets(): void {
     this.hipsTarget = null;
     this.leftHandTarget = null;
     this.rightHandTarget = null;
-    this.leftFootTarget = null;
-    this.rightFootTarget = null;
   }
 
   // ─── Private: corrections ─────────────────────────────────────────────
@@ -329,47 +243,6 @@ export class TransitionStabilizer {
     }
     _v3b.multiplyScalar(blend);
 
-    this._addWorldOffsetToBone(obj, _v3b);
-  }
-
-  /**
-   * Step arc: lift foot proportional to horizontal drift during crossfade.
-   * Lets X/Z blend naturally from the mixer; adds Y lift in a sin arc.
-   *
-   * Drift is sampled over the first few frames (running max) to avoid
-   * under-estimating total drift from a single 16ms sample.
-   */
-  private _applyFootArc(target: FootTarget | null): void {
-    if (!target) return;
-    if (this.elapsed >= FOOT_ARC_DURATION) return;
-
-    const obj = target.bone.bone;
-
-    // Sample drift over first N frames (running max)
-    if (target.driftSamples < DRIFT_SAMPLE_FRAMES) {
-      obj.getWorldPosition(_v3a);
-      const dx = _v3a.x - target.startPosition.x;
-      const dz = _v3a.z - target.startPosition.z;
-      const drift = Math.sqrt(dx * dx + dz * dz);
-      if (drift > target.horizontalDrift) {
-        target.horizontalDrift = drift;
-      }
-      target.driftSamples++;
-    }
-
-    // Skip arc if drift is negligible
-    if (target.horizontalDrift < MIN_DRIFT_FOR_STEP) return;
-
-    // Arc height proportional to drift, capped by leg length
-    const maxHeight = target.bone.refLength * MAX_STEP_HEIGHT_FRAC;
-    const height = Math.min(target.horizontalDrift * 0.5, maxHeight);
-
-    // Progress through arc (0→1 over FOOT_ARC_DURATION)
-    const t = Math.min(this.elapsed / FOOT_ARC_DURATION, 1.0);
-    const lift = stepArc(t) * height;
-
-    // Apply Y offset (world up)
-    _v3b.set(0, lift, 0);
     this._addWorldOffsetToBone(obj, _v3b);
   }
 

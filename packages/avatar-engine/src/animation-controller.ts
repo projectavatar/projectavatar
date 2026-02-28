@@ -25,6 +25,19 @@ import type { BodyPart } from './body-parts.ts';
 
 const DEFAULT_FADE_IN = 0.3;
 
+/**
+ * Feet get a faster crossfade to minimize foot skating.
+ * Short enough that sliding is barely visible, long enough to avoid a hard snap.
+ */
+const FEET_FADE_IN = 0.1;
+
+/**
+ * Legs (hips + upper/lower leg, excludes feet) get a slower crossfade than the default.
+ * Multiplied with the base fade duration to make hip transitions smoother
+ * and less jarring — the body should shift weight gradually.
+ */
+const LEGS_FADE_MULTIPLIER = 2.0;
+
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
 export interface LayerState {
@@ -307,10 +320,8 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Lock stabilizer before crossfade — captures current foot/hip positions
-    if (this.activeSubActions.length > 0) {
-      this.stabilizer.lock();
-    }
+    // Remember whether we had previous animations (need stabilizer lock)
+    const hadPreviousActions = this.activeSubActions.length > 0;
 
     // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
@@ -329,7 +340,10 @@ export class AnimationController {
     const outgoing = this.activeSubActions;
     const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
     for (const sub of outgoing) {
-      sub.action.fadeOut(crossfadeDuration);
+      let outFade = crossfadeDuration;
+      if (sub.bodyPartGroup === 'feet') outFade = Math.min(crossfadeDuration, FEET_FADE_IN);
+      else if (sub.bodyPartGroup === 'legs') outFade = crossfadeDuration * LEGS_FADE_MULTIPLIER;
+      sub.action.fadeOut(outFade);
     }
     // Clean up after crossfade completes.
     // Safety: check that each clip isn't still used by activeSubActions
@@ -382,6 +396,13 @@ export class AnimationController {
       }
     }
 
+    // Lock stabilizer — captures current bone positions before crossfade.
+    // Foot drift is measured at runtime via continuous sampling throughout
+    // the first half of the arc duration (see TransitionStabilizer).
+    if (hadPreviousActions) {
+      this.stabilizer.lock();
+    }
+
     // Set up loop cycling for looping actions with multiple groups
     const isLooping = this.registry.isActionLooping(action, groupIndex);
     const groupCount = this.registry.getGroupCount(action);
@@ -429,7 +450,11 @@ export class AnimationController {
     action.reset();
     action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
-    action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
+    const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
+    let groupFade = baseFade;
+    if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
+    else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
+    action.fadeIn(groupFade);
     action.play();
 
     return {

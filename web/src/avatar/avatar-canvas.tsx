@@ -97,7 +97,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
       );
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
-      avatarScene.onUpdate((delta) => { vrmManager.update(delta); stateMachine.update(delta); });
+      avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });
     };
 
     let cancelled = false;
