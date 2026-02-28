@@ -159,7 +159,7 @@ project-avatar/
 │   │       ├── clip-registry.ts       # clips.json resolver (data-driven)
 │   │       ├── state-machine.ts       # Event → controller coordination
 │   │       ├── mixamo-loader.ts       # FBX → VRM retargeting
-│   │       ├── body-parts.ts          # Bone ↔ body part mapping
+│   │       ├── body-parts.ts          # Bone ↔ body part mapping (5 groups)
 │   │       └── procedural/            # Idle layer (breathing, sway, drift)
 │   └── openclaw-avatar/      # @projectavatar/openclaw-avatar — OpenClaw plugin
 ├── web/                       # Browser app (Cloudflare Pages → app.projectavatar.io)

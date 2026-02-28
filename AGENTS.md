@@ -49,7 +49,7 @@ Weight-based multi-clip blending with body part scoping. All animation logic liv
 ### Blending Model
 All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into per-body-part sub-clips (track filtering). Weights normalized per body-part group so total influence always sums to 1.0.
 
-Body parts: `head`, `torso`, `arms`, `legs` (legs includes hips/root motion).
+Body parts: `head`, `torso`, `arms`, `upperLegs` (includes hips/root motion), `feet`.
 
 ### Crossfade Convention
 Three.js mixer does NOT normalize weights — if total weight < 1.0, rest pose (T-pose) bleeds through. Outgoing fadeOut duration always matches incoming fadeIn to ensure complementary curves (old + new = 1.0 at every frame).
@@ -65,7 +65,7 @@ Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade
 
 ### Key Engine Classes
 - **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
-- **TransitionStabilizer** — masks crossfade artifacts per bone group. Hips/hands use soft positional pinning. Feet use procedural step arcs: measures horizontal drift on first blended frame, lifts feet in a sin() arc proportional to drift, masking skating as a small weight-shift step.
+- **TransitionStabilizer** — masks crossfade artifacts for hips and hands via soft positional pinning. Foot skating is handled by per-body-part crossfade timing (fast feet, slow hips) instead of procedural arcs.
 - **ClipRegistry** — data-driven clip resolver (v3). Resolves action + emotion + intensity + group index → final clip set with body part scoping. `selectGroup()` for weighted random selection, `isActionLooping()`, `getGroupCount()`. Dynamic fallback chain: action → idle action → first clip in registry.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
 - **BlinkController** — random blink + micro-glance.
@@ -83,7 +83,7 @@ ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getA
     ↓
 AnimationController (avatar-engine) — runtime playback via Three.js AnimationMixer
     ↓ post-mixer
-TransitionStabilizer (avatar-engine) — step arcs for feet, soft pins for hips/hands
+TransitionStabilizer (avatar-engine) — soft pins for hips/hands; foot skating handled by crossfade timing
 
 Clip Manager (clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)
@@ -112,7 +112,7 @@ Client → server messages (`WebSocketClientMessage`):
 
 ### Avatar Engine (`packages/avatar-engine/`)
 - `src/animation-controller.ts` — Weight-based multi-clip blending + body part sub-actions.
-- `src/transition-stabilizer.ts` — Pins hips/feet/hands during transitions (soft constraints).
+- `src/transition-stabilizer.ts` — Pins hips/hands during transitions (soft constraints). Foot skating handled by per-body-part crossfade timing in animation-controller.
 - `src/expression-controller.ts` — Blend shape weights + head bone euler offsets.
 - `src/clip-registry.ts` — Data-driven clip resolver (ClipRegistry class).
 - `src/state-machine.ts` — Event dispatch + idle timeout.
