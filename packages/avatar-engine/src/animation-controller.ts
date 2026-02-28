@@ -355,7 +355,7 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
+    // Resolve incoming clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
     let maxFadeIn = DEFAULT_FADE_IN;
     for (const entry of clips) {
@@ -363,42 +363,17 @@ export class AnimationController {
       if (fi > maxFadeIn) maxFadeIn = fi;
     }
 
-    // Crossfade: fade out old sub-actions.
-    // CRITICAL: fadeOut duration must match the incoming fadeIn duration so
-    // that old weight + new weight ≈ 1.0 at every point during the blend.
-    // If fadeOut < fadeIn, there's a gap where total weight < 1 → T-pose bleed.
-    // If fadeOut > fadeIn, there's a period where total weight > 1 → over-saturated.
-    // Using maxFadeIn for all outgoing clips ensures complementary curves.
-    const outgoing = this.activeSubActions;
-    const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
-    for (const sub of outgoing) {
-      let outFade = crossfadeDuration;
-      if (sub.bodyPartGroup === 'feet') outFade = Math.min(crossfadeDuration, FEET_FADE_IN);
-      else if (sub.bodyPartGroup === 'legs') outFade = crossfadeDuration * LEGS_FADE_MULTIPLIER;
-      sub.action.fadeOut(outFade);
+    const crossfadeDuration = maxFadeIn;
+
+    // Build a map of outgoing sub-actions by body part for crossFadeTo matching
+    const outgoingByGroup = new Map<BodyPart, SubAction[]>();
+    for (const sub of this.activeSubActions) {
+      const list = outgoingByGroup.get(sub.bodyPartGroup) ?? [];
+      list.push(sub);
+      outgoingByGroup.set(sub.bodyPartGroup, list);
     }
-    // Clean up after crossfade completes.
-    // Safety: check that each clip isn't still used by activeSubActions
-    // before uncaching — rapid transitions (A→B→C) can cause timer A
-    // to fire while B's filtered sub-clips from the same FBX are still active.
-    if (outgoing.length > 0) {
-      const captured = [...outgoing];
-      setTimeout(() => {
-        // Build set of clip names currently in use
-        const activeClipNames = new Set(
-          this.activeSubActions.map((s) => s.action.getClip().name),
-        );
-        for (const sub of captured) {
-          sub.action.stop();
-          const clip = sub.action.getClip();
-          this.mixer.uncacheAction(clip);
-          // Only uncache the clip data if no active sub-action is using it
-          if (!activeClipNames.has(clip.name)) {
-            this.mixer.uncacheClip(clip);
-          }
-        }
-      }, (crossfadeDuration + 0.1) * 1000);
-    }
+
+    const previousSubActions = this.activeSubActions;
     this.activeSubActions = [];
 
     // Track max clip duration for loop cycling
@@ -413,14 +388,28 @@ export class AnimationController {
         }
       }
 
-      if (claiming.length === 0) continue; // No clip covers this group — rest pose
+      if (claiming.length === 0) continue;
 
-      // Normalize so weights sum to 1.0
       const totalWeight = claiming.reduce((sum, c) => sum + c.weight, 0);
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
-        const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
+        const sub = this._createSubAction(claimed.entry, group, normalizedWeight, false);
         if (sub) {
+          // crossFadeTo from matching outgoing action for smooth warped transition
+          const outgoing = outgoingByGroup.get(group);
+          let fadeDuration = crossfadeDuration;
+          if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
+          else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
+
+          if (outgoing && outgoing.length > 0) {
+            const outSub = outgoing.shift()!;
+            // crossFadeTo handles weight warping — synchronized fade with no gaps
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
+          } else {
+            sub.action.fadeIn(fadeDuration);
+          }
+
+          sub.action.play();
           this.activeSubActions.push(sub);
           const clipDuration = sub.action.getClip().duration;
           if (clipDuration > maxClipDuration) maxClipDuration = clipDuration;
@@ -428,11 +417,35 @@ export class AnimationController {
       }
     }
 
+    // Fade out any unmatched outgoing actions (body parts no longer claimed by new action)
+    for (const [, subs] of outgoingByGroup) {
+      for (const sub of subs) {
+        sub.action.fadeOut(crossfadeDuration);
+      }
+    }
+
+    // Clean up old actions after crossfade completes
+    if (previousSubActions.length > 0) {
+      const captured = [...previousSubActions];
+      setTimeout(() => {
+        const activeClipNames = new Set(
+          this.activeSubActions.map((s) => s.action.getClip().name),
+        );
+        for (const sub of captured) {
+          sub.action.stop();
+          const clip = sub.action.getClip();
+          this.mixer.uncacheAction(clip);
+          if (!activeClipNames.has(clip.name)) {
+            this.mixer.uncacheClip(clip);
+          }
+        }
+      }, (crossfadeDuration + 0.5) * 1000);
+    }
+
     // Set up loop cycling for looping actions with multiple groups
     const isLooping = this.registry.isActionLooping(action, groupIndex);
     const groupCount = this.registry.getGroupCount(action);
     this.isLoopCycling = isLooping && groupCount > 1;
-    // Guard: minimum 1s cycle to prevent infinite re-rolls if all clips fail to load
     this.loopCycleDuration = Math.max(maxClipDuration, 1.0);
     this.loopCycleElapsed = 0;
 
@@ -448,6 +461,7 @@ export class AnimationController {
     }
   }
 
+
   /**
    * Create a sub-action: a mixer action for a specific clip filtered to a single body-part group.
    */
@@ -455,6 +469,7 @@ export class AnimationController {
     entry: ClipEntry,
     group: BodyPart,
     normalizedWeight: number,
+    autoPlay: boolean = true,
   ): SubAction | null {
     const fullClip = this.clipCache.get(entry.file);
     if (!fullClip) {
@@ -475,12 +490,14 @@ export class AnimationController {
     action.reset();
     action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
-    const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
-    let groupFade = baseFade;
-    if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
-    else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
-    action.fadeIn(groupFade);
-    action.play();
+    if (autoPlay) {
+      const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
+      let groupFade = baseFade;
+      if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
+      else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
+      action.fadeIn(groupFade);
+      action.play();
+    }
 
     return {
       action,
