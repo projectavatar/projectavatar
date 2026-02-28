@@ -7,9 +7,13 @@
  *
  * Bone names match VRMHumanBoneName from @pixiv/three-vrm and the
  * keys used in mixamo-loader.ts's retarget map.
+ *
+ * hips is its own group because it carries root motion (position tracks)
+ * that translate the entire character. Keeping it with torso causes the
+ * model to float when legs are disabled.
  */
 
-export const BODY_PARTS = ['head', 'torso', 'arms', 'legs'] as const;
+export const BODY_PARTS = ['head', 'torso', 'hips', 'arms', 'legs'] as const;
 export type BodyPart = (typeof BODY_PARTS)[number];
 
 /**
@@ -21,10 +25,12 @@ export const BODY_PART_BONES: Record<BodyPart, readonly string[]> = {
     'head',
   ],
   torso: [
-    'hips',
     'spine',
     'chest',
     'upperChest',
+  ],
+  hips: [
+    'hips',
   ],
   arms: [
     'leftShoulder',
@@ -52,14 +58,11 @@ export const BODY_PART_BONES: Record<BodyPart, readonly string[]> = {
 export const ALL_BONES = Object.values(BODY_PART_BONES).flat();
 
 /**
- * Given a list of body parts (e.g. ['arms', 'head']), return
- * the set of VRM bone names those parts cover.
+ * Given a list of body parts, return the set of VRM bone names to animate.
  * Returns null when no masking is needed (all parts active or 'full').
  */
 export function getBonesForParts(parts: string[]): Set<string> | null {
   if (parts.length === 0 || parts.includes('full')) return null;
-
-  // If all 4 parts are present, no masking needed
   if (BODY_PARTS.every((bp) => parts.includes(bp))) return null;
 
   const bones = new Set<string>();
@@ -74,8 +77,7 @@ export function getBonesForParts(parts: string[]): Set<string> | null {
 
 /**
  * Normalize body parts from clips.json format.
- * Converts 'full' → all four parts. Preserves individual selections.
- * Used by BodyPartPicker to display the correct state.
+ * Converts 'full' or empty → all parts.
  */
 export function normalizeBodyParts(parts: string[]): string[] {
   if (parts.includes('full') || parts.length === 0) {
@@ -85,21 +87,23 @@ export function normalizeBodyParts(parts: string[]): string[] {
 }
 
 /**
- * Emoji/icon for each body part (used in UI chips).
+ * Emoji/icon for each body part.
  */
 export const BODY_PART_ICON: Record<BodyPart, string> = {
   head: '🗣️',
   torso: '👤',
+  hips: '🦴',
   arms: '💪',
   legs: '🦵',
 };
 
 /**
- * Color for each body part (used for visual distinction in UI).
+ * Color for each body part.
  */
 export const BODY_PART_COLOR: Record<BodyPart, string> = {
   head: '#e17055',
   torso: '#6c5ce7',
+  hips: '#fd79a8',
   arms: '#00b894',
   legs: '#fdcb6e',
 };
