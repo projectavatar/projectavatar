@@ -1,10 +1,12 @@
 /**
  * Preview Panel — right side of the clip manager.
  * Renders a VRM model and plays FBX clips on it.
+ * Body part masking is driven by the clip's bodyParts from ClipDetail.
  */
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
+import { getBonesForParts } from '../body-parts.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -101,13 +103,15 @@ interface PreviewPanelProps {
   clipPath: string | null;
   /** VRM model URL to use */
   modelUrl: string;
+  /** Body parts active for the current clip — drives bone masking */
+  clipBodyParts?: string[];
   /** Called when preview is ready */
   onReady?: () => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
-export function PreviewPanel({ clipPath, modelUrl, onReady }: PreviewPanelProps) {
+export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
   const [clipInfo, setClipInfo] = useState<ClipInfo | null>(null);
@@ -115,7 +119,10 @@ export function PreviewPanel({ clipPath, modelUrl, onReady }: PreviewPanelProps)
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const [modelLoaded, setModelLoaded] = useState(false);
-  const loadingClipRef = useRef<string | null>(null);
+
+  // Serialize body parts for stable dependency tracking.
+  // Avoids Set identity issues and eslint-disable for exhaustive-deps.
+  const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
 
   // Initialize preview engine
   useEffect(() => {
@@ -147,23 +154,20 @@ export function PreviewPanel({ clipPath, modelUrl, onReady }: PreviewPanelProps)
     });
   }, [modelUrl, onReady]);
 
-  // Play clip when clipPath changes
+  // Play clip when clipPath or body parts change
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !clipPath) return;
-    if (loadingClipRef.current === clipPath) return;
 
-    loadingClipRef.current = clipPath;
+    const boneMask = clipBodyParts ? getBonesForParts(clipBodyParts) : null;
+    preview.setBoneMask(boneMask);
     setPaused(false);
 
     preview.looping = looping;
-    preview.playClip(clipPath, looping).then(() => {
-      loadingClipRef.current = null;
-    }).catch(err => {
+    preview.playClip(clipPath, looping).catch(err => {
       console.error('[PreviewPanel] Failed to play clip:', err);
-      loadingClipRef.current = null;
     });
-  }, [clipPath, modelLoaded, looping]);
+  }, [clipPath, modelLoaded, looping, partsKey, clipBodyParts]);
 
   const handleTogglePause = useCallback(() => {
     const preview = previewRef.current;

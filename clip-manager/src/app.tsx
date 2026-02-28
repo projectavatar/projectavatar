@@ -1,7 +1,7 @@
 /**
  * Clip Manager App — three-panel layout.
  */
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
 import type { ClipsJson } from './types.ts';
 import { Header } from './components/header.tsx';
@@ -44,6 +44,7 @@ const mainStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
+// Panel widths: left=clip library, right=3D preview (needs space for model)
 const leftPanelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
@@ -84,7 +85,7 @@ const centerBodyStyle: React.CSSProperties = {
 };
 
 const rightPanelStyle: React.CSSProperties = {
-  width: 380,
+  width: 450,
   flexShrink: 0,
   overflow: 'hidden',
 };
@@ -100,6 +101,7 @@ const ANIM_BASE = '/animations/';
 export function App() {
   const [state, dispatch] = useAppState(clipsData as ClipsJson);
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Resolve preview clip path
   const previewClipPath = useMemo(() => {
@@ -109,28 +111,30 @@ export function App() {
     return ANIM_BASE + clip.file;
   }, [state.previewClip, state.data.clips]);
 
-  // File System Access API handle for saving
-  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  // Resolve body parts for preview clip
+  const previewClipBodyParts = useMemo(() => {
+    if (!state.previewClip) return undefined;
+    const clip = state.data.clips[state.previewClip];
+    return clip?.bodyParts;
+  }, [state.previewClip, state.data.clips]);
 
   const handleSave = useCallback(async () => {
+    setSaveError(null);
     try {
-      if (!fileHandleRef.current) {
-        fileHandleRef.current = await (window as any).showSaveFilePicker({
-          suggestedName: 'clips.json',
-          types: [{
-            description: 'JSON',
-            accept: { 'application/json': ['.json'] },
-          }],
-        });
+      const res = await fetch('/api/save-clips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state.data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? 'Save failed');
       }
-      const writable = await fileHandleRef.current!.createWritable();
-      await writable.write(JSON.stringify(state.data, null, 2) + '\n');
-      await writable.close();
       dispatch({ type: 'MARK_SAVED' });
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('[ClipManager] Save failed:', err);
-      }
+      const msg = err instanceof Error ? err.message : 'Save failed';
+      setSaveError(msg);
+      console.error('[ClipManager] Save failed:', err);
     }
   }, [state.data, dispatch]);
 
@@ -217,6 +221,7 @@ export function App() {
           <PreviewPanel
             clipPath={previewClipPath}
             modelUrl={modelUrl}
+            clipBodyParts={previewClipBodyParts}
           />
         </div>
       </div>
@@ -225,6 +230,7 @@ export function App() {
         data={state.data}
         dirty={state.dirty}
         lastSaved={state.lastSaved}
+        saveError={saveError}
       />
     </div>
   );

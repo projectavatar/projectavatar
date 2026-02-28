@@ -32,9 +32,10 @@ interface StatusBarProps {
   data: ClipsJson;
   dirty: boolean;
   lastSaved: number | null;
+  saveError?: string | null;
 }
 
-export function StatusBar({ data, dirty, lastSaved }: StatusBarProps) {
+export function StatusBar({ data, dirty, lastSaved, saveError }: StatusBarProps) {
   const stats = useMemo(() => getStats(data), [data]);
 
   return (
@@ -45,7 +46,8 @@ export function StatusBar({ data, dirty, lastSaved }: StatusBarProps) {
       <span>{Object.keys(data.actions).length} actions</span>
       <span>{Object.keys(data.emotions).length} emotions</span>
       <span style={{ flex: 1 }} />
-      {dirty && <span style={{ color: 'var(--color-warning)' }}>● unsaved</span>}
+      {saveError && <span style={{ color: '#e17055' }}>✕ {saveError}</span>}
+      {dirty && !saveError && <span style={{ color: 'var(--color-warning)' }}>● unsaved</span>}
       {lastSaved && (
         <span>saved {new Date(lastSaved).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
       )}

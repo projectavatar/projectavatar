@@ -12,7 +12,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -34,7 +37,10 @@
       "category": "gesture",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -56,7 +62,10 @@
       "category": "continuous",
       "energy": "high",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -79,7 +88,10 @@
       "category": "reaction",
       "energy": "high",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -102,7 +114,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -124,7 +139,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -146,7 +164,10 @@
       "category": "reaction",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -168,7 +189,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -190,7 +214,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -212,7 +239,10 @@
       "category": "idle",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -234,8 +264,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
+        "head",
+        "torso",
         "arms",
-        "torso"
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -257,7 +289,10 @@
       "category": "reaction",
       "energy": "medium",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -279,7 +314,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -301,7 +339,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -323,7 +364,10 @@
       "category": "reaction",
       "energy": "high",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -345,7 +389,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -367,7 +414,10 @@
       "category": "gesture",
       "energy": "low",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -389,7 +439,10 @@
       "category": "gesture",
       "energy": "low",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -411,7 +464,10 @@
       "category": "gesture",
       "energy": "low",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -433,8 +489,10 @@
       "category": "continuous",
       "energy": "low",
       "bodyParts": [
+        "head",
+        "torso",
         "arms",
-        "head"
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -456,7 +514,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -478,7 +539,10 @@
       "category": "idle",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -501,7 +565,10 @@
       "category": "continuous",
       "energy": "low",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -523,7 +590,10 @@
       "category": "reaction",
       "energy": "medium",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -545,7 +615,10 @@
       "category": "idle",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -568,7 +641,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -590,7 +666,10 @@
       "category": "reaction",
       "energy": "medium",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -612,7 +691,10 @@
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -634,7 +716,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -656,7 +741,10 @@
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -678,8 +766,10 @@
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
+        "head",
+        "torso",
         "arms",
-        "torso"
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -702,8 +792,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
+        "head",
+        "torso",
         "arms",
-        "head"
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -725,7 +817,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -747,7 +842,10 @@
       "category": "continuous",
       "energy": "low",
       "bodyParts": [
-        "head"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -769,7 +867,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -791,7 +892,9 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -813,7 +916,10 @@
       "category": "idle",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -837,7 +943,10 @@
       "category": "continuous",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -861,7 +970,9 @@
       "energy": "low",
       "bodyParts": [
         "head",
-        "torso"
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -883,6 +994,9 @@
       "category": "reaction",
       "energy": "medium",
       "bodyParts": [
+        "head",
+        "torso",
+        "arms",
         "legs"
       ],
       "symmetric": true,
@@ -905,7 +1019,10 @@
       "category": "gesture",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -927,7 +1044,10 @@
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -949,7 +1069,10 @@
       "category": "reaction",
       "energy": "high",
       "bodyParts": [
-        "arms"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -971,7 +1094,10 @@
       "category": "gesture",
       "energy": "high",
       "bodyParts": [
-        "full"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,
@@ -993,7 +1119,10 @@
       "category": "idle",
       "energy": "low",
       "bodyParts": [
-        "torso"
+        "head",
+        "torso",
+        "arms",
+        "legs"
       ],
       "symmetric": true,
       "layerPriority": 0,

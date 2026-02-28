@@ -6,6 +6,8 @@ import { useMemo, useCallback } from 'react';
 import type { ClipsJson, ClipData } from '../types.ts';
 import { getClipUsage, getClipStatus } from '../state.ts';
 import type { Action } from '../state.ts';
+import { BodyPartPicker } from './body-part-picker.tsx';
+import { normalizeBodyParts } from '../body-parts.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -19,7 +21,6 @@ const titleStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 14,
   fontWeight: 600,
-  marginBottom: 16,
   color: 'var(--color-accent)',
 };
 
@@ -288,18 +289,10 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
       </div>
 
       {/* Body Parts */}
-      <div style={sectionStyle}>
-        <div style={sectionTitleStyle}>Body Parts</div>
-        <input
-          style={tagInputStyle}
-          value={clip.bodyParts.join(', ')}
-          placeholder="arms, torso, head, legs, hips, full"
-          onChange={(e) => {
-            const bodyParts = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
-            update({ bodyParts });
-          }}
-        />
-      </div>
+      <BodyPartPicker
+        bodyParts={normalizeBodyParts(clip.bodyParts)}
+        onChange={(bodyParts) => update({ bodyParts })}
+      />
 
       {/* Usage */}
       <div style={sectionStyle}>
