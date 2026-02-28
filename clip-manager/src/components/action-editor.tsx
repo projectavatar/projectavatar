@@ -211,15 +211,17 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
           />
           <span style={weightValueStyle}>{layer.weight.toFixed(2)}</span>
 
-          {BODY_PARTS.map(part => (
-            <button
-              key={part}
-              style={chipStyle(layer.bodyParts.includes(part), BODY_PART_COLOR[part])}
-              onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
-            >
-              {BODY_PART_ICON[part]} {part}
-            </button>
-          ))}
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            {BODY_PARTS.map(part => (
+              <button
+                key={part}
+                style={chipStyle(layer.bodyParts.includes(part), BODY_PART_COLOR[part])}
+                onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
+              >
+                {BODY_PART_ICON[part]} {part}
+              </button>
+            ))}
+          </div>
 
           {action.clips.length > 1 && (
             <button
