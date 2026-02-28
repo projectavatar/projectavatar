@@ -403,17 +403,8 @@ export class AnimationController {
 
           if (outgoing && outgoing.length > 0) {
             const outSub = outgoing.shift()!;
-            // If the outgoing action is clamped (non-looping clip finished),
-            // crossFadeTo with warp can produce wild interpolations.
-            // Use regular fadeIn + fadeOut instead.
-            const isClamped = outSub.action.clampWhenFinished &&
-              outSub.action.time >= outSub.action.getClip().duration - 0.01;
-            if (isClamped) {
-              outSub.action.fadeOut(fadeDuration);
-              sub.action.fadeIn(fadeDuration);
-            } else {
-              outSub.action.crossFadeTo(sub.action, fadeDuration, true);
-            }
+            // crossFadeTo handles weight warping — synchronized fade with no gaps
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
           } else {
             sub.action.fadeIn(fadeDuration);
           }
