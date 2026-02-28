@@ -284,7 +284,7 @@ export class IdleLayer {
 
     // Toes droop — more on the tucked leg
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 1.8 * this.legBendSign;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 3.0 * this.legBendSign;
     }
     if (this.rightFoot) {
       this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5 * this.legBendSign;
