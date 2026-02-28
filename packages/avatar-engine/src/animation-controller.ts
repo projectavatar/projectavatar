@@ -32,11 +32,11 @@ const DEFAULT_FADE_IN = 0.3;
 const FEET_FADE_IN = 0.1;
 
 /**
- * Upper legs (includes hips) get a slower crossfade than the default.
+ * Legs (hips + upper/lower leg, excludes feet) get a slower crossfade than the default.
  * Multiplied with the base fade duration to make hip transitions smoother
  * and less jarring — the body should shift weight gradually.
  */
-const UPPER_LEGS_FADE_MULTIPLIER = 2.0;
+const LEGS_FADE_MULTIPLIER = 2.0;
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -342,7 +342,7 @@ export class AnimationController {
     for (const sub of outgoing) {
       let outFade = crossfadeDuration;
       if (sub.bodyPartGroup === 'feet') outFade = Math.min(crossfadeDuration, FEET_FADE_IN);
-      else if (sub.bodyPartGroup === 'upperLegs') outFade = crossfadeDuration * UPPER_LEGS_FADE_MULTIPLIER;
+      else if (sub.bodyPartGroup === 'legs') outFade = crossfadeDuration * LEGS_FADE_MULTIPLIER;
       sub.action.fadeOut(outFade);
     }
     // Clean up after crossfade completes.
@@ -453,7 +453,7 @@ export class AnimationController {
     const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
     let groupFade = baseFade;
     if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
-    else if (group === 'upperLegs') groupFade = baseFade * UPPER_LEGS_FADE_MULTIPLIER;
+    else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
     action.fadeIn(groupFade);
     action.play();
 

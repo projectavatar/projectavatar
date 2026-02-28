@@ -49,7 +49,7 @@ Weight-based multi-clip blending with body part scoping. All animation logic liv
 ### Blending Model
 All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into per-body-part sub-clips (track filtering). Weights normalized per body-part group so total influence always sums to 1.0.
 
-Body parts: `head`, `torso`, `arms`, `upperLegs` (includes hips/root motion), `feet`.
+Body parts: `head`, `torso`, `arms`, `legs` (hips + upper/lower leg), `feet`.
 
 ### Crossfade Convention
 Three.js mixer does NOT normalize weights — if total weight < 1.0, rest pose (T-pose) bleeds through. Outgoing fadeOut duration always matches incoming fadeIn to ensure complementary curves (old + new = 1.0 at every frame).

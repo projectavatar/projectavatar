@@ -1,12 +1,12 @@
 /**
  * Body part → VRM bone mapping.
  *
- * 5 groups: head, torso, arms, upperLegs, feet.
- * upperLegs includes hips — disabling legs also kills root motion,
+ * 5 groups: head, torso, arms, legs (hips + upper/lower leg), feet.
+ * legs includes hips + upper/lower leg bones — disabling legs kills root motion,
  * preventing the model from floating.
  */
 
-export const BODY_PARTS = ['head', 'torso', 'arms', 'upperLegs', 'feet'] as const;
+export const BODY_PARTS = ['head', 'torso', 'arms', 'legs', 'feet'] as const;
 export type BodyPart = (typeof BODY_PARTS)[number];
 
 export const BODY_PART_BONES: Record<BodyPart, readonly string[]> = {
@@ -16,7 +16,7 @@ export const BODY_PART_BONES: Record<BodyPart, readonly string[]> = {
     'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
     'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
   ],
-  upperLegs: [
+  legs: [
     'hips',
     'leftUpperLeg', 'leftLowerLeg',
     'rightUpperLeg', 'rightLowerLeg',

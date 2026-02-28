@@ -6,6 +6,7 @@ export const BODY_PART_ICON: Record<BodyPart, string> = {
   torso: '👤',
   arms: '💪',
   legs: '🦵',
+  feet: '🦶',
 };
 
 export const BODY_PART_COLOR: Record<BodyPart, string> = {
@@ -13,4 +14,5 @@ export const BODY_PART_COLOR: Record<BodyPart, string> = {
   torso: '#6c5ce7',
   arms: '#00b894',
   legs: '#fdcb6e',
+  feet: '#e88f2a',
 };

@@ -52,7 +52,7 @@ function refToLayer(ref: ClipRefV1): ClipLayer {
   return {
     clip: ref.clip,
     weight: ref.weight,
-    bodyParts: clipData?.bodyParts ?? ['head', 'torso', 'arms', 'legs'],
+    bodyParts: clipData?.bodyParts ?? ['head', 'torso', 'arms', 'legs', 'feet'],
   };
 }
 

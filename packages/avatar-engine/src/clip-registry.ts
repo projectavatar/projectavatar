@@ -306,7 +306,7 @@ export class ClipRegistry {
         loop: true,
         fadeIn: 0.5,
         fadeOut: 0.5,
-        bodyParts: ['head', 'torso', 'arms', 'legs'],
+        bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
       }];
     }
     return [];

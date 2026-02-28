@@ -412,7 +412,7 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
                       {
                         clip: '',
                         weight: 0.5,
-                        bodyParts: ['head', 'torso', 'arms', 'legs'],
+                        bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
                       },
                     ];
                     updateGroup(selectedAction, action.groups, gi, { clips: newClips });
@@ -437,7 +437,7 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
               clips: [{
                 clip: '',
                 weight: 1,
-                bodyParts: ['head', 'torso', 'arms', 'legs'],
+                bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
               }],
             },
           ];
