@@ -1,5 +1,5 @@
 /**
- * types.ts tests — validatePluginConfig + new cooldown config fields.
+ * types.ts tests — validatePluginConfig + cooldown config + ONE_SHOT_ACTIONS.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -11,7 +11,6 @@ describe('validatePluginConfig', () => {
       relayUrl: 'https://relay.example.com',
       enabled: false,
       idleTimeoutMs: 10_000,
-      debounceMs: 500,
       emotionCooldownMs: 3000,
       actionCooldownMs: 2000,
       oneShotCooldownMs: 4000,
@@ -20,7 +19,6 @@ describe('validatePluginConfig', () => {
     expect(sanitized.relayUrl).toBe('https://relay.example.com');
     expect(sanitized.enabled).toBe(false);
     expect(sanitized.idleTimeoutMs).toBe(10_000);
-    expect(sanitized.debounceMs).toBe(500);
     expect(sanitized.emotionCooldownMs).toBe(3000);
     expect(sanitized.actionCooldownMs).toBe(2000);
     expect(sanitized.oneShotCooldownMs).toBe(4000);
@@ -50,18 +48,6 @@ describe('validatePluginConfig', () => {
     expect(sanitized.relayUrl).toBeUndefined();
   });
 
-  it('rejects debounceMs below minimum', () => {
-    const { errors, sanitized } = validatePluginConfig({ debounceMs: 10 });
-    expect(errors.some(e => e.includes('debounceMs'))).toBe(true);
-    expect(sanitized.debounceMs).toBeUndefined();
-  });
-
-  it('rejects non-number debounceMs', () => {
-    const { errors, sanitized } = validatePluginConfig({ debounceMs: 'potato' });
-    expect(errors.some(e => e.includes('debounceMs'))).toBe(true);
-    expect(sanitized.debounceMs).toBeUndefined();
-  });
-
   it('rejects idleTimeoutMs below minimum', () => {
     const { errors, sanitized } = validatePluginConfig({ idleTimeoutMs: 1000 });
     expect(errors.some(e => e.includes('idleTimeoutMs'))).toBe(true);
@@ -75,10 +61,11 @@ describe('validatePluginConfig', () => {
   });
 
   it('spreads sanitized onto DEFAULT_CONFIG produces valid config', () => {
-    const { sanitized } = validatePluginConfig({ debounceMs: 'potato', enabled: false });
+    const { sanitized } = validatePluginConfig({ enabled: false });
     const cfg = { ...DEFAULT_CONFIG, ...sanitized };
-    expect(cfg.debounceMs).toBe(DEFAULT_CONFIG.debounceMs);
     expect(cfg.enabled).toBe(false);
+    // Unset fields fall back to defaults
+    expect(cfg.emotionCooldownMs).toBe(DEFAULT_CONFIG.emotionCooldownMs);
   });
 
   it('accepts an empty config object with no errors', () => {
@@ -87,7 +74,7 @@ describe('validatePluginConfig', () => {
     expect(Object.keys(sanitized)).toHaveLength(0);
   });
 
-  // ── New cooldown config fields ────────────────────────────────────────────
+  // ── Cooldown config fields ────────────────────────────────────────────────
 
   it('rejects negative emotionCooldownMs', () => {
     const { errors, sanitized } = validatePluginConfig({ emotionCooldownMs: -1 });

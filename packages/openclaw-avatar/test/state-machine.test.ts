@@ -497,7 +497,7 @@ describe('AvatarStateMachine', () => {
     const sm = createAvatarStateMachine(fastCfg, relay);
 
     // First call WITH session — sets lastSession
-    sm.transition({ emotion: 'thinking', action: 'looking_around' }, mainSession);
+    sm.transition({ emotion: 'thinking', action: 'searching' }, mainSession);
     vi.advanceTimersByTime(fastCfg.emotionCooldownMs + 10);
 
     // Second call WITHOUT session — should inherit mainSession

@@ -25,6 +25,11 @@ export type Intensity = typeof INTENSITIES[number];
 /**
  * One-shot actions — these play once and should not be interrupted quickly.
  * They get a longer cooldown to prevent rapid cancellation.
+ *
+ * Note on chaining: if a deferred signal carries a one-shot action (e.g.
+ * dismissive deferred during a celebrating hold), it will start its own
+ * cooldown when it fires. Total hold can reach 2x oneShotCooldownMs.
+ * This is by design — both dramatic actions should play out fully.
  */
 export const ONE_SHOT_ACTIONS: ReadonlySet<string> = new Set([
   'celebrating', 'greeting', 'laughing', 'dismissive',
@@ -33,17 +38,29 @@ export const ONE_SHOT_ACTIONS: ReadonlySet<string> = new Set([
 export interface AvatarEvent {
   emotion:   Emotion;
   action:    Action;
-  prop:      Prop;
-  intensity: Intensity;
+  prop?:     Prop;
+  intensity?: Intensity;
+  /** Opaque session identifier for relay multi-session arbitration. */
   sessionId?: string;
+  /** Session priority (lower = higher). Defaults to 0 in relay when absent. */
   priority?: number;
 }
 
 /** A partial update — only the display fields. sessionId/priority are relay concerns. */
 export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotion' | 'action' | 'prop' | 'intensity'>>;
 
+/**
+ * Session metadata attached to each relay push.
+ * Enables the relay to perform multi-session arbitration — suppressing
+ * lower-priority sessions while a higher-priority session is active.
+ */
 export interface SessionMeta {
+  /** Opaque identifier derived from OpenClaw sessionKey. */
   sessionId: string;
+  /**
+   * Priority for relay arbitration. Lower = higher priority.
+   * 0 = main/interactive, 1 = sub-agent, 2+ = background.
+   */
   priority: number;
 }
 
@@ -54,7 +71,6 @@ export interface PluginConfig {
   appUrl:           string;
   enabled:          boolean;
   idleTimeoutMs:    number;
-  debounceMs:       number;
   emotionCooldownMs: number;
   actionCooldownMs:  number;
   oneShotCooldownMs: number;
@@ -65,7 +81,6 @@ export const DEFAULT_CONFIG: PluginConfig = {
   appUrl:             DEFAULT_APP_URL,
   enabled:            true,
   idleTimeoutMs:      5_000,
-  debounceMs:         300,
   emotionCooldownMs:  2_000,
   actionCooldownMs:   1_500,
   oneShotCooldownMs:  3_000,
@@ -84,6 +99,10 @@ export interface ChannelStateResponse {
   connectedClients: number;
 }
 
+/**
+ * Runtime config validation. Returns errors + sanitized config.
+ * Invalid fields are stripped (fall back to DEFAULT_CONFIG when spread).
+ */
 export function validatePluginConfig(
   raw: unknown,
 ): { errors: string[]; sanitized: Partial<PluginConfig> } {
@@ -99,8 +118,12 @@ export function validatePluginConfig(
     if (typeof cfg.relayUrl !== 'string') {
       errors.push('relayUrl must be a string');
     } else {
-      try { new URL(cfg.relayUrl); sanitized.relayUrl = cfg.relayUrl.replace(/\/+$/, ''); }
-      catch { errors.push(`relayUrl must be a valid URL (got: ${cfg.relayUrl})`); }
+      try {
+        new URL(cfg.relayUrl);
+        sanitized.relayUrl = cfg.relayUrl.replace(/\/+$/, '');
+      } catch {
+        errors.push(`relayUrl must be a valid URL (got: ${cfg.relayUrl})`);
+      }
     }
   }
 
@@ -108,8 +131,12 @@ export function validatePluginConfig(
     if (typeof cfg.appUrl !== 'string') {
       errors.push('appUrl must be a string');
     } else {
-      try { new URL(cfg.appUrl); sanitized.appUrl = cfg.appUrl.replace(/\/+$/, ''); }
-      catch { errors.push(`appUrl must be a valid URL (got: ${cfg.appUrl})`); }
+      try {
+        new URL(cfg.appUrl);
+        sanitized.appUrl = cfg.appUrl.replace(/\/+$/, '');
+      } catch {
+        errors.push(`appUrl must be a valid URL (got: ${cfg.appUrl})`);
+      }
     }
   }
 
@@ -122,12 +149,6 @@ export function validatePluginConfig(
     if (typeof cfg.idleTimeoutMs !== 'number' || cfg.idleTimeoutMs < 5000)
       errors.push('idleTimeoutMs must be a number >= 5000');
     else sanitized.idleTimeoutMs = cfg.idleTimeoutMs;
-  }
-
-  if ('debounceMs' in cfg) {
-    if (typeof cfg.debounceMs !== 'number' || cfg.debounceMs < 50)
-      errors.push('debounceMs must be a number >= 50');
-    else sanitized.debounceMs = cfg.debounceMs;
   }
 
   if ('emotionCooldownMs' in cfg) {

@@ -21,12 +21,14 @@ type ToolRule = {
 
 export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   // ── Shell — high-signal, agent is running something important ────────────
+  // No after (success): agent's avatar_signal before the reply provides the beat.
   exec: {
     before:     { emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'high' },
     afterError: { emotion: 'confused', action: 'nervous', intensity: 'high' },
   },
 
   // ── Browser — agent is actively navigating ───────────────────────────────
+  // No after (success): same rationale as exec — agent signals intent in its reply.
   browser: {
     before:     { emotion: 'thinking', action: 'searching', prop: 'magnifying_glass' },
     afterError: { emotion: 'confused', action: 'dismissive' },

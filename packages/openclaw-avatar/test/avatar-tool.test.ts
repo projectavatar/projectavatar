@@ -23,8 +23,7 @@ describe('createAvatarTool', () => {
     expect(tool.parameters).toBeDefined();
     expect(tool.parameters.properties.emotion).toBeDefined();
     expect(tool.parameters.properties.action).toBeDefined();
-    expect(tool.parameters.required).toContain('emotion');
-    expect(tool.parameters.required).toContain('action');
+    expect(tool.parameters.required).toEqual([]);
   });
 
   it('transitions with valid emotion and action', async () => {

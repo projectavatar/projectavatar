@@ -54,9 +54,22 @@ function eventsEqual(a: AvatarEvent, b: AvatarEvent): boolean {
 }
 
 export type AvatarStateMachine = {
+  /**
+   * Merge a partial signal into current state and push to relay,
+   * respecting per-category cooldowns and one-shot action protection.
+   * Blocked fields are deferred and coalesced (last-write-wins).
+   */
   transition: (signal: AvatarSignal, session?: SessionMeta) => void;
+  /**
+   * Schedule a return to idle after idleTimeoutMs. Bypasses all cooldowns.
+   * Captures the session in the closure so the idle push is correctly attributed.
+   */
   scheduleIdle: (session?: SessionMeta) => void;
+  /**
+   * Immediately reset to idle and cancel all pending timers/cooldowns.
+   */
   reset: (session?: SessionMeta) => void;
+  /** Get a snapshot of current state. */
   getCurrent: () => AvatarEvent;
 };
 
@@ -162,9 +175,9 @@ export function createAvatarStateMachine(
   }
 
   function schedulePendingFlush(retryAfterMs: number, session?: SessionMeta) {
-    if (pendingTimer !== null) return;
-
+    // Always update session — a newer signal may carry a different session context
     pendingSession = session;
+    if (pendingTimer !== null) return;
     pendingTimer = setTimeout(() => {
       pendingTimer = null;
       if (pendingSignal === null) return;

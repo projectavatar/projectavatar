@@ -32,12 +32,10 @@ const PROP_SET      = new Set<string>(PROPS);
 const INTENSITY_SET = new Set<string>(INTENSITIES);
 
 function isValidEvent(event: AvatarEvent): boolean {
-  return (
-    EMOTION_SET.has(event.emotion) &&
-    ACTION_SET.has(event.action) &&
-    PROP_SET.has(event.prop) &&
-    INTENSITY_SET.has(event.intensity)
-  );
+  if (!EMOTION_SET.has(event.emotion) || !ACTION_SET.has(event.action)) return false;
+  if (event.prop !== undefined && !PROP_SET.has(event.prop)) return false;
+  if (event.intensity !== undefined && !INTENSITY_SET.has(event.intensity)) return false;
+  return true;
 }
 
 export type RelayClient = {

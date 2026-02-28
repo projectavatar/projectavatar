@@ -89,7 +89,7 @@ const plugin: OpenClawPluginDefinition = {
     const relayHost = (() => { try { return new URL(cfg.relayUrl).hostname; } catch { return cfg.relayUrl; } })();
     api.logger.info(
       `[ProjectAvatar] Plugin active — relay: ${relayHost}, ` +
-      `debounce: ${cfg.debounceMs}ms, idle timeout: ${cfg.idleTimeoutMs}ms, ` +
+      `idle timeout: ${cfg.idleTimeoutMs}ms,  +
       `cooldowns: emotion=${cfg.emotionCooldownMs}ms action=${cfg.actionCooldownMs}ms oneshot=${cfg.oneShotCooldownMs}ms`
     );
 
