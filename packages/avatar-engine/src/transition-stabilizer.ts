@@ -1,5 +1,5 @@
 /**
- * Transition Stabilizer — pins key bones during animation transitions.
+ * Transition Stabilizer — pins hips, feet, and hands during animation transitions.
  *
  * Problem: Mixamo clips have different rest poses, so bones "teleport"
  * during crossfades. Most visible on feet (sliding), hips (popping),
@@ -10,16 +10,10 @@
  * toward their locked positions. Gradually release via cubic ease-out so
  * the new clip takes over smoothly.
  *
- * Stabilized bones (4 groups, each tunable):
+ * Stabilized bone groups (each with independent timing):
  *   - Hips:  root of the skeleton — prevents vertical pop
  *   - Feet:  left/right foot — prevents ground sliding
  *   - Hands: left/right hand — prevents gesture snapping
- *
- * Each group has independent max-correction and lock/release timing
- * because they have different tolerances:
- *   - Feet need tight locking (grounded, very visible)
- *   - Hips need moderate locking (vertical pop is obvious)
- *   - Hands need looser locking (usually in motion, less noticeable)
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
@@ -62,10 +56,15 @@ const MAX_TOTAL = Math.max(
   HANDS_TIMING.lockDuration + HANDS_TIMING.releaseDuration,
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Reusable temporaries (avoid per-frame heap allocations) ──────────────────
 
 const _v3a = new THREE.Vector3();
 const _v3b = new THREE.Vector3();
+const _v3c = new THREE.Vector3();     // local offset scratch
+const _quat = new THREE.Quaternion(); // parent inverse quat scratch
+const _scale = new THREE.Vector3();   // parent scale scratch
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function boneLengthWorld(a: THREE.Object3D, b: THREE.Object3D): number {
   a.getWorldPosition(_v3a);
@@ -89,11 +88,15 @@ function easeOutCubic(t: number): number {
 // ─── TransitionStabilizer ─────────────────────────────────────────────────────
 
 /**
- * Stabilizes hips, feet, and hands during animation transitions.
- * Internally stabilizes hips, feet, and hands.
+ * Pins hips, feet, and hands during animation transitions using soft
+ * positional constraints. Each bone group has independent timing and
+ * max-correction tuning.
  */
 export class TransitionStabilizer {
   private vrm: VRM;
+
+  /** Whether _buildBones found at least one valid bone chain. */
+  private initialized = false;
 
   // ─── Bone references ──────────────────────────────────────────────────
 
@@ -126,6 +129,8 @@ export class TransitionStabilizer {
    * Captures current world positions of all stabilized bones.
    */
   lock(): void {
+    if (!this.initialized) return;
+
     // Capture positions
     this.hipsTarget = this._capture(this.hipsBone);
     this.leftFootTarget = this._capture(this.leftFoot);
@@ -139,6 +144,8 @@ export class TransitionStabilizer {
 
   /**
    * Call every frame AFTER the animation mixer has updated.
+   * Applies positional corrections, then does a single world matrix
+   * update for the entire scene (not per-bone).
    */
   update(delta: number): void {
     if (!this.active) return;
@@ -156,11 +163,15 @@ export class TransitionStabilizer {
     const feetBlend = getBlend(this.elapsed, FEET_TIMING);
     const handsBlend = getBlend(this.elapsed, HANDS_TIMING);
 
+    // Apply corrections — hips first (parent of legs), then extremities
     this._applyCorrection(this.hipsTarget, hipsBlend);
     this._applyCorrection(this.leftFootTarget, feetBlend);
     this._applyCorrection(this.rightFootTarget, feetBlend);
     this._applyCorrection(this.leftHandTarget, handsBlend);
     this._applyCorrection(this.rightHandTarget, handsBlend);
+
+    // Single world matrix update after all corrections (not per-bone)
+    this.vrm.scene.updateMatrixWorld(false);
   }
 
   /** Whether stabilizer is currently active (for debug display). */
@@ -187,7 +198,10 @@ export class TransitionStabilizer {
 
   private _buildBones(): void {
     const h = this.vrm.humanoid;
-    if (!h) return;
+    if (!h) {
+      console.warn('[TransitionStabilizer] No humanoid on VRM — stabilizer disabled');
+      return;
+    }
 
     this.vrm.scene.updateMatrixWorld(true);
     const getNode = (bone: string) => h.getNormalizedBoneNode(bone as any);
@@ -254,6 +268,16 @@ export class TransitionStabilizer {
         maxCorrectionFrac: 0.20,
       };
     }
+
+    // Check if any bone chains were found
+    this.initialized = !!(
+      this.hipsBone || this.leftFoot || this.rightFoot ||
+      this.leftHand || this.rightHand
+    );
+
+    if (!this.initialized) {
+      console.warn('[TransitionStabilizer] No bone chains found — stabilizer disabled');
+    }
   }
 
   private _capture(bone: StabilizedBone | null): BoneTarget | null {
@@ -273,6 +297,7 @@ export class TransitionStabilizer {
 
   /**
    * Soft constraint: measure drift from locked position and nudge back.
+   * Uses module-level scratch vectors to avoid per-frame heap allocations.
    */
   private _applyCorrection(target: BoneTarget | null, blend: number): void {
     if (!target || blend < 0.01) return;
@@ -302,20 +327,18 @@ export class TransitionStabilizer {
     const parent = obj.parent;
     if (!parent) return;
 
-    const parentQuat = new THREE.Quaternion();
-    parent.getWorldQuaternion(parentQuat);
-    parentQuat.invert();
+    parent.getWorldQuaternion(_quat);
+    _quat.invert();
 
-    const localOffset = _v3b.clone().applyQuaternion(parentQuat);
+    _v3c.copy(_v3b).applyQuaternion(_quat);
 
     // Account for parent's world scale
-    const parentScale = new THREE.Vector3();
-    parent.getWorldScale(parentScale);
-    if (parentScale.x !== 0) localOffset.x /= parentScale.x;
-    if (parentScale.y !== 0) localOffset.y /= parentScale.y;
-    if (parentScale.z !== 0) localOffset.z /= parentScale.z;
+    parent.getWorldScale(_scale);
+    if (_scale.x !== 0) _v3c.x /= _scale.x;
+    if (_scale.y !== 0) _v3c.y /= _scale.y;
+    if (_scale.z !== 0) _v3c.z /= _scale.z;
 
-    obj.position.add(localOffset);
-    obj.updateMatrixWorld(true);
+    obj.position.add(_v3c);
+    // No per-bone updateMatrixWorld — single scene update in update() after all corrections
   }
 }
