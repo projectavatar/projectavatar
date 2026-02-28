@@ -30,8 +30,6 @@ const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
 const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward camera
-const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
-
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
 const TOE_DROOP_ANGLE   = 0.25;    // radians — toes pointing slightly down
@@ -333,44 +331,35 @@ export class IdleLayer {
   // ─── Private: head tracking ──────────────────────────────────────────
 
   /** Reusable vectors for head tracking math. */
-  private _headTargetDir = new THREE.Vector3();
-  private _headWorldPos = new THREE.Vector3();
-  private _headCurrentYaw = 0;
-  private _headCurrentPitch = 0;
+  private _headDir = new THREE.Vector3();
+  private _headPos = new THREE.Vector3();
 
   /**
    * Subtle additive head rotation biased toward camera.
-   * Blends at HEAD_TRACK_INFLUENCE so clips still dominate.
+   * Computed fresh each frame (no accumulated state) so it doesn't
+   * fight with the mixer which resets head rotation every frame.
    */
-  private _applyHeadTracking(delta: number): void {
+  private _applyHeadTracking(_delta: number): void {
     if (!this.camera || !this.head) return;
 
-    // Get direction from head to camera in head's local space
-    this.head.getWorldPosition(this._headWorldPos);
-    this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+    // Direction from head to camera in world space
+    this.head.getWorldPosition(this._headPos);
+    this._headDir.copy(this.camera.position).sub(this._headPos).normalize();
 
-    // Convert world direction to head's parent local space
+    // Convert to head's parent local space
     const parent = this.head.parent;
     if (!parent) return;
-
     parent.updateWorldMatrix(true, false);
-    const parentInverse = new THREE.Matrix4().copy(parent.matrixWorld).invert();
-    this._headTargetDir.transformDirection(parentInverse);
+    const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+    this._headDir.transformDirection(inv);
 
-    // Extract yaw (Y) and pitch (X) from the direction
-    const targetYaw = Math.atan2(this._headTargetDir.x, this._headTargetDir.z);
-    const targetPitch = -Math.asin(
-      Math.max(-1, Math.min(1, this._headTargetDir.y))
-    );
+    // Extract yaw and pitch
+    const yaw = Math.atan2(this._headDir.x, this._headDir.z);
+    const pitch = -Math.asin(Math.max(-1, Math.min(1, this._headDir.y)));
 
-    // Smooth lerp toward target
-    const lerpFactor = 1 - Math.exp(-HEAD_TRACK_SPEED * delta);
-    this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
-    this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
-
-    // Apply as additive rotation scaled by influence
-    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE * this.legBendSign;
-    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
+    // Apply directly as small additive offset — no accumulation
+    this.head.rotation.y += yaw * HEAD_TRACK_INFLUENCE;
+    this.head.rotation.x += pitch * HEAD_TRACK_INFLUENCE;
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
