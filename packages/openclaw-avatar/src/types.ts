@@ -9,8 +9,8 @@
 // Derive union types AND runtime validation sets from these.
 // Never duplicate these values elsewhere.
 
-export const EMOTIONS    = ['idle', 'thinking', 'focused', 'excited', 'confused', 'satisfied', 'concerned', 'happy', 'angry', 'sad', 'relaxed', 'surprised', 'bashful', 'nervous'] as const;
-export const ACTIONS     = ['idle', 'talking', 'typing', 'nodding', 'waving', 'greeting', 'laughing', 'pointing', 'fist_pump', 'dismissive', 'plotting', 'sarcastic', 'looking_around', 'shading_eyes', 'telling_secret', 'victory', 'head_shake', 'relief', 'cautious_agree', 'angry_fist', 'rallying', 'sad_idle', 'nervous_look', 'terrified', 'scratching_head', 'cocky', 'questioning', 'phone', 'celebrating'] as const;
+export const EMOTIONS    = ['idle', 'thinking', 'excited', 'confused', 'happy', 'angry', 'sad', 'surprised', 'bashful', 'nervous'] as const;
+export const ACTIONS     = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
 export const PROPS       = ['none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll'] as const;
 export const INTENSITIES = ['low', 'medium', 'high'] as const;
 

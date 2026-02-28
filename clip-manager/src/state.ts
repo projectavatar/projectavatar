@@ -1,6 +1,6 @@
 /**
  * Clip Manager state — useReducer-based, separate from avatar app's Zustand.
- * v2: actions use clips[] array instead of primary + layers.
+ * v3: actions use groups[] array with rarity-weighted random selection.
  */
 import { useReducer } from 'react';
 import type { ClipsJson, ClipData, ActionData, EmotionData, ClipStatus } from './types.ts';
@@ -21,6 +21,8 @@ export interface AppState {
   previewClip: string | null;
   /** Action currently being previewed via engine (Actions tab — blended preview) */
   previewAction: string | null;
+  /** Currently expanded group index within the selected action (for preview) */
+  previewGroupIndex: number;
   /** Search query for clip library */
   searchQuery: string;
   /** Active category filter */
@@ -43,6 +45,7 @@ export type Action =
   | { type: 'EXPAND_EMOTION'; emotion: string | null }
   | { type: 'SET_PREVIEW_CLIP'; clipId: string | null }
   | { type: 'SET_PREVIEW_ACTION'; action: string | null }
+  | { type: 'SET_PREVIEW_GROUP_INDEX'; index: number }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'SET_CATEGORY_FILTER'; category: string | null }
   | { type: 'SET_ENERGY_FILTER'; energy: string | null }
@@ -72,7 +75,12 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, activeTab: action.tab };
 
     case 'EXPAND_ACTION':
-      return { ...state, expandedAction: action.action, previewAction: action.action };
+      return {
+        ...state,
+        expandedAction: action.action,
+        previewAction: action.action,
+        previewGroupIndex: 0,
+      };
 
     case 'EXPAND_EMOTION':
       return { ...state, expandedEmotion: action.emotion };
@@ -82,6 +90,9 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_PREVIEW_ACTION':
       return { ...state, previewAction: action.action };
+
+    case 'SET_PREVIEW_GROUP_INDEX':
+      return { ...state, previewGroupIndex: action.index };
 
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query };
@@ -151,7 +162,9 @@ function reducer(state: AppState, action: Action): AppState {
 
 export function getClipStatus(clipId: string, data: ClipsJson): ClipStatus {
   for (const action of Object.values(data.actions)) {
-    if (action.clips.some(c => c.clip === clipId)) return 'mapped';
+    for (const group of action.groups) {
+      if (group.clips.some(c => c.clip === clipId)) return 'mapped';
+    }
   }
   for (const emotion of Object.values(data.emotions)) {
     for (const override of Object.values(emotion.overrides)) {
@@ -167,9 +180,8 @@ export function getClipUsage(clipId: string, data: ClipsJson): { actions: string
   const emotions: string[] = [];
 
   for (const [name, action] of Object.entries(data.actions)) {
-    if (action.clips.some(c => c.clip === clipId)) {
-      actions.push(name);
-    }
+    const used = action.groups.some(g => g.clips.some(c => c.clip === clipId));
+    if (used) actions.push(name);
   }
 
   for (const [name, emotion] of Object.entries(data.emotions)) {
@@ -194,7 +206,7 @@ export function getStats(data: ClipsJson) {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-const EMPTY_DATA: ClipsJson = { version: 2, clips: {}, actions: {}, emotions: {} };
+const EMPTY_DATA: ClipsJson = { version: 3, clips: {}, actions: {}, emotions: {} };
 
 export function useAppState(initialData?: ClipsJson) {
   const initial: AppState = {
@@ -205,6 +217,7 @@ export function useAppState(initialData?: ClipsJson) {
     expandedEmotion: null,
     previewClip: null,
     previewAction: null,
+    previewGroupIndex: 0,
     searchQuery: '',
     categoryFilter: null,
     energyFilter: null,

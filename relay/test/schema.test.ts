@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { validateAvatarEvent } from '../../packages/shared/src/schema.js';
 
 describe('validateAvatarEvent', () => {
-  const valid = { emotion: 'focused', action: 'typing' };
+  const valid = { emotion: 'thinking', action: 'typing' };
 
   it('accepts a minimal valid event (emotion + action only)', () => {
     expect(validateAvatarEvent(valid)).toEqual({ ok: true });
@@ -36,7 +36,7 @@ describe('validateAvatarEvent', () => {
   });
 
   it('rejects missing action with a "required" message', () => {
-    const r = validateAvatarEvent({ emotion: 'focused' });
+    const r = validateAvatarEvent({ emotion: 'thinking' });
     expect(r).toMatchObject({ ok: false });
     if (!r.ok) expect(r.error).toMatch(/required/i);
   });
@@ -54,24 +54,24 @@ describe('validateAvatarEvent', () => {
   });
 
   it('rejects unknown action', () => {
-    expect(validateAvatarEvent({ emotion: 'focused', action: 'dancing' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: 'thinking', action: 'dancing' })).toMatchObject({ ok: false });
   });
 
   it('rejects unknown prop', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', prop: 'lightsaber' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', prop: 'lightsaber' }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects unknown intensity', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', intensity: 'extreme' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', intensity: 'extreme' }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects extra fields (additionalProperties: false)', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', foo: 'bar' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', foo: 'bar' }),
     ).toMatchObject({ ok: false });
   });
 
@@ -82,19 +82,19 @@ describe('validateAvatarEvent', () => {
   });
 
   it('rejects non-string action (falsy value edge case)', () => {
-    expect(validateAvatarEvent({ emotion: 'focused', action: 0 })).toMatchObject({ ok: false });
-    expect(validateAvatarEvent({ emotion: 'focused', action: '' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: 'thinking', action: 0 })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotion: 'thinking', action: '' })).toMatchObject({ ok: false });
   });
 
   it('accepts all valid emotions', () => {
-    const emotions = ['idle', 'thinking', 'focused', 'excited', 'confused', 'satisfied', 'concerned', 'happy', 'angry', 'sad', 'relaxed', 'surprised', 'bashful', 'nervous'];
+    const emotions = ['idle', 'thinking', 'excited', 'confused', 'happy', 'angry', 'sad', 'surprised', 'bashful', 'nervous'];
     for (const emotion of emotions) {
       expect(validateAvatarEvent({ emotion, action: 'talking' })).toEqual({ ok: true });
     }
   });
 
   it('accepts all valid actions', () => {
-    const actions = ['idle', 'talking', 'typing', 'nodding', 'waving', 'greeting', 'laughing', 'pointing', 'fist_pump', 'dismissive', 'plotting', 'sarcastic', 'looking_around', 'shading_eyes', 'telling_secret', 'victory', 'head_shake', 'relief', 'cautious_agree', 'angry_fist', 'rallying', 'sad_idle', 'nervous_look', 'terrified', 'scratching_head', 'cocky', 'questioning', 'phone', 'celebrating'];
+    const actions = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'];
     for (const action of actions) {
       expect(validateAvatarEvent({ emotion: 'idle', action })).toEqual({ ok: true });
     }
@@ -121,59 +121,59 @@ describe('validateAvatarEvent', () => {
 
   it('accepts event with valid sessionId', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 'agent:main:discord:channel-1' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'agent:main:discord:channel-1' }),
     ).toEqual({ ok: true });
   });
 
   it('accepts event with valid priority 0', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 'sess', priority: 0 }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', priority: 0 }),
     ).toEqual({ ok: true });
   });
 
   it('accepts event with valid priority > 0', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 'sess', priority: 2 }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', priority: 2 }),
     ).toEqual({ ok: true });
   });
 
   it('accepts event with sessionId but no priority (priority is optional)', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 'sess' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess' }),
     ).toEqual({ ok: true });
   });
 
   it('accepts event with neither sessionId nor priority (legacy single-session)', () => {
-    expect(validateAvatarEvent({ emotion: 'focused', action: 'typing' })).toEqual({ ok: true });
+    expect(validateAvatarEvent({ emotion: 'thinking', action: 'typing' })).toEqual({ ok: true });
   });
 
   it('rejects non-string sessionId', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 42 }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 42 }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects priority: -1 (negative)', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', priority: -1 }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: -1 }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects priority: 1.5 (non-integer)', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', priority: 1.5 }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: 1.5 }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects priority: "high" (non-number)', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', priority: 'high' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: 'high' }),
     ).toMatchObject({ ok: false });
   });
 
   it('still rejects truly unknown extra fields alongside sessionId/priority', () => {
     expect(
-      validateAvatarEvent({ emotion: 'focused', action: 'typing', sessionId: 'sess', foo: 'bar' }),
+      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', foo: 'bar' }),
     ).toMatchObject({ ok: false });
   });
 });

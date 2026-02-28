@@ -99,6 +99,7 @@ export function App() {
 
   // Preview action (Actions tab — blended action)
   const previewAction = state.activeTab === 'actions' ? state.previewAction : null;
+  const previewGroupIndex = state.activeTab === 'actions' ? state.previewGroupIndex : 0;
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
@@ -210,6 +211,7 @@ export function App() {
             clipBodyParts={previewClipBodyParts}
             clipsData={state.data}
             previewAction={previewAction}
+            previewGroupIndex={previewGroupIndex}
           />
         </div>
       </div>

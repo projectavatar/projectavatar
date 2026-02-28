@@ -1,4 +1,4 @@
-/** clips.json schema types — v2 */
+/** clips.json schema types — v3 (animation groups) */
 
 export interface ClipRef {
   clip: string; // clip id (key in clips record)
@@ -28,8 +28,17 @@ export interface ClipData {
   tags: string[];
 }
 
-export interface ActionData {
+/** A single animation group — one possible animation for an action. */
+export interface AnimationGroup {
+  /** Relative probability weight (0–1). Normalized at runtime. */
+  rarity: number;
+  /** Clip layers that play together when this group is selected. */
   clips: ClipLayer[];
+}
+
+export interface ActionData {
+  /** Animation groups — weighted random selection picks one per trigger. */
+  groups: AnimationGroup[];
   durationOverride: number | null;
 }
 

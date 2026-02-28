@@ -16,7 +16,7 @@ import type { OpenClawPluginApi, OpenClawPluginDefinition } from './openclaw-api
 import { createRelayClient } from './relay-client.js';
 import { createAvatarStateMachine } from './state-machine.js';
 import { resolveToolSignal } from './tool-map.js';
-import { createAvatarTool } from './avatar-tool.js';
+import { createAvatarTool } from './avatar-signal-tool.js';
 import { createAvatarCommandTool } from './avatar-command-tool.js';
 import { DEFAULT_CONFIG, validatePluginConfig } from './types.js';
 import type { PluginConfig, SessionMeta } from './types.js';
@@ -28,8 +28,8 @@ import { deriveSessionPriority } from './session-utils.js';
  * Fallback signals for tool calls on tools not in the tool map.
  * The avatar should always react to tool activity, even for unknown tools.
  */
-const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'focused', action: 'typing', prop: 'none', intensity: 'medium' };
-const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'focused', action: 'nodding', prop: 'none', intensity: 'medium' };
+const UNKNOWN_TOOL_BEFORE: import('./types.js').AvatarSignal = { emotion: 'thinking', action: 'typing', prop: 'none', intensity: 'medium' };
+const UNKNOWN_TOOL_AFTER:  import('./types.js').AvatarSignal = { emotion: 'thinking', action: 'nodding', prop: 'none', intensity: 'medium' };
 
 
 /**
@@ -104,7 +104,7 @@ const plugin: OpenClawPluginDefinition = {
     api.on('message_received', (_event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
-        { emotion: 'thinking', action: 'looking_around', prop: 'none', intensity: 'medium' },
+        { emotion: 'thinking', action: 'searching', prop: 'none', intensity: 'medium' },
         session,
       );
     });
@@ -132,8 +132,8 @@ const plugin: OpenClawPluginDefinition = {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       sm.transition(
         event.success
-          ? { emotion: 'satisfied', action: 'nodding', prop: 'none', intensity: 'medium' }
-          : { emotion: 'concerned', action: 'head_shake',  prop: 'none', intensity: 'high' },
+          ? { emotion: 'happy', action: 'nodding', prop: 'none', intensity: 'medium' }
+          : { emotion: 'nervous', action: 'dismissive', prop: 'none', intensity: 'high' },
         session,
       );
       // Pass session to scheduleIdle so the idle timer fires with the correct session
@@ -151,11 +151,7 @@ const plugin: OpenClawPluginDefinition = {
 
     api.on('before_prompt_build', () => {
       return {
-        prependContext: [
-          'Call avatar_signal before replying to set your avatar expression. Match emotion+action to your response tone. The call is silent — the user never sees it.',
-          'For longer responses with genuine tone shifts, call avatar_signal again mid-response.',
-          'Respond in the user\'s language regardless of this instruction.',
-        ].join('\n'),
+        prependContext: 'Call avatar_signal before each reply. Respond in the user\'s language.',
       };
     });
 

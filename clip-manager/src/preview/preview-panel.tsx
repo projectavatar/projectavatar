@@ -4,6 +4,7 @@
  * Two modes:
  * 1. Clip preview: plays a single FBX (Clips tab)
  * 2. Action preview: plays blended action through full engine (Actions tab)
+ *    — supports previewing specific animation groups
  *
  * Layer toggles available in both modes when engine is active.
  */
@@ -164,6 +165,8 @@ interface PreviewPanelProps {
   clipsData?: ClipsJsonData;
   /** Action name to preview via engine (Actions tab — blended preview) */
   previewAction?: string | null;
+  /** Group index to preview (Actions tab — specific group) */
+  previewGroupIndex?: number;
   /** Called when preview is ready */
   onReady?: () => void;
 }
@@ -171,7 +174,7 @@ interface PreviewPanelProps {
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
 export function PreviewPanel({
-  clipPath, modelUrl, clipBodyParts, clipsData, previewAction, onReady,
+  clipPath, modelUrl, clipBodyParts, clipsData, previewAction, previewGroupIndex = 0, onReady,
 }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
@@ -264,13 +267,24 @@ export function PreviewPanel({
     });
   }, [partsKey]);
 
-  // Play blended action through engine (Actions tab)
+  // Play blended action through engine (Actions tab) — responds to group index changes
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !previewAction) return;
 
     const data = clipsDataRef.current;
     if (!data) return;
+
+    // Check if the selected group has valid clips — if not, stop preview
+    const actionData = data.actions[previewAction];
+    const group = actionData?.groups[previewGroupIndex];
+    const hasValidClips = group?.clips.some(c => c.clip && data.clips[c.clip]);
+
+    if (!hasValidClips) {
+      preview.stop();
+      setActionLabel(null);
+      return;
+    }
 
     const playAction = async () => {
       if (!preview.engineActive) {
@@ -285,12 +299,12 @@ export function PreviewPanel({
         preview.updateEngineData(data as ClipsJsonData);
       }
 
-      preview.playEngineAction(previewAction as ActionName);
+      preview.playEngineAction(previewAction as ActionName, previewGroupIndex);
       setActionLabel(previewAction);
     };
 
     void playAction();
-  }, [previewAction, modelLoaded, clipsData]);
+  }, [previewAction, previewGroupIndex, modelLoaded, clipsData]);
 
 
   const handleTogglePause = useCallback(() => {
@@ -350,7 +364,7 @@ export function PreviewPanel({
       <div style={controlsStyle}>
         {/* Label */}
         {showingAction ? (
-          <div style={clipNameStyle}>▶ Action: {actionLabel}</div>
+          <div style={clipNameStyle}>▶ Action: {actionLabel} (group {previewGroupIndex + 1})</div>
         ) : clipInfo ? (
           <div style={clipNameStyle} title={clipInfo.name}>▶ {clipInfo.name}</div>
         ) : (

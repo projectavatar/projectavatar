@@ -24,123 +24,123 @@ type ToolRule = {
 export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   // ── Web / research ──────────────────────────────────────────────────────────
   web_search: {
-    before:     { emotion: 'thinking',  action: 'shading_eyes',   prop: 'magnifying_glass' },
-    after:      { emotion: 'focused',   action: 'nodding',        prop: 'book' },
-    afterError: { emotion: 'confused',  action: 'head_shake' },
+    before:     { emotion: 'thinking',  action: 'searching',   prop: 'magnifying_glass' },
+    after:      { emotion: 'thinking',   action: 'nodding',        prop: 'book' },
+    afterError: { emotion: 'confused',  action: 'dismissive' },
   },
   web_fetch: {
-    before:     { emotion: 'focused',   action: 'looking_around', prop: 'book' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
-    afterError: { emotion: 'confused',  action: 'head_shake' },
+    before:     { emotion: 'thinking',   action: 'searching', prop: 'book' },
+    after:      { emotion: 'happy', action: 'nodding' },
+    afterError: { emotion: 'confused',  action: 'dismissive' },
   },
 
   // ── File operations ──────────────────────────────────────────────────────────
   Read: {
-    before:     { emotion: 'focused',   action: 'looking_around', prop: 'book' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'searching', prop: 'book' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
   Write: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'keyboard' },
-    after:      { emotion: 'satisfied', action: 'typing',         prop: 'keyboard' },
-    afterError: { emotion: 'confused',  action: 'head_shake' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard' },
+    after:      { emotion: 'happy', action: 'typing',         prop: 'keyboard' },
+    afterError: { emotion: 'confused',  action: 'dismissive' },
   },
   Edit: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'keyboard' },
-    after:      { emotion: 'satisfied', action: 'typing',         prop: 'keyboard' },
-    afterError: { emotion: 'confused',  action: 'head_shake' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard' },
+    after:      { emotion: 'happy', action: 'typing',         prop: 'keyboard' },
+    afterError: { emotion: 'confused',  action: 'dismissive' },
   },
 
   // ── Shell ────────────────────────────────────────────────────────────────────
   exec: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'keyboard', intensity: 'high' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
-    afterError: { emotion: 'confused',  action: 'terrified',      intensity: 'high' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard', intensity: 'high' },
+    after:      { emotion: 'happy', action: 'nodding' },
+    afterError: { emotion: 'confused',  action: 'nervous',      intensity: 'high' },
   },
   process: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'keyboard' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
 
   // ── Browser ──────────────────────────────────────────────────────────────────
   browser: {
-    before:     { emotion: 'focused',   action: 'shading_eyes',   prop: 'magnifying_glass' },
-    after:      { emotion: 'focused',   action: 'nodding' },
-    afterError: { emotion: 'confused',  action: 'head_shake' },
+    before:     { emotion: 'thinking',   action: 'searching',   prop: 'magnifying_glass' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
+    afterError: { emotion: 'confused',  action: 'dismissive' },
   },
   canvas: {
-    before:     { emotion: 'focused',   action: 'looking_around', prop: 'magnifying_glass' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'searching', prop: 'magnifying_glass' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
 
   // ── Messaging / output ───────────────────────────────────────────────────────
   message: {
-    before:     { emotion: 'focused',   action: 'talking',        prop: 'phone' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'talking',        prop: 'phone' },
+    after:      { emotion: 'happy', action: 'nodding' },
   },
   tts: {
     before:     { emotion: 'excited',   action: 'talking' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    after:      { emotion: 'happy', action: 'greeting' },
   },
 
   // ── Vision / image ───────────────────────────────────────────────────────────
   image: {
-    before:     { emotion: 'thinking',  action: 'shading_eyes',   prop: 'magnifying_glass' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',  action: 'searching',   prop: 'magnifying_glass' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
 
   // ── Memory ──────────────────────────────────────────────────────────────────
   memory_search: {
-    before:     { emotion: 'thinking',  action: 'looking_around', prop: 'book' },
-    after:      { emotion: 'focused',   action: 'nodding',        prop: 'book' },
+    before:     { emotion: 'thinking',  action: 'searching', prop: 'book' },
+    after:      { emotion: 'thinking',   action: 'nodding',        prop: 'book' },
   },
   memory_get: {
-    before:     { emotion: 'focused',   action: 'looking_around', prop: 'book' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'searching', prop: 'book' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
 
   // ── Sub-agents / orchestration ───────────────────────────────────────────────
   subagents: {
     before:     { emotion: 'thinking',  action: 'idle' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    after:      { emotion: 'happy', action: 'nodding' },
   },
   sessions_spawn: {
     before:     { emotion: 'excited',   action: 'typing',         prop: 'keyboard' },
-    after:      { emotion: 'focused',   action: 'idle' },
+    after:      { emotion: 'happy',   action: 'celebrating' },
   },
   sessions_list: {
-    before:     { emotion: 'thinking',  action: 'looking_around' },
+    before:     { emotion: 'thinking',  action: 'searching' },
   },
   sessions_send: {
-    before:     { emotion: 'focused',   action: 'talking',        prop: 'phone' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'talking',        prop: 'phone' },
+    after:      { emotion: 'happy', action: 'nodding' },
   },
   sessions_history: {
-    before:     { emotion: 'focused',   action: 'looking_around', prop: 'book' },
+    before:     { emotion: 'thinking',   action: 'searching', prop: 'book' },
   },
 
   // ── Devices / nodes ──────────────────────────────────────────────────────────
   nodes: {
-    before:     { emotion: 'focused',   action: 'phone',          prop: 'phone' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'talking',          prop: 'phone' },
+    after:      { emotion: 'happy', action: 'nodding' },
   },
 
   // ── Scheduling ───────────────────────────────────────────────────────────────
   cron: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'scroll' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'scroll' },
+    after:      { emotion: 'happy', action: 'nodding' },
   },
 
   // ── Session / status ─────────────────────────────────────────────────────────
   session_status: {
-    before:     { emotion: 'thinking',  action: 'looking_around' },
-    after:      { emotion: 'focused',   action: 'nodding' },
+    before:     { emotion: 'thinking',  action: 'searching' },
+    after:      { emotion: 'thinking',   action: 'nodding' },
   },
 
   // ── Gateway ──────────────────────────────────────────────────────────────────
   gateway: {
-    before:     { emotion: 'focused',   action: 'typing',         prop: 'keyboard', intensity: 'high' },
-    after:      { emotion: 'satisfied', action: 'nodding' },
-    afterError: { emotion: 'confused',  action: 'terrified',      intensity: 'high' },
+    before:     { emotion: 'thinking',   action: 'typing',         prop: 'keyboard', intensity: 'high' },
+    after:      { emotion: 'happy', action: 'celebrating' },
+    afterError: { emotion: 'confused',  action: 'nervous',      intensity: 'high' },
   },
 };
 

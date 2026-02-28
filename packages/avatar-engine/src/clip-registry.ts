@@ -1,11 +1,13 @@
 /**
- * Clip Registry — data-driven clip resolver (v2).
+ * Clip Registry — data-driven clip resolver (v3).
  *
- * v2 actions use `clips[]` (ordered array of clip layers with body parts)
- * instead of v1's `primary` + `layers` split.
+ * v3 actions use `groups[]` — an array of animation groups, each with
+ * a `rarity` weight and `clips[]` array. When an action fires, one group
+ * is selected via weighted random, then its clips are resolved with
+ * emotion/intensity scaling and body part scoping.
  *
- * Resolves the final set of clips for a given action + emotion + intensity,
- * with per-clip body part scoping for weight-based blending.
+ * For looping actions (idle), the animation controller re-rolls a new
+ * group after each cycle completes.
  */
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 
@@ -46,20 +48,28 @@ export interface ClipJson {
   tags: string[];
 }
 
-/** v2 clip layer within an action. */
+/** Clip layer within an animation group. */
 interface ClipLayerJson {
   clip: string;
   weight: number;
   bodyParts: string[];
 }
 
-/** v2 action definition. */
-interface ActionJson {
+/** A single animation group — one possible animation for an action. */
+export interface AnimationGroupJson {
+  /** Relative probability weight. Normalized at runtime. */
+  rarity: number;
+  /** Clip layers that play together when this group is selected. */
   clips: ClipLayerJson[];
+}
+
+/** v3 action definition with animation groups. */
+interface ActionJson {
+  groups: AnimationGroupJson[];
   durationOverride: number | null;
 }
 
-/** v1 clip reference (for emotion overrides/layers, kept simple). */
+/** Clip reference (for emotion overrides/layers). */
 interface ClipRefJson {
   clip: string;
   weight: number;
@@ -71,7 +81,7 @@ interface EmotionJson {
   layers: ClipRefJson[];
 }
 
-/** Shape of the clips.json data object (v2). */
+/** Shape of the clips.json data object (v3). */
 export interface ClipsJsonData {
   version: number;
   clips: Record<string, ClipJson>;
@@ -102,13 +112,43 @@ export class ClipRegistry {
   }
 
   /**
+   * Select a random animation group from an action using weighted rarity.
+   * Returns the group index, or 0 if only one group exists.
+   */
+  selectGroup(action: Action): number {
+    const actionData = this.data.actions[action as string];
+    if (!actionData || actionData.groups.length <= 1) return 0;
+
+    const groups = actionData.groups;
+    const totalRarity = groups.reduce((sum, g) => sum + g.rarity, 0);
+    if (totalRarity <= 0) return 0;
+
+    let roll = Math.random() * totalRarity;
+    for (let i = 0; i < groups.length; i++) {
+      roll -= groups[i]!.rarity;
+      if (roll <= 0) return i;
+    }
+    return groups.length - 1;
+  }
+
+  /**
+   * Get the number of animation groups for an action.
+   */
+  getGroupCount(action: Action): number {
+    const actionData = this.data.actions[action as string];
+    return actionData?.groups.length ?? 0;
+  }
+
+  /**
    * Resolve the final set of clips for a given action + emotion + intensity.
+   * Uses the specified group index (from selectGroup).
    * Returns an ordered array of clip entries, each with body part scope.
    */
   resolveClips(
     action: Action,
     emotion: Emotion,
     intensity: Intensity,
+    groupIndex: number = 0,
   ): ResolvedClips {
     const actionData = this.data.actions[action as string];
     const emotionData = this.data.emotions[emotion as string];
@@ -116,22 +156,25 @@ export class ClipRegistry {
     const emotionWeightScale = emotionData?.weightScale ?? 1.0;
     const totalScale = intensityScale * emotionWeightScale;
 
-    // If this action has no config, fall through to the bottom fallback
-    // (which recursively resolves idle, then first-clip-in-registry)
-    if (!actionData) {
+    // If this action has no config, fall through to idle/last-resort
+    if (!actionData || actionData.groups.length === 0) {
       if (action !== 'idle') {
         return this.resolveClips('idle', emotion, intensity);
       }
       return { clips: this._lastResortClip() };
     }
 
+    // Clamp group index
+    const safeIndex = Math.min(groupIndex, actionData.groups.length - 1);
+    const group = actionData.groups[safeIndex]!;
+
     const clips: ClipEntry[] = [];
 
     // Check if emotion has an override for this action's first clip
     const overrideRef = emotionData?.overrides[action as string];
 
-    for (let i = 0; i < actionData.clips.length; i++) {
-      const layer = actionData.clips[i]!;
+    for (let i = 0; i < group.clips.length; i++) {
+      const layer = group.clips[i]!;
 
       // Emotion override replaces the first clip only
       if (i === 0 && overrideRef) {
@@ -174,7 +217,7 @@ export class ClipRegistry {
       }
     }
 
-    // Fallback: all clips in this action were missing/broken
+    // Fallback: all clips in this group were missing/broken
     if (clips.length === 0) {
       if (action !== 'idle') {
         return this.resolveClips('idle', emotion, intensity);
@@ -188,16 +231,36 @@ export class ClipRegistry {
   /**
    * Get the duration for a non-looping action.
    * Returns null for looping actions (they play indefinitely).
+   * Checks the first group's first clip to determine if it loops.
    */
   getActionDuration(action: Action): number | null {
     const actionData = this.data.actions[action as string];
-    if (!actionData || actionData.clips.length === 0) return null;
+    if (!actionData || actionData.groups.length === 0) return null;
 
-    // Check the first clip (primary equivalent)
-    const firstClip = this.data.clips[actionData.clips[0]!.clip];
+    const firstGroup = actionData.groups[0]!;
+    if (firstGroup.clips.length === 0) return null;
+
+    const firstClip = this.data.clips[firstGroup.clips[0]!.clip];
     if (firstClip?.loop) return null;
 
     return actionData.durationOverride ?? null;
+  }
+
+  /**
+   * Check if an action's group is looping.
+   * Checks the specified group (defaults to 0). Each group can have
+   * independent loop behavior — a non-looping group won't cycle.
+   */
+  isActionLooping(action: Action, groupIndex: number = 0): boolean {
+    const actionData = this.data.actions[action as string];
+    if (!actionData || actionData.groups.length === 0) return true;
+
+    const safeIndex = Math.min(groupIndex, actionData.groups.length - 1);
+    const group = actionData.groups[safeIndex]!;
+    if (group.clips.length === 0) return true;
+
+    const firstClip = this.data.clips[group.clips[0]!.clip];
+    return firstClip?.loop ?? true;
   }
 
   /**
@@ -212,8 +275,10 @@ export class ClipRegistry {
     };
 
     for (const action of Object.values(this.data.actions)) {
-      for (const layer of action.clips) {
-        addClipFile(layer.clip);
+      for (const group of action.groups) {
+        for (const layer of group.clips) {
+          addClipFile(layer.clip);
+        }
       }
     }
 
@@ -231,8 +296,6 @@ export class ClipRegistry {
 
   /**
    * Last resort fallback: find any usable clip in the registry.
-   * Iterates entries (stable insertion order per ES2015+) and returns
-   * the first one found, or an empty array if the registry is empty.
    */
   private _lastResortClip(): ClipEntry[] {
     for (const [clipId, clipData] of Object.entries(this.data.clips)) {
@@ -249,7 +312,7 @@ export class ClipRegistry {
     return [];
   }
 
-  /** Convert a v1-style clip ref to an entry (used for emotion overrides/layers). */
+  /** Convert a clip ref to an entry (used for emotion overrides/layers). */
   private _refToEntry(ref: ClipRefJson, bodyParts?: string[]): ClipEntry | null {
     const clip = this.data.clips[ref.clip];
     if (!clip) {
