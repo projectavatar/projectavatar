@@ -408,10 +408,11 @@ export class AnimationController {
       entry.loop ? Infinity : 1,
     );
     action.clampWhenFinished = !entry.loop;
+    action.reset();
     action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
     action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
-    action.reset().play();
+    action.play();
 
     return {
       action,
