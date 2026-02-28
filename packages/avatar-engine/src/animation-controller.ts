@@ -18,6 +18,7 @@ import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
+import { TransitionStabilizer } from './transition-stabilizer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
 
@@ -101,6 +102,9 @@ export class AnimationController {
   /** Timer for non-looping action completion. */
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Foot IK stabilizer — pins feet during animation transitions. */
+  private stabilizer: TransitionStabilizer;
+
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
@@ -111,6 +115,7 @@ export class AnimationController {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
+    this.stabilizer = new TransitionStabilizer(vrm);
   }
 
   /**
@@ -198,8 +203,9 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
+      // Apply foot IK correction after mixer (pins feet during transitions)
+      this.stabilizer.update(dt);
     }
-
   }
 
   getActiveClips(): ActiveClipInfo[] {
@@ -232,20 +238,11 @@ export class AnimationController {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
+    this.stabilizer.dispose();
   }
-
-  // ─── Private: bone setup ────────────────────────────────────────────────
 
   // ─── Private: blended action playback ───────────────────────────────────
 
-  /**
-   * Core blending logic — explicit clips only.
-   *
-   * 1. Resolve the action's clips (each with body part scoping + weight)
-   * 2. For each body part group, collect clips that claim it
-   * 3. Normalize weights per group so they sum to 1.0
-   * 4. Create sub-actions (one per clip×group) with normalized weights
-   */
   /**
    * Core blending logic — explicit clips only, no implicit idle.
    *
@@ -261,6 +258,11 @@ export class AnimationController {
     if (this.durationTimer !== null) {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
+    }
+
+    // Lock feet at current position before transition (prevents teleporting)
+    if (this.activeSubActions.length > 0) {
+      this.stabilizer.lock();
     }
 
     // Fade out and uncache old sub-actions (prevents mixer memory leak)

@@ -7,11 +7,11 @@ Coding agent context for this repository.
 Monorepo with independently deployable packages:
 
 - `packages/shared/` — shared types, validation, constants. Imported by all packages.
-- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, weight-based clip blending. Shared by `web/` and `clip-manager/`.
+- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, weight-based multi-clip blending with body part scoping, transition stabilization. Shared by `web/` and `clip-manager/`.
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
-- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation layer testing. Port 5174. Assets served from `web/public/` via shared `publicDir`.
+- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation blending. Port 5174. Assets served from `web/public/` via shared `publicDir`.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
@@ -27,7 +27,32 @@ Monorepo with independently deployable packages:
 - Model: stored in DO, synced to all WebSocket clients via `model_changed` broadcast.
 - Share link format: `?token=abc123` — no model in URL.
 
-## Animation Data Pipeline
+## Animation System (v2)
+
+Weight-based multi-clip blending with body part scoping. All animation logic lives in `packages/avatar-engine/`.
+
+### clips.json v2 Schema
+- `clips{}`: per-clip metadata (file, loop, fadeIn/Out, category, energy, bodyParts, tags, defaultWeight)
+- `actions{}`: each with `clips[]` (ordered array of clip layers with weight + bodyParts) + `durationOverride`
+- `emotions{}`: 14 emotions with `weightScale` + action `overrides` + extra `layers`
+
+### Blending Model
+All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into per-body-part sub-clips (track filtering). Weights normalized per body-part group so total influence always sums to 1.0.
+
+Body parts: `head`, `torso`, `arms`, `legs` (legs includes hips/root motion).
+
+### Key Engine Classes
+- **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
+- **TransitionStabilizer** — pins hips, feet, and hands during clip transitions using soft positional constraints. Independent timing per bone group (feet: tight lock, hands: loose lock with gentle release).
+- **ClipRegistry** — data-driven clip resolver. Resolves action + emotion + intensity → final clip set with body part scoping. Dynamic fallback chain: action → idle action → first clip in registry (no hardcoded clip IDs).
+- **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
+- **BlinkController** — random blink + micro-glance.
+- **PropManager** — GLB prop loading + hand bone attachment.
+- **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
+- **AvatarScene** — scene, camera, lighting, render loop. Options: `{ grid: true }` for clip manager.
+- **VrmManager** — VRM loading, VRM 0.x/1.0 normalization, placeholder cube fallback.
+
+### Animation Data Pipeline
 
 ```
 clips.json (web/src/data/) — source of truth for all clip metadata + mappings
@@ -35,32 +60,21 @@ clips.json (web/src/data/) — source of truth for all clip metadata + mappings
 ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getAllClipFiles)
     ↓
 AnimationController (avatar-engine) — runtime playback via Three.js AnimationMixer
+    ↓ post-mixer
+TransitionStabilizer (avatar-engine) — pins bones during crossfade window
 
 Clip Manager (clip-manager/) — dev UI for editing clips.json
     ↓ POST /api/save-clips (Vite dev server)
 clips.json
 ```
 
-- `scripts/generate-clips-json.ts` — bootstrap script: generates clips.json from legacy clip-map data
-- `npm run clips` — starts clip manager on port 5174
-- `npm run clips:gen` — regenerates clips.json from scratch
+## Clip Manager
 
-## `@project-avatar/avatar-engine`
+Default tab: Actions. Tab order: Actions → Emotions → Clips.
 
-The shared rendering engine. No React, no WebSocket — pure Three.js + VRM.
+All lists sorted alphabetically. Three-panel layout: left list, center editor, right preview.
 
-Key classes:
-- **AvatarScene** — scene, camera, lighting, render loop. Options: `{ grid: true }` for clip manager.
-- **VrmManager** — VRM loading, VRM 0.x/1.0 normalization, placeholder cube fallback.
-- **AnimationController** — accepts `ClipRegistry` instance. Hybrid FBX mixer + procedural idle layer. Layer toggles (`LayerState`): fbxClips, idleNoise, expressions, headOffset, blink.
-- **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
-- **BlinkController** — random blink + micro-glance.
-- **PropManager** — GLB prop loading + hand bone attachment.
-- **ClipRegistry** — data-driven clip resolver. Accepts `ClipsJsonData` at construction (no static import). Both web and clip-manager pass their clips data.
-- **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
-- **Body parts** — bone ↔ body part mapping (head/torso/arms/legs), used by clip manager for bone masking.
-
-Peer dependencies: `three`, `@pixiv/three-vrm`, `@project-avatar/shared`.
+Dev servers: web `:5173`, clip-manager `:5174`.
 
 ## WebSocket Protocol
 
@@ -75,14 +89,14 @@ Client → server messages (`WebSocketClientMessage`):
 ## Key Files
 
 ### Avatar Engine (`packages/avatar-engine/`)
-- `src/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling, optional grid.
-- `src/animation-controller.ts` — FBX playback + procedural idle + layer toggles.
+- `src/animation-controller.ts` — Weight-based multi-clip blending + body part sub-actions.
+- `src/transition-stabilizer.ts` — Pins hips/feet/hands during transitions (soft constraints).
 - `src/expression-controller.ts` — Blend shape weights + head bone euler offsets.
 - `src/clip-registry.ts` — Data-driven clip resolver (ClipRegistry class).
 - `src/state-machine.ts` — Event dispatch + idle timeout.
 - `src/mixamo-loader.ts` — FBX → VRM retargeting.
 - `src/body-parts.ts` — Bone ↔ body part mapping.
-- `src/procedural/idle-layer.ts` — Breathing, sway, head drift (dual-sine noise).
+- `src/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling, optional grid.
 
 ### Relay
 - `relay/src/channel.ts` — Durable Object. Handles push, stream, state, set_model.
@@ -93,17 +107,15 @@ Client → server messages (`WebSocketClientMessage`):
 - `web/src/state/store.ts` — Zustand store. `applyChannelState()` is the single write path for DO state.
 - `web/src/ws/web-socket-client.ts` — WebSocket client with keepalive (60s dead-connection timer).
 - `web/src/components/dev-panel.tsx` — Layer toggles, event sender, clip inspector.
-- `web/src/data/clips.json` — Animation clip registry (45 clips, 29 actions, 14 emotions).
+- `web/src/data/clips.json` — Animation clip registry.
 - `web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
 
 ### Clip Manager
 - `clip-manager/src/app.tsx` — Three-panel layout: library, editor, preview.
-- `clip-manager/src/preview/clip-preview.ts` — Composes engine primitives (AvatarScene + VrmManager + loadMixamoAnimation). Supports bone masking + optional full engine mode with layer toggles.
-- `clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, layer toggles (idle, blink, expressions, etc.), body part masking.
-- `clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips (uses engine's body-parts).
+- `clip-manager/src/preview/clip-preview.ts` — Composes engine primitives. Supports bone masking + full engine mode with layer toggles.
+- `clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, layer toggles, body part masking.
+- `clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips.
 - `clip-manager/src/state.ts` — useReducer-based state management.
-- `clip-manager/src/types.ts` — clips.json schema types.
-- `clip-manager/vite.config.ts` — Includes `saveClipsPlugin()` — POST /api/save-clips writes to disk.
 
 ### Plugin
 - `packages/openclaw-avatar/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
@@ -122,49 +134,13 @@ OpenClaw loads TypeScript via jiti. The plugin ships `src/*.ts` directly. No `ts
 ```bash
 cd packages/openclaw-avatar && npm test   # vitest, 39 tests
 cd relay && npx tsc --noEmit              # type check relay
-cd web && npm run build                   # full web build (catches type errors)
+cd web && npm run build                   # full web build
 cd clip-manager && npm run build          # clip manager build
 npx tsc -p packages/avatar-engine/tsconfig.json --noEmit  # engine type check
 ```
 
-## Current State
-
-Phases complete: 1–4 (relay, web, skill, plugin, identity sync, presence, keepalive, expressions, multi-session arbitration).
-
-Current: Clip Manager + JSON-driven animation registry + shared avatar engine.
-
-## Animation System
-
-Hybrid FBX + procedural. All animation logic lives in `packages/avatar-engine/`:
-
-- **FBX clips**: Mixamo animations retargeted to VRM via `loadMixamoAnimation()`, played through `THREE.AnimationMixer`.
-- **Procedural idle layer**: breathing, weight shift, micro-sway, head drift, shoulder settle, arm swing — layered dual-sine waves at irrational frequency ratios (never repeats).
-- **Expressions**: VRM blend shapes + additive head bone euler offsets, lerped smoothly.
-- **Layer toggles**: FBX clips, idle noise, expressions, head offset, blink — each independently toggleable. Available in both web app (dev panel) and clip manager (preview panel).
-
-### clips.json Schema
-- `clips`: per-clip metadata (file, loop, mustFinish, fadeIn/Out, category, energy, bodyParts, tags, layering rules)
-  - `bodyParts`: active bone mask — `['head','torso','arms','legs']` by default. Disabling a part strips those bone tracks from playback. Legs includes hips (root motion).
-- `actions`: 29 actions, each with primary clip + optional layers + duration override
-- `emotions`: 14 emotions, each with weightScale + action overrides + extra layers
-
-### ClipRegistry (data-driven)
-The `ClipRegistry` class accepts clips data at construction — no static JSON import. This allows:
-- `web/` to pass its build-time-imported clips.json
-- `clip-manager/` to pass the live-edited state (changes reflected in preview without reload)
-
 ## Multi-Session Arbitration
 
 Priority-based with first-mover tiebreaker. Lower priority = higher importance. Main sessions = 0, sub-agents = 1, nested = 2+. Stale sessions evicted after 60s silence.
-
-Each push event carries `sessionId` (stable opaque string) and `priority` (lower = higher importance).
-
-The Durable Object maintains an in-memory session registry. On push:
-1. Register/update session entry — `firstPushAt` set once
-2. Prune stale entries (> 60s silence)
-3. Resolve winner: lowest priority; ties broken by earliest `firstPushAt`
-4. Fan out only if pushing session is winner; suppressed pushes return `{ suppressed: true }`
-
-Priority derivation: count `:subagent:` segments in sessionKey. Main = 0, sub-agent = 1, nested = 2+.
 
 Key constants: `SESSION_ACTIVE_WINDOW_MS = 10_000`, `SESSION_EVICT_AFTER_MS = 60_000`.

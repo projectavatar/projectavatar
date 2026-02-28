@@ -200,7 +200,7 @@ export function useAppState(initialData?: ClipsJson) {
   const initial: AppState = {
     data: initialData ?? EMPTY_DATA,
     selectedClip: null,
-    activeTab: 'clips',
+    activeTab: 'actions',
     expandedAction: null,
     expandedEmotion: null,
     previewClip: null,

@@ -116,15 +116,22 @@ export class ClipRegistry {
     const emotionWeightScale = emotionData?.weightScale ?? 1.0;
     const totalScale = intensityScale * emotionWeightScale;
 
-    const effectiveAction = actionData ?? this.data.actions['idle']!;
+    // If this action has no config, fall through to the bottom fallback
+    // (which recursively resolves idle, then first-clip-in-registry)
+    if (!actionData) {
+      if (action !== 'idle') {
+        return this.resolveClips('idle', emotion, intensity);
+      }
+      return { clips: this._lastResortClip() };
+    }
 
     const clips: ClipEntry[] = [];
 
     // Check if emotion has an override for this action's first clip
     const overrideRef = emotionData?.overrides[action as string];
 
-    for (let i = 0; i < effectiveAction.clips.length; i++) {
-      const layer = effectiveAction.clips[i]!;
+    for (let i = 0; i < actionData.clips.length; i++) {
+      const layer = actionData.clips[i]!;
 
       // Emotion override replaces the first clip only
       if (i === 0 && overrideRef) {
@@ -167,17 +174,12 @@ export class ClipRegistry {
       }
     }
 
-    // Fallback: if nothing resolved, use idle
+    // Fallback: all clips in this action were missing/broken
     if (clips.length === 0) {
-      const idleClip = this.data.clips['female-standing-idle'];
-      clips.push({
-        file: idleClip?.file ?? 'female-standing-idle.fbx',
-        weight: 1.0,
-        loop: true,
-        fadeIn: 0.5,
-        fadeOut: 0.5,
-        bodyParts: ['head', 'torso', 'arms', 'legs'],
-      });
+      if (action !== 'idle') {
+        return this.resolveClips('idle', emotion, intensity);
+      }
+      return { clips: this._lastResortClip() };
     }
 
     return { clips };
@@ -225,6 +227,26 @@ export class ClipRegistry {
     }
 
     return [...files];
+  }
+
+  /**
+   * Last resort fallback: find any usable clip in the registry.
+   * Iterates entries (stable insertion order per ES2015+) and returns
+   * the first one found, or an empty array if the registry is empty.
+   */
+  private _lastResortClip(): ClipEntry[] {
+    for (const [clipId, clipData] of Object.entries(this.data.clips)) {
+      console.warn('[ClipRegistry] No idle action configured — falling back to first clip:', clipId);
+      return [{
+        file: clipData.file,
+        weight: 1.0,
+        loop: true,
+        fadeIn: 0.5,
+        fadeOut: 0.5,
+        bodyParts: ['head', 'torso', 'arms', 'legs'],
+      }];
+    }
+    return [];
   }
 
   /** Convert a v1-style clip ref to an entry (used for emotion overrides/layers). */

@@ -1,5 +1,5 @@
 /**
- * Header bar — tabs (Clips/Actions/Emotions), model selector, save/export, unsaved indicator.
+ * Header bar — tabs (Actions/Emotions/Clips), model selector, save/export, unsaved indicator.
  */
 import { useCallback } from 'react';
 import type { ClipsJson } from '../types.ts';
@@ -31,11 +31,11 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontFamily: 'var(--font-mono)',
   fontWeight: 600,
   color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
-  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
   cursor: 'pointer',
   transition: 'color 0.1s, border-color 0.1s',
   background: 'none',
   border: 'none',
+  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
   marginBottom: -1,
   height: '100%',
   display: 'flex',
@@ -105,14 +105,14 @@ export function Header({
       <span style={titleStyle}>Clip Manager</span>
 
       {/* Tabs */}
-      <button style={tabStyle(activeTab === 'clips')} onClick={() => onTabChange('clips')}>
-        Clips
-      </button>
       <button style={tabStyle(activeTab === 'actions')} onClick={() => onTabChange('actions')}>
         Actions
       </button>
       <button style={tabStyle(activeTab === 'emotions')} onClick={() => onTabChange('emotions')}>
         Emotions
+      </button>
+      <button style={tabStyle(activeTab === 'clips')} onClick={() => onTabChange('clips')}>
+        Clips
       </button>
 
       <div style={spacerStyle} />
