@@ -33,15 +33,18 @@ export class ClipPreview {
   private currentClipName: string | null = null;
 
   private clipCache = new Map<string, THREE.AnimationClip>();
+  private _onMixerFinished = () => { this.onClipEnd?.(); };
   private animFrame = 0;
   private _disposed = false;
 
-  /** Current playback speed */
-  speed = 1.0;
-  /** Loop mode */
-  looping = true;
-  /** Paused state */
-  paused = false;
+  private _speed = 1.0;
+  private _looping = true;
+  private _paused = false;
+
+  get speed() { return this._speed; }
+  get looping() { return this._looping; }
+  set looping(v: boolean) { this._looping = v; }
+  get paused() { return this._paused; }
 
   /** Callback for frame updates (time, duration, etc.) */
   onFrame?: (info: ClipInfo) => void;
@@ -96,7 +99,10 @@ export class ClipPreview {
     // Clean up previous
     if (this.vrm) {
       this.scene.remove(this.vrm.scene);
-      this.mixer?.stopAllAction();
+      if (this.mixer) {
+        this.mixer.removeEventListener('finished', this._onMixerFinished);
+        this.mixer.stopAllAction();
+      }
       this.mixer = null;
       this.currentAction = null;
       this.currentClipName = null;
@@ -118,9 +124,7 @@ export class ClipPreview {
     this.scene.add(vrm.scene);
 
     // Listen for clip completion
-    this.mixer.addEventListener('finished', () => {
-      this.onClipEnd?.();
-    });
+    this.mixer.addEventListener('finished', this._onMixerFinished);
 
     // Clear FBX cache (clips are retargeted per model)
     this.clipCache.clear();
@@ -130,7 +134,7 @@ export class ClipPreview {
   async playClip(fbxPath: string, loop?: boolean): Promise<void> {
     if (!this.vrm || !this.mixer) return;
 
-    const shouldLoop = loop ?? this.looping;
+    const shouldLoop = loop ?? this._looping;
 
     // Load + retarget if not cached
     let clip = this.clipCache.get(fbxPath);
@@ -153,13 +157,13 @@ export class ClipPreview {
       shouldLoop ? Infinity : 1,
     );
     action.clampWhenFinished = !shouldLoop;
-    action.setEffectiveTimeScale(this.speed);
+    action.setEffectiveTimeScale(this._speed);
     action.fadeIn(0.3);
     action.reset().play();
 
     this.currentAction = action;
     this.currentClipName = clip.name ?? fbxPath;
-    this.paused = false;
+    this._paused = false;
   }
 
   /** Stop playback, return to T-pose */
@@ -174,13 +178,13 @@ export class ClipPreview {
   /** Pause / resume */
   togglePause(): void {
     if (!this.currentAction) return;
-    this.paused = !this.paused;
-    this.currentAction.paused = this.paused;
+    this._paused = !this._paused;
+    this.currentAction.paused = this._paused;
   }
 
   /** Set playback speed */
   setSpeed(speed: number): void {
-    this.speed = speed;
+    this._speed = speed;
     if (this.currentAction) {
       this.currentAction.setEffectiveTimeScale(speed);
     }
@@ -190,7 +194,7 @@ export class ClipPreview {
   seek(time: number): void {
     if (!this.currentAction) return;
     this.currentAction.time = time;
-    if (this.paused) {
+    if (this._paused) {
       // Advance mixer by 0 to apply the seek
       this.mixer?.update(0);
     }
@@ -204,8 +208,8 @@ export class ClipPreview {
       duration: this.currentAction.getClip().duration,
       time: this.currentAction.time,
       isPlaying: this.currentAction.isRunning(),
-      isLooping: this.looping,
-      speed: this.speed,
+      isLooping: this._looping,
+      speed: this._speed,
     };
   }
 
@@ -214,7 +218,10 @@ export class ClipPreview {
     this._disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this._resize);
-    this.mixer?.stopAllAction();
+    if (this.mixer) {
+      this.mixer.removeEventListener('finished', this._onMixerFinished);
+      this.mixer.stopAllAction();
+    }
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
@@ -236,7 +243,7 @@ export class ClipPreview {
 
     const delta = this.clock.getDelta();
 
-    if (this.mixer && !this.paused) {
+    if (this.mixer && !this._paused) {
       this.mixer.update(delta);
     }
 

@@ -10,7 +10,7 @@ Monorepo with independently deployable packages:
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
-- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, and action/emotion mappings. Port 5174.
+- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, and action/emotion mappings. Port 5174. Assets served via symlinks to `web/public/` (dev-only, not CI-safe).
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
@@ -120,3 +120,43 @@ Hybrid FBX + procedural: Mixamo FBX clips via AnimationMixer, additive procedura
 ## Multi-Session Arbitration
 
 Priority-based with first-mover tiebreaker. Lower priority = higher importance. Main sessions = 0, sub-agents = 1, nested = 2+. Stale sessions evicted after 60s silence.
+
+## Expression System Detail
+
+Facial expressions + head bone movement driven by `ExpressionController`.
+
+### How it works
+- **Blend shapes**: `expressionManager.setValue(name, weight)` — frame-rate independent exponential decay lerp (speed 3.0)
+- **Head bone**: `humanoid.getNormalizedBoneNode('head')` — per-emotion euler offsets, lerped at speed 2.5
+- **Breathing**: slow sine wave on head pitch (0.008 rad amplitude, ~11 breaths/min), always running
+
+### Emotion → expression mapping
+Weights are intentionally strong (0.65–1.0) — VRM blending is designed for full-weight combinations:
+- `excited` → happy 1.0 + surprised 0.35, head up + right tilt
+- `confused` → surprised 0.65, head side-tilt (z: 0.07)
+- `concerned` → sad 0.65, head down + slight turn
+- `satisfied` → happy 0.75 + relaxed 0.5, slight nod
+- `thinking` → neutral 0.4 + lookUp 0.45, head up + tilt
+- `focused` → neutral 1.0, slight forward lean
+
+### Model requirements
+**Must have blend shape binds.** The VRM spec lists expressions but doesn't require mesh bindings — many models have the labels with 0 binds (silent no-ops). Always verify with:
+```js
+vrm0.blendShapeMaster.blendShapeGroups.forEach(g =>
+  console.log(g.presetName, 'binds:', (g.binds||[]).length)
+)
+```
+
+## Multi-Session Arbitration Detail
+
+Each push event carries `sessionId` (stable opaque string) and `priority` (lower = higher importance).
+
+The Durable Object maintains an in-memory session registry. On push:
+1. Register/update session entry — `firstPushAt` set once
+2. Prune stale entries (> 60s silence)
+3. Resolve winner: lowest priority; ties broken by earliest `firstPushAt`
+4. Fan out only if pushing session is winner; suppressed pushes return `{ suppressed: true }`
+
+Priority derivation: count `:subagent:` segments in sessionKey. Main = 0, sub-agent = 1, nested = 2+.
+
+Key constants: `SESSION_ACTIVE_WINDOW_MS = 10_000`, `SESSION_EVICT_AFTER_MS = 60_000`.

@@ -4,7 +4,7 @@
  *
  * Usage: npx tsx scripts/generate-clips-json.ts
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -317,7 +317,6 @@ const clipsJson = {
 };
 
 // Write
-import { mkdirSync } from 'node:fs';
 mkdirSync(resolve(__dirname, '../web/src/data'), { recursive: true });
 writeFileSync(outPath, JSON.stringify(clipsJson, null, 2) + '\n');
 

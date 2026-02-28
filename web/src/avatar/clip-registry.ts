@@ -82,7 +82,10 @@ const INTENSITY_SCALE: Record<Intensity, number> = {
 /** Resolve a ClipRefJson to a ClipEntry by looking up the clip in the registry. */
 function refToEntry(ref: ClipRefJson): ClipEntry | null {
   const clip = data.clips[ref.clip];
-  if (!clip) return null;
+  if (!clip) {
+    console.warn(`[clip-registry] Unknown clip: "${ref.clip}" — check clips.json for typos`);
+    return null;
+  }
   return {
     file: clip.file,
     weight: ref.weight,
@@ -182,15 +185,34 @@ export function getActionDuration(action: Action): number | null {
 }
 
 /**
- * Get all unique FBX filenames referenced in the clip registry.
- * Useful for preloading.
+ * Get all unique FBX filenames referenced by actions and emotions.
+ * Only returns files that are actually used at runtime — orphaned clips
+ * in the registry are excluded to avoid unnecessary preloading.
  */
 export function getAllClipFiles(): string[] {
   const files = new Set<string>();
 
-  // All clips in the registry
-  for (const clip of Object.values(data.clips)) {
-    files.add(clip.file);
+  const addClipFile = (clipId: string) => {
+    const clip = data.clips[clipId];
+    if (clip) files.add(clip.file);
+  };
+
+  // Action primary + layer clips
+  for (const action of Object.values(data.actions)) {
+    addClipFile(action.primary.clip);
+    for (const layer of action.layers) {
+      addClipFile(layer.clip);
+    }
+  }
+
+  // Emotion override + layer clips
+  for (const emotion of Object.values(data.emotions)) {
+    for (const override of Object.values(emotion.overrides)) {
+      addClipFile(override.clip);
+    }
+    for (const layer of emotion.layers) {
+      addClipFile(layer.clip);
+    }
   }
 
   return [...files];

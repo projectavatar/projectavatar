@@ -76,8 +76,8 @@
       "minPlayTime": 0,
       "fadeIn": 0.15,
       "fadeOut": 0.6,
-      "category": "idle",
-      "energy": "low",
+      "category": "reaction",
+      "energy": "high",
       "bodyParts": [
         "torso"
       ],
@@ -87,7 +87,7 @@
       "baseOnly": false,
       "tags": [
         "positive",
-        "neutral"
+        "celebratory"
       ],
       "incompatibleWith": []
     },
@@ -469,13 +469,13 @@
     },
     "mutant-stretching-idle-with-breathing": {
       "file": "mutant-stretching-idle-with-breathing.fbx",
-      "loop": false,
+      "loop": true,
       "mustFinish": false,
-      "returnToIdle": true,
+      "returnToIdle": false,
       "minPlayTime": 0,
       "fadeIn": 0.3,
       "fadeOut": 0.5,
-      "category": "gesture",
+      "category": "idle",
       "energy": "low",
       "bodyParts": [
         "torso"
@@ -485,6 +485,7 @@
       "additiveCompatible": true,
       "baseOnly": false,
       "tags": [
+        "calm",
         "neutral"
       ],
       "incompatibleWith": []
@@ -535,13 +536,13 @@
     },
     "old-man-standing-idle": {
       "file": "old-man-standing-idle.fbx",
-      "loop": false,
+      "loop": true,
       "mustFinish": false,
-      "returnToIdle": true,
+      "returnToIdle": false,
       "minPlayTime": 0,
       "fadeIn": 0.3,
       "fadeOut": 0.5,
-      "category": "gesture",
+      "category": "idle",
       "energy": "low",
       "bodyParts": [
         "torso"
@@ -551,6 +552,7 @@
       "additiveCompatible": true,
       "baseOnly": false,
       "tags": [
+        "calm",
         "neutral"
       ],
       "incompatibleWith": []
@@ -802,13 +804,13 @@
     },
     "standing-idle": {
       "file": "standing-idle.fbx",
-      "loop": false,
+      "loop": true,
       "mustFinish": false,
-      "returnToIdle": true,
+      "returnToIdle": false,
       "minPlayTime": 0,
       "fadeIn": 0.3,
       "fadeOut": 0.5,
-      "category": "gesture",
+      "category": "idle",
       "energy": "low",
       "bodyParts": [
         "torso"
@@ -818,7 +820,9 @@
       "additiveCompatible": true,
       "baseOnly": false,
       "tags": [
-        "neutral"
+        "calm",
+        "neutral",
+        "resting"
       ],
       "incompatibleWith": []
     },
@@ -980,13 +984,13 @@
     },
     "warrior-stretching-idle": {
       "file": "warrior-stretching-idle.fbx",
-      "loop": false,
+      "loop": true,
       "mustFinish": false,
-      "returnToIdle": true,
+      "returnToIdle": false,
       "minPlayTime": 0,
       "fadeIn": 0.3,
       "fadeOut": 0.5,
-      "category": "gesture",
+      "category": "idle",
       "energy": "low",
       "bodyParts": [
         "torso"
@@ -996,6 +1000,7 @@
       "additiveCompatible": true,
       "baseOnly": false,
       "tags": [
+        "calm",
         "neutral"
       ],
       "incompatibleWith": []

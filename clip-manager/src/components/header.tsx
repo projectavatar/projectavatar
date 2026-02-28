@@ -1,7 +1,7 @@
 /**
  * Header bar — model selector, save/export, unsaved indicator.
  */
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback } from 'react';
 import type { ClipsJson } from '../types.ts';
 
 const headerStyle: React.CSSProperties = {
@@ -62,43 +62,11 @@ interface HeaderProps {
   data: ClipsJson;
   modelUrl: string;
   onModelChange: (url: string) => void;
+  onSave: () => void;
   modelOptions: { id: string; url: string }[];
 }
 
-export function Header({ dirty, data, modelUrl, onModelChange, modelOptions }: HeaderProps) {
-  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
-
-  const handleSave = useCallback(async () => {
-    try {
-      if (!fileHandleRef.current) {
-        fileHandleRef.current = await (window as any).showSaveFilePicker({
-          suggestedName: 'clips.json',
-          types: [{
-            description: 'JSON',
-            accept: { 'application/json': ['.json'] },
-          }],
-        });
-      }
-      const writable = await fileHandleRef.current!.createWritable();
-      await writable.write(JSON.stringify(data, null, 2) + '\n');
-      await writable.close();
-      // Dispatch saved event — app.tsx listens to update dirty state
-      window.dispatchEvent(new CustomEvent('clips-saved'));
-    } catch (err) {
-      // User cancelled or API unavailable
-      if ((err as Error).name !== 'AbortError') {
-        console.error('[Header] Save failed:', err);
-      }
-    }
-  }, [data]);
-
-  // Listen for Ctrl+S save requests from app.tsx
-  useEffect(() => {
-    const handler = () => { void handleSave(); };
-    window.addEventListener('clips-save-request', handler);
-    return () => window.removeEventListener('clips-save-request', handler);
-  }, [handleSave]);
-
+export function Header({ dirty, data, modelUrl, onModelChange, onSave, modelOptions }: HeaderProps) {
   const handleExport = useCallback(() => {
     const blob = new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -130,7 +98,7 @@ export function Header({ dirty, data, modelUrl, onModelChange, modelOptions }: H
       {dirty && <div style={dotStyle} title="Unsaved changes" />}
 
       {/* Save */}
-      <button style={btnStyle} onClick={handleSave} title="Ctrl+S">
+      <button style={btnStyle} onClick={onSave} title="Ctrl+S">
         Save
       </button>
 

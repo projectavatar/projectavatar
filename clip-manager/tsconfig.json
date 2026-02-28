@@ -16,7 +16,8 @@
     "noEmit": true,
     "isolatedModules": true,
     "paths": {
-      "@avatar/*": ["../web/src/avatar/*"]
+      "@avatar/*": ["../web/src/avatar/*"],
+      "@data/*": ["../web/src/data/*"]
     }
   },
   "include": ["src"]

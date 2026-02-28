@@ -1,7 +1,7 @@
 /**
  * Clip Manager App — three-panel layout.
  */
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useAppState } from './state.ts';
 import type { ClipsJson } from './types.ts';
 import { Header } from './components/header.tsx';
@@ -14,7 +14,7 @@ import { MatrixView } from './components/matrix-view.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
 // Import clips.json — Vite resolves this at build time
-import clipsData from '../../web/src/data/clips.json';
+import clipsData from '@data/clips.json';
 
 // ─── Model options (from web app's manifest) ─────────────────────────────────
 
@@ -109,25 +109,42 @@ export function App() {
     return ANIM_BASE + clip.file;
   }, [state.previewClip, state.data.clips]);
 
+  // File System Access API handle for saving
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+
+  const handleSave = useCallback(async () => {
+    try {
+      if (!fileHandleRef.current) {
+        fileHandleRef.current = await (window as any).showSaveFilePicker({
+          suggestedName: 'clips.json',
+          types: [{
+            description: 'JSON',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+      }
+      const writable = await fileHandleRef.current!.createWritable();
+      await writable.write(JSON.stringify(state.data, null, 2) + '\n');
+      await writable.close();
+      dispatch({ type: 'MARK_SAVED' });
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error('[ClipManager] Save failed:', err);
+      }
+    }
+  }, [state.data, dispatch]);
+
   // Ctrl+S keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        // Trigger save via custom event (header listens)
-        window.dispatchEvent(new CustomEvent('clips-save-request'));
+        void handleSave();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  // Listen for save confirmation
-  useEffect(() => {
-    const handler = () => dispatch({ type: 'MARK_SAVED' });
-    window.addEventListener('clips-saved', handler);
-    return () => window.removeEventListener('clips-saved', handler);
-  }, [dispatch]);
+  }, [handleSave]);
 
   const renderCenterContent = () => {
     switch (state.activeTab) {
@@ -157,6 +174,7 @@ export function App() {
         data={state.data}
         modelUrl={modelUrl}
         onModelChange={setModelUrl}
+        onSave={handleSave}
         modelOptions={MODEL_OPTIONS}
       />
 

@@ -20,6 +20,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@avatar': resolve(__dirname, '../web/src/avatar'),
+      '@data': resolve(__dirname, '../web/src/data'),
     },
   },
 });

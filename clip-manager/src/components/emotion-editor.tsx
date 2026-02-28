@@ -229,7 +229,7 @@ export function EmotionEditor({ data, expandedEmotion, dispatch }: EmotionEditor
               <div style={{ ...bodyStyle, color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 11 }}>
                 No modifier defined for this emotion.
                 <button style={{ ...addBtnStyle, display: 'block', marginTop: 8 }} onClick={() => {
-                  // This would need a different action to create a new emotion entry
+                  dispatch({ type: 'CREATE_EMOTION', emotion: name });
                 }}>
                   Create Modifier
                 </button>

@@ -47,6 +47,7 @@ export type Action =
   | { type: 'DELETE_CLIP'; clipId: string }
   | { type: 'UPDATE_ACTION'; action: string; data: Partial<ActionData> }
   | { type: 'UPDATE_EMOTION'; emotion: string; data: Partial<EmotionData> }
+  | { type: 'CREATE_EMOTION'; emotion: string }
   | { type: 'MARK_SAVED' };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -121,6 +122,13 @@ function reducer(state: AppState, action: Action): AppState {
       const existing = emotions[action.emotion];
       if (!existing) return state;
       emotions[action.emotion] = { ...existing, ...action.data };
+      return { ...state, data: { ...state.data, emotions }, dirty: true };
+    }
+
+    case 'CREATE_EMOTION': {
+      const emotions = { ...state.data.emotions };
+      if (emotions[action.emotion]) return state; // already exists
+      emotions[action.emotion] = { weightScale: 1.0, overrides: {}, layers: [] };
       return { ...state, data: { ...state.data, emotions }, dirty: true };
     }
 
