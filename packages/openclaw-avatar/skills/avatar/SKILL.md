@@ -1,8 +1,8 @@
 ---
-name: avatar-commands
+name: avatar
 description: "Project Avatar — get your share link or check channel status."
 command-dispatch: tool
-command-tool: avatar
+command-tool: avatar_commands
 ---
 
 # Avatar Command
