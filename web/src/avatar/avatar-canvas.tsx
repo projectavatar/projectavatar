@@ -95,6 +95,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
           }),
         },
       );
+      stateMachine.setCamera(avatarScene.camera);
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
       avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });

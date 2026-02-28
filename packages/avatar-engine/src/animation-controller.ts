@@ -315,6 +315,11 @@ export class AnimationController {
     return this.idleLayer.getMode();
   }
 
+  /** Set camera for head tracking in idle layer. */
+  setCamera(camera: THREE.Camera): void {
+    this.idleLayer.setCamera(camera);
+  }
+
   /** Enable/disable the procedural idle layer. */
   setIdleLayerEnabled(enabled: boolean): void {
     this.idleLayer.setEnabled(enabled);

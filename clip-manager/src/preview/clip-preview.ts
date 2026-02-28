@@ -168,6 +168,7 @@ export class ClipPreview {
       this.animCtrl.setLayer(layer as keyof LayerState, enabled);
     }
 
+    this.animCtrl.setCamera(this.avatarScene.camera);
     await this.animCtrl.loadAnimations();
     this._engineActive = true;
   }

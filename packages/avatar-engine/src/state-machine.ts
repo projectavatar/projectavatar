@@ -133,6 +133,11 @@ export class StateMachine {
     this.resetIdleTimer();
   }
 
+  /** Set camera for head tracking. */
+  setCamera(camera: import('three').Camera): void {
+    this.animationCtrl.setCamera(camera);
+  }
+
   /**
    * Set a layer toggle. Delegates to the appropriate controller.
    */

@@ -28,6 +28,10 @@ const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
 const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
+// Head tracking
+const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward camera
+const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
+
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
 const TOE_DROOP_ANGLE   = 0.14;    // radians — toes pointing slightly down
@@ -58,11 +62,15 @@ export class IdleLayer {
   private rightLowerLeg: THREE.Object3D | null = null;
   private leftFoot: THREE.Object3D | null = null;
   private rightFoot: THREE.Object3D | null = null;
+  private head: THREE.Object3D | null = null;
 
   private initialized = false;
 
   /** Base Y position for the VRM scene (set by VrmManager). */
   private baseY = -0.4;
+
+  /** Camera reference for subtle head tracking. */
+  private camera: THREE.Camera | null = null;
 
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
@@ -99,6 +107,11 @@ export class IdleLayer {
     return this.enabled;
   }
 
+  /** Set camera reference for subtle head tracking. */
+  setCamera(camera: THREE.Camera): void {
+    this.camera = camera;
+  }
+
   /**
    * Update procedural idle animation. Call every frame AFTER mixer update.
    *
@@ -112,9 +125,9 @@ export class IdleLayer {
     const t = this.elapsed;
 
     if (this.mode === 'air') {
-      this._updateAir(t);
+      this._updateAir(t, delta);
     } else {
-      this._updateGround(t);
+      this._updateGround(t, delta);
     }
   }
 
@@ -145,6 +158,7 @@ export class IdleLayer {
     this.rightLowerLeg = get('rightLowerLeg');
     this.leftFoot      = get('leftFoot');
     this.rightFoot     = get('rightFoot');
+    this.head          = get('head');
 
     this.initialized = !!(this.hips || this.spine || this.chest);
 
@@ -197,7 +211,7 @@ export class IdleLayer {
 
   // ─── Private: air mode ────────────────────────────────────────────────
 
-  private _updateAir(t: number): void {
+  private _updateAir(t: number, delta: number): void {
     // 1. Vertical hover bob — applied to VRM scene root (moves entire model)
     if (this.vrm.scene) {
       const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE;
@@ -229,11 +243,14 @@ export class IdleLayer {
 
     // 5. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
+
+    // 6. Subtle head tracking toward camera
+    this._applyHeadTracking(delta);
   }
 
   // ─── Private: ground mode ─────────────────────────────────────────────
 
-  private _updateGround(t: number): void {
+  private _updateGround(t: number, delta: number): void {
     // Ensure scene Y is at ground level
     if (this.vrm.scene) {
       this.vrm.scene.position.y = this.baseY;
@@ -256,6 +273,54 @@ export class IdleLayer {
       const shift = Math.sin(t * SHIFT_FREQUENCY * Math.PI * 2) * SHIFT_AMPLITUDE;
       this.hips.position.x += shift;
     }
+
+    // 4. Subtle head tracking toward camera
+    this._applyHeadTracking(delta);
+  }
+
+  // ─── Private: leg dangle (air mode) ───────────────────────────────────
+
+  // ─── Private: head tracking ──────────────────────────────────────────
+
+  /** Reusable vectors for head tracking math. */
+  private _headTargetDir = new THREE.Vector3();
+  private _headWorldPos = new THREE.Vector3();
+  private _headCurrentYaw = 0;
+  private _headCurrentPitch = 0;
+
+  /**
+   * Subtle additive head rotation biased toward camera.
+   * Blends at HEAD_TRACK_INFLUENCE so clips still dominate.
+   */
+  private _applyHeadTracking(delta: number): void {
+    if (!this.camera || !this.head) return;
+
+    // Get direction from head to camera in head's local space
+    this.head.getWorldPosition(this._headWorldPos);
+    this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    // Convert world direction to head's parent local space
+    const parent = this.head.parent;
+    if (!parent) return;
+
+    parent.updateWorldMatrix(true, false);
+    const parentInverse = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+    this._headTargetDir.transformDirection(parentInverse);
+
+    // Extract yaw (Y) and pitch (X) from the direction
+    const targetYaw = Math.atan2(this._headTargetDir.x, this._headTargetDir.z);
+    const targetPitch = -Math.asin(
+      Math.max(-1, Math.min(1, this._headTargetDir.y))
+    );
+
+    // Smooth lerp toward target
+    const lerpFactor = 1 - Math.exp(-HEAD_TRACK_SPEED * delta);
+    this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
+    this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
+
+    // Apply as additive rotation scaled by influence
+    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE;
+    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
