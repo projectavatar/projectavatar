@@ -1,14 +1,21 @@
 import { useRef, useEffect, useState, createContext, useContext } from 'react';
 import { useStore } from '../state/store.ts';
 import { WebSocketClient } from '../ws/web-socket-client.ts';
-import { AvatarScene } from './avatar-scene.ts';
-import { VrmManager } from './vrm-manager.ts';
-import { ExpressionController } from './expression-controller.ts';
-import { AnimationController } from './animation-controller.ts';
-import { BlinkController } from './blink-controller.ts';
-import { PropManager } from './prop-manager.ts';
-import { StateMachine } from './state-machine.ts';
+import {
+  AvatarScene,
+  VrmManager,
+  ExpressionController,
+  AnimationController,
+  BlinkController,
+  PropManager,
+  StateMachine,
+  ClipRegistry,
+} from '@project-avatar/avatar-engine';
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
+import type { ClipsJsonData } from '@project-avatar/avatar-engine';
+
+// Import clips data for the registry
+import clipsData from '../data/clips.json';
 
 const canvasStyle: React.CSSProperties = {
   width: '100%',
@@ -17,21 +24,8 @@ const canvasStyle: React.CSSProperties = {
 };
 
 // ─── WS Context ───────────────────────────────────────────────────────────────
-//
-// Provides `sendSetModel` to any component in the tree — consumed by
-// ModelPickerOverlay and SettingsDrawer.
-//
-// IMPORTANT: The Provider must be rendered at the App level (above both
-// AvatarCanvas and ModelPickerOverlay). ModelPickerOverlay is a sibling of
-// AvatarCanvas, not a descendant — a provider inside AvatarCanvas would be
-// invisible to it.
-//
-// Context is created here (co-located with the WS client), but the Provider
-// is in app.tsx. AvatarCanvas exposes sendSetModel via the onSendSetModel prop,
-// which app.tsx stores in a ref and delegates to via the stable context value.
 
 export interface WsContextValue {
-  /** Send a set_model message to the relay DO. Warns if not connected. */
   sendSetModel: (modelId: string | null) => void;
 }
 
@@ -45,21 +39,15 @@ export function useWsClient(): WsContextValue {
   return useContext(WsContext);
 }
 
+// ─── Clip Registry (singleton) ────────────────────────────────────────────────
+
+const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
+
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-/**
- * Three.js canvas + WebSocket client.
- *
- * Does NOT provide WsContext — that lives in app.tsx so siblings
- * (ModelPickerOverlay, SettingsDrawer) can share the same sendSetModel.
- *
- * Bridge pattern: AvatarCanvas calls `onSendSetModel(fn)` when the WS client
- * is ready and `onSendSetModel(null)` on disconnect. app.tsx stores this in a
- * ref and delegates from the stable WsContext value.
- */
 export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
-  onStateMachine?: (sm: import('./state-machine.ts').StateMachine | null) => void;
+  onStateMachine?: (sm: StateMachine | null) => void;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -88,13 +76,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
-      const animationController = new AnimationController(vrm);
-      // Load all FBX animation clips (async — shows loading overlay)
+      const animationController = new AnimationController(vrm, clipRegistry);
       animationController.loadAnimations()
         .then(() => setAnimationsLoaded(true))
         .catch((err) => {
           console.warn('[AvatarCanvas] Animation load failed:', err);
-          setAnimationsLoaded(true); // unblock UI even on failure
+          setAnimationsLoaded(true);
         });
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
@@ -119,7 +106,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
       if (modelUrl) {
         try {
           const vrm = await vrmManager.load(modelUrl);
-          if (cancelled) return; // effect was cleaned up before load finished
+          if (cancelled) return;
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;
@@ -147,7 +134,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     };
   }, [modelUrl, setAvatarState]);
 
-  // WebSocket lifecycle — re-runs when token or relayUrl changes
+  // WebSocket lifecycle
   useEffect(() => {
     if (!token) {
       onSendSetModel?.(null);
@@ -165,8 +152,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
       attempt?: number,
     ) => {
       if (state === 'disconnected' || state === 'reconnecting') {
-        // Clear channelStateReceived so the picker gate resets correctly.
-        // On reconnect, channel_state will arrive fresh and set it back to true.
         resetConnectionState();
       }
       setConnectionState(
@@ -178,7 +163,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     };
 
     const onChannelState = (data: ChannelState & { lastEvent: AvatarEvent | null }) => {
-      applyChannelState(data); // sets channelStateReceived = true
+      applyChannelState(data);
     };
 
     const onModelChanged = (model: string | null) => {
@@ -191,10 +176,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     wsRef.current = ws;
 
     setConnectionState('connecting');
-    ws.connect(); // connect first, then advertise sendSetModel
+    ws.connect();
 
-    // Expose sendSetModel AFTER connect() — WS is now dialing.
-    // Stable arrow — reads wsRef.current at call time, not captured here.
     onSendSetModel?.((modelId) => wsRef.current?.sendSetModel(modelId));
 
     return () => {

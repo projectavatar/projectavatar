@@ -3,12 +3,9 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import type { Plugin } from 'vite';
-
 const CLIPS_JSON_PATH = resolve(__dirname, '../web/src/data/clips.json');
-
 /** Maximum request body size (1 MB). */
 const MAX_BODY_BYTES = 1_048_576;
-
 /**
  * Dev-only Vite plugin: POST /api/save-clips writes JSON directly to disk.
  *
@@ -32,10 +29,8 @@ function saveClipsPlugin(): Plugin {
           res.end(JSON.stringify({ error: 'POST only' }));
           return;
         }
-
         const chunks: Buffer[] = [];
         let totalBytes = 0;
-
         for await (const chunk of req) {
           totalBytes += (chunk as Buffer).length;
           if (totalBytes > MAX_BODY_BYTES) {
@@ -45,9 +40,7 @@ function saveClipsPlugin(): Plugin {
           }
           chunks.push(chunk as Buffer);
         }
-
         const body = Buffer.concat(chunks).toString('utf-8');
-
         try {
           const parsed = JSON.parse(body);
           const formatted = JSON.stringify(parsed, null, 2) + '\n';
@@ -62,7 +55,6 @@ function saveClipsPlugin(): Plugin {
     },
   };
 }
-
 export default defineConfig({
   plugins: [react(), saveClipsPlugin()],
   publicDir: resolve(__dirname, '../web/public'),
@@ -81,7 +73,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@avatar': resolve(__dirname, '../web/src/avatar'),
       '@data': resolve(__dirname, '../web/src/data'),
     },
   },

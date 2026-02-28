@@ -2,11 +2,14 @@
  * Preview Panel — right side of the clip manager.
  * Renders a VRM model and plays FBX clips on it.
  * Body part masking is driven by the clip's bodyParts from ClipDetail.
+ * Layer toggles mirror the web app's dev panel behavior.
  */
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
-import { getBonesForParts } from '../body-parts.ts';
+import { getBonesForParts } from '@project-avatar/avatar-engine';
+import { LAYER_LABELS } from '@project-avatar/avatar-engine';
+import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -96,6 +99,58 @@ const speedRowStyle: React.CSSProperties = {
   color: 'var(--color-text-muted)',
 };
 
+// Layer toggle styles
+const layerSectionStyle: React.CSSProperties = {
+  borderTop: '1px solid var(--color-border)',
+  padding: '8px 0 0',
+};
+
+const layerTitleStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.6px',
+  color: 'var(--color-text-muted)',
+  marginBottom: 6,
+};
+
+const layerRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '3px 0',
+};
+
+const layerLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--color-text)',
+};
+
+const toggleSwitchStyle = (on: boolean): React.CSSProperties => ({
+  width: 28,
+  height: 14,
+  borderRadius: 7,
+  background: on ? 'var(--color-accent)' : 'var(--color-border)',
+  cursor: 'pointer',
+  position: 'relative',
+  transition: 'background 0.15s',
+  flexShrink: 0,
+});
+
+const toggleKnobStyle = (on: boolean): React.CSSProperties => ({
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  background: '#fff',
+  position: 'absolute',
+  top: 2,
+  left: on ? 16 : 2,
+  transition: 'left 0.15s',
+});
+
+// ─── Layer Labels ─────────────────────────────────────────────────────────────
+
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface PreviewPanelProps {
@@ -105,23 +160,35 @@ interface PreviewPanelProps {
   modelUrl: string;
   /** Body parts active for the current clip — drives bone masking */
   clipBodyParts?: string[];
+  /** clips.json data — passed to enable the full animation engine */
+  clipsData?: ClipsJsonData;
   /** Called when preview is ready */
   onReady?: () => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
-export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: PreviewPanelProps) {
+export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, clipsData, onReady }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
+  const clipsDataRef = useRef(clipsData);
+  clipsDataRef.current = clipsData;
+
   const [clipInfo, setClipInfo] = useState<ClipInfo | null>(null);
   const [looping, setLooping] = useState(true);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const [modelLoaded, setModelLoaded] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
+  const [layers, setLayers] = useState<LayerState>({
+    fbxClips: true,
+    idleNoise: true,
+    expressions: true,
+    headOffset: true,
+    blink: true,
+  });
 
-  // Serialize body parts for stable dependency tracking.
-  // Avoids Set identity issues and eslint-disable for exhaustive-deps.
+  // Serialize body parts for stable dependency tracking
   const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
 
   // Initialize preview engine
@@ -140,21 +207,34 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     };
   }, []);
 
-  // Load model
+  // Load model (only re-runs on model URL change — NOT on clipsData change)
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelUrl) return;
 
     setModelLoaded(false);
-    preview.loadModel(modelUrl).then(() => {
+    setEngineReady(false);
+
+    preview.loadModel(modelUrl).then(async () => {
       setModelLoaded(true);
       onReady?.();
+
+      // Enable the full animation engine if clips data is available
+      const data = clipsDataRef.current;
+      if (data) {
+        try {
+          await preview.enableEngine(data as ClipsJsonData);
+          setEngineReady(true);
+        } catch (err) {
+          console.warn('[PreviewPanel] Engine init failed (layer toggles unavailable):', err);
+        }
+      }
     }).catch(err => {
       console.error('[PreviewPanel] Failed to load model:', err);
     });
   }, [modelUrl, onReady]);
 
-  // Play clip when clipPath or body parts change
+  // Play clip when clipPath changes
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !clipPath) return;
@@ -167,7 +247,24 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     preview.playClip(clipPath, looping).catch(err => {
       console.error('[PreviewPanel] Failed to play clip:', err);
     });
-  }, [clipPath, modelLoaded, looping, partsKey, clipBodyParts]);
+    // Only replay when clip or loop setting changes — NOT on body part change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipPath, modelLoaded, looping]);
+
+  // Update bone mask smoothly when body parts change (no clip replay)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !modelLoaded || !clipPath) return;
+
+    const boneMask = clipBodyParts ? getBonesForParts(clipBodyParts) : null;
+    preview.setBoneMask(boneMask);
+
+    // Re-play current clip with new mask (smooth crossfade, same clip)
+    preview.playClip(clipPath, preview.looping).catch(err => {
+      console.error('[PreviewPanel] Failed to replay clip with new mask:', err);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partsKey]);
 
   const handleTogglePause = useCallback(() => {
     const preview = previewRef.current;
@@ -201,6 +298,14 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     const time = parseFloat(e.target.value);
     previewRef.current?.seek(time);
   }, []);
+
+  const handleLayerToggle = useCallback((layer: keyof LayerState) => {
+    const preview = previewRef.current;
+    if (!preview) return;
+    const newValue = !layers[layer];
+    preview.setLayer(layer, newValue);
+    setLayers(prev => ({ ...prev, [layer]: newValue }));
+  }, [layers]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -272,6 +377,34 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Layer Toggles */}
+        <div style={layerSectionStyle}>
+          <div style={layerTitleStyle}>
+            Layers {!engineReady && <span style={{ fontWeight: 400, opacity: 0.5 }}>(loading…)</span>}
+          </div>
+          {(Object.keys(LAYER_LABELS) as (keyof LayerState)[]).map(layer => (
+            <div key={layer} style={layerRowStyle}>
+              <span style={{ ...layerLabelStyle, opacity: engineReady ? 1 : 0.4 }}>
+                {LAYER_LABELS[layer]}
+              </span>
+              <div
+                style={{
+                  ...toggleSwitchStyle(layers[layer]),
+                  opacity: engineReady ? 1 : 0.4,
+                  pointerEvents: engineReady ? 'auto' : 'none',
+                }}
+                onClick={() => handleLayerToggle(layer)}
+                role="switch"
+                aria-checked={layers[layer]}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleLayerToggle(layer); }}
+              >
+                <div style={toggleKnobStyle(layers[layer])} />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

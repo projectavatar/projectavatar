@@ -53,16 +53,3 @@ export function normalizeBodyParts(parts: string[]): string[] {
   return known.length > 0 ? known : [...BODY_PARTS];
 }
 
-export const BODY_PART_ICON: Record<BodyPart, string> = {
-  head: '🗣️',
-  torso: '👤',
-  arms: '💪',
-  legs: '🦵',
-};
-
-export const BODY_PART_COLOR: Record<BodyPart, string> = {
-  head: '#e17055',
-  torso: '#6c5ce7',
-  arms: '#00b894',
-  legs: '#fdcb6e',
-};

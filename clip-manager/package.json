@@ -13,7 +13,8 @@
     "@project-avatar/shared": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "three": "^0.172.0"
+    "three": "^0.172.0",
+    "@project-avatar/avatar-engine": "*"
   },
   "devDependencies": {
     "@types/react": "^19.0.8",

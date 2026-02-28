@@ -83,10 +83,7 @@ export class VrmManager {
   private removeCurrent(): void {
     if (this.currentVrm) {
       this.scene.remove(this.currentVrm.scene);
-      // VRM dispose if available
-      if ('dispose' in this.currentVrm && typeof this.currentVrm.dispose === 'function') {
-        (this.currentVrm as VRM & { dispose: () => void }).dispose();
-      }
+      VRMUtils.deepDispose(this.currentVrm.scene);
       this.currentVrm = null;
     }
     if (this.placeholder) {

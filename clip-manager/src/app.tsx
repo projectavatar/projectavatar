@@ -222,6 +222,7 @@ export function App() {
             clipPath={previewClipPath}
             modelUrl={modelUrl}
             clipBodyParts={previewClipBodyParts}
+            clipsData={state.data}
           />
         </div>
       </div>

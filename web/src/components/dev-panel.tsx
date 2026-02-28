@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ACTIONS, EMOTIONS, INTENSITIES } from '@project-avatar/shared';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { useStore } from '../state/store.ts';
-import type { StateMachine } from '../avatar/state-machine.ts';
-import type { LayerState, ActiveClipInfo } from '../avatar/animation-controller.ts';
+import { LAYER_LABELS } from '@project-avatar/avatar-engine';
+import type { StateMachine, LayerState, ActiveClipInfo } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -173,13 +173,6 @@ const stateValueStyle: React.CSSProperties = {
 
 // ─── Layer Labels ─────────────────────────────────────────────────────────────
 
-const LAYER_LABELS: Record<keyof LayerState, string> = {
-  fbxClips: 'FBX Clips',
-  idleNoise: 'Idle Noise',
-  expressions: 'Expressions',
-  headOffset: 'Head Offset',
-  blink: 'Blink',
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 

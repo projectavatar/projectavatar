@@ -7,7 +7,7 @@ import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
 import { DevPanel } from './components/dev-panel.tsx';
-import type { StateMachine } from './avatar/state-machine.ts';
+import type { StateMachine } from '@project-avatar/avatar-engine';
 
 const settingsBtnStyle: React.CSSProperties = {
   position: 'fixed',
