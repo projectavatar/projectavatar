@@ -59,7 +59,7 @@ const FOOT_ARC_DURATION = 0.5;
 const MAX_STEP_HEIGHT_FRAC = 0.08;
 
 /** Minimum horizontal drift (meters) before a step arc triggers. */
-const MIN_DRIFT_FOR_STEP = 0.005;
+const MIN_DRIFT_FOR_STEP = 0.0005;
 
 /** Max total duration across all groups. */
 const MAX_TOTAL = Math.max(

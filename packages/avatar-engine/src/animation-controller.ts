@@ -323,21 +323,20 @@ export class AnimationController {
       if (fi > maxFadeIn) maxFadeIn = fi;
     }
 
-    // Crossfade: fade out old sub-actions using per-clip fadeOut durations.
-    // IMPORTANT: do NOT uncacheClip/uncacheAction during the fade — that
-    // instantly removes the action from the mixer, killing the crossfade.
+    // Crossfade: fade out old sub-actions.
+    // CRITICAL: fadeOut duration must match the incoming fadeIn duration so
+    // that old weight + new weight ≈ 1.0 at every point during the blend.
+    // If fadeOut < fadeIn, there's a gap where total weight < 1 → T-pose bleed.
+    // If fadeOut > fadeIn, there's a period where total weight > 1 → over-saturated.
+    // Using maxFadeIn for all outgoing clips ensures complementary curves.
     const outgoing = this.activeSubActions;
-    let maxFadeOut = 0;
+    const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
     for (const sub of outgoing) {
-      const fo = sub.fadeOut;
-      sub.action.fadeOut(fo);
-      if (fo > maxFadeOut) maxFadeOut = fo;
+      sub.action.fadeOut(crossfadeDuration);
     }
-    // Clean up after BOTH fades complete — outgoing must survive until
-    // incoming clips reach full weight, otherwise T-pose bleeds through.
+    // Clean up after crossfade completes
     if (outgoing.length > 0) {
       const captured = [...outgoing];
-      const cleanupDelay = Math.max(maxFadeOut, maxFadeIn) + 0.1;
       setTimeout(() => {
         for (const sub of captured) {
           sub.action.stop();
@@ -345,7 +344,7 @@ export class AnimationController {
           this.mixer.uncacheAction(clip);
           this.mixer.uncacheClip(clip);
         }
-      }, cleanupDelay * 1000);
+      }, (crossfadeDuration + 0.1) * 1000);
     }
     this.activeSubActions = [];
 
