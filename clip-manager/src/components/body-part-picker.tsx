@@ -1,17 +1,15 @@
 /**
- * Body Part Picker — collapsible section with clickable bone group chips.
+ * Body Part Picker — collapsible section with toggleable bone group chips.
  *
- * Features:
- * - Collapsed by default: shows a compact overview of selected parts
- * - Expanded: shows clickable chips for each body part + "full" option
- * - Color-coded chips matching body part groups
- * - Toggling a part adds/removes it from the clip's bodyParts array
- * - "Full" is exclusive — selecting it clears individual selections
- * - Selecting any individual part clears "full"
+ * All four parts (head, torso, arms, legs) are selected by default.
+ * Each chip is independently toggleable. Toggling a part off masks
+ * those bones in the preview — the clip only plays on active parts.
+ *
+ * No "full" option — if all four are on, that IS full body.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { BODY_PARTS, BODY_PART_ICON, BODY_PART_COLOR } from '../body-parts.ts';
-import type { BodyPart } from '../body-parts.ts';
+
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -40,15 +38,15 @@ const chevronStyle = (expanded: boolean): React.CSSProperties => ({
   color: 'var(--color-text-dim)',
 });
 
-
-const miniChipStyle = (color: string): React.CSSProperties => ({
+const miniChipStyle = (active: boolean, color: string): React.CSSProperties => ({
   padding: '1px 6px',
   borderRadius: 8,
   fontSize: 9,
   fontFamily: 'var(--font-mono)',
-  color,
-  border: `1px solid ${color}`,
-  opacity: 0.7,
+  color: active ? color : 'var(--color-text-dim)',
+  border: `1px solid ${active ? color : 'var(--color-border)'}`,
+  opacity: active ? 0.8 : 0.4,
+  textDecoration: active ? 'none' : 'line-through',
 });
 
 const expandedStyle: React.CSSProperties = {
@@ -69,6 +67,8 @@ const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
   border: `1.5px solid ${active ? color : 'var(--color-border)'}`,
   background: active ? `${color}18` : 'transparent',
   color: active ? color : 'var(--color-text-muted)',
+  opacity: active ? 1 : 0.5,
+  textDecoration: active ? 'none' : 'line-through',
   userSelect: 'none',
   display: 'flex',
   alignItems: 'center',
@@ -78,7 +78,7 @@ const chipStyle = (active: boolean, color: string): React.CSSProperties => ({
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface BodyPartPickerProps {
-  /** Currently selected body parts for this clip */
+  /** Currently active body parts (all 4 = full body) */
   bodyParts: string[];
   /** Called when body parts change */
   onChange: (parts: string[]) => void;
@@ -87,90 +87,69 @@ interface BodyPartPickerProps {
 export function BodyPartPicker({ bodyParts, onChange }: BodyPartPickerProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const isFull = useMemo(
-    () => bodyParts.includes('full'),
-    [bodyParts],
-  );
-
-  const isPartActive = useCallback(
+  const isActive = useCallback(
     (part: string) => bodyParts.includes(part),
     [bodyParts],
   );
 
-  const togglePart = useCallback(
+  const toggle = useCallback(
     (part: string) => {
-      if (part === 'full') {
-        // Full is exclusive — replace everything
-        if (isFull) {
-          // Deselecting full → empty (user can pick individual parts)
-          onChange([]);
-        } else {
-          onChange(['full']);
-        }
-        return;
-      }
-
-      // Toggling an individual part
-      let next: string[];
-      if (isPartActive(part)) {
-        next = bodyParts.filter((p) => p !== part && p !== 'full');
+      if (isActive(part)) {
+        // Don't allow deselecting the last part
+        const remaining = bodyParts.filter((p) => p !== part);
+        if (remaining.length === 0) return;
+        onChange(remaining);
       } else {
-        // Remove 'full' when adding individual parts
-        next = [...bodyParts.filter((p) => p !== 'full'), part];
+        onChange([...bodyParts, part]);
       }
-
-      // If all individual parts are selected, collapse to 'full'
-      const allSelected = BODY_PARTS.every((bp) => next.includes(bp));
-      if (allSelected) {
-        next = ['full'];
-      }
-
-      onChange(next);
     },
-    [bodyParts, isFull, isPartActive, onChange],
+    [bodyParts, isActive, onChange],
   );
+
+  // Count for collapsed summary
+  const activeCount = BODY_PARTS.filter((p) => bodyParts.includes(p)).length;
+  const allActive = activeCount === BODY_PARTS.length;
 
   return (
     <div style={sectionStyle}>
       <div style={sectionTitleStyle} onClick={() => setExpanded((e) => !e)}>
         <span style={chevronStyle(expanded)}>▶</span>
         Body Parts
-        {/* Collapsed overview — inline chips */}
-        {!expanded && bodyParts.length > 0 && (
+        {/* Collapsed overview */}
+        {!expanded && (
           <div style={{ display: 'flex', gap: 3, marginLeft: 6 }}>
-            {bodyParts.map((part) => (
-              <span
-                key={part}
-                style={miniChipStyle(BODY_PART_COLOR[part as BodyPart | 'full'] ?? 'var(--color-text-dim)')}
-              >
-                {BODY_PART_ICON[part as BodyPart | 'full'] ?? ''} {part}
+            {allActive ? (
+              <span style={{
+                fontSize: 9,
+                color: 'var(--color-text-dim)',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                all
               </span>
-            ))}
+            ) : (
+              BODY_PARTS.map((part) => (
+                <span
+                  key={part}
+                  style={miniChipStyle(
+                    isActive(part),
+                    BODY_PART_COLOR[part],
+                  )}
+                >
+                  {BODY_PART_ICON[part]} {part}
+                </span>
+              ))
+            )}
           </div>
-        )}
-        {!expanded && bodyParts.length === 0 && (
-          <span style={{ fontSize: 9, color: 'var(--color-text-dim)', fontStyle: 'italic', marginLeft: 6 }}>
-            none set
-          </span>
         )}
       </div>
 
       {expanded && (
         <div style={expandedStyle}>
-          {/* Full option */}
-          <div
-            style={chipStyle(isFull, BODY_PART_COLOR.full)}
-            onClick={() => togglePart('full')}
-          >
-            {BODY_PART_ICON.full} full
-          </div>
-
-          {/* Individual parts */}
           {BODY_PARTS.map((part) => (
             <div
               key={part}
-              style={chipStyle(isPartActive(part), BODY_PART_COLOR[part])}
-              onClick={() => togglePart(part)}
+              style={chipStyle(isActive(part), BODY_PART_COLOR[part])}
+              onClick={() => toggle(part)}
             >
               {BODY_PART_ICON[part]} {part}
             </div>

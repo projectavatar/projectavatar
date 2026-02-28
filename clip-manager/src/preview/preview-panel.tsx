@@ -1,13 +1,12 @@
 /**
  * Preview Panel — right side of the clip manager.
  * Renders a VRM model and plays FBX clips on it.
- * Supports body part isolation via bone masking.
+ * Body part masking is driven by the clip's bodyParts from ClipDetail.
  */
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
-import { BODY_PARTS, BODY_PART_COLOR, BODY_PART_ICON, getBonesForParts } from '../body-parts.ts';
-
+import { getBonesForParts } from '../body-parts.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -97,37 +96,6 @@ const speedRowStyle: React.CSSProperties = {
   color: 'var(--color-text-muted)',
 };
 
-const maskSectionStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 5,
-  flexWrap: 'wrap',
-  borderTop: '1px solid var(--color-border)',
-  paddingTop: 8,
-};
-
-const maskLabelStyle: React.CSSProperties = {
-  fontSize: 9,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.6px',
-  color: 'var(--color-text-dim)',
-  marginRight: 2,
-};
-
-const maskChipStyle = (active: boolean, color: string): React.CSSProperties => ({
-  padding: '3px 8px',
-  borderRadius: 10,
-  fontSize: 10,
-  fontFamily: 'var(--font-mono)',
-  cursor: 'pointer',
-  transition: 'all 0.12s ease',
-  border: `1px solid ${active ? color : 'var(--color-border)'}`,
-  background: active ? `${color}20` : 'transparent',
-  color: active ? color : 'var(--color-text-dim)',
-  userSelect: 'none',
-});
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface PreviewPanelProps {
@@ -135,7 +103,7 @@ interface PreviewPanelProps {
   clipPath: string | null;
   /** VRM model URL to use */
   modelUrl: string;
-  /** Body parts assigned to the currently selected clip (from clips.json) */
+  /** Body parts active for the current clip — drives bone masking */
   clipBodyParts?: string[];
   /** Called when preview is ready */
   onReady?: () => void;
@@ -152,18 +120,15 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
   const [speed, setSpeed] = useState(1.0);
   const [modelLoaded, setModelLoaded] = useState(false);
 
-  // Bone mask state — which parts to SHOW in preview
-  // null = show all, Set<BodyPart> = only show these
-  const [maskParts, setMaskParts] = useState<Set<string> | null>(null);
+  // Compute bone mask from clip's body parts.
+  // All 4 parts active (or 'full' or undefined) = no masking.
+  const boneMask = useMemo(() => {
+    if (!clipBodyParts || clipBodyParts.length === 0) return null;
+    return getBonesForParts(clipBodyParts);
+  }, [clipBodyParts]);
 
-  // When clip changes, reset mask to match the clip's bodyParts
-  const prevClipPathRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (clipPath !== prevClipPathRef.current) {
-      prevClipPathRef.current = clipPath;
-      setMaskParts(null); // reset to "show all" on clip change
-    }
-  }, [clipPath]);
+  // Serialize for dependency tracking
+  const maskKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
 
   // Initialize preview engine
   useEffect(() => {
@@ -195,18 +160,12 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     });
   }, [modelUrl, onReady]);
 
-  // Serialize mask for dependency tracking
-  const maskKey = maskParts ? [...maskParts].sort().join(',') : 'all';
-
-  // Play clip when clipPath or mask changes
+  // Play clip when clipPath or body parts change
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded || !clipPath) return;
 
-    // Compute bone mask from active mask parts
-    const boneMask = maskParts ? getBonesForParts([...maskParts]) : null;
     preview.setBoneMask(boneMask);
-
     setPaused(false);
 
     preview.looping = looping;
@@ -249,43 +208,10 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
     previewRef.current?.seek(time);
   }, []);
 
-  const toggleMaskPart = useCallback((part: string) => {
-    setMaskParts((prev) => {
-      if (part === 'all') {
-        return null; // show all bones
-      }
-
-      if (part === 'clip') {
-        // Isolate to the clip's tagged body parts
-        if (!clipBodyParts || clipBodyParts.includes('full') || clipBodyParts.length === 0) {
-          return null; // clip is full-body, same as all
-        }
-        const partsSet = new Set(clipBodyParts);
-        // If already showing clip parts, toggle back to all
-        if (prev !== null && prev.size === partsSet.size && [...partsSet].every(p => prev.has(p))) {
-          return null;
-        }
-        return partsSet;
-      }
-
-      // Exclusive select: clicking a part isolates ONLY that part.
-      // Clicking the already-solo part deselects it (back to all).
-      if (prev !== null && prev.size === 1 && prev.has(part)) {
-        return null; // deselect → back to all
-      }
-      return new Set([part]);
-    });
-  }, [clipBodyParts]);
-
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = (s % 60).toFixed(1);
     return m > 0 ? `${m}:${sec.padStart(4, '0')}` : `${sec}s`;
-  };
-
-  const isPartActive = (part: string): boolean => {
-    if (maskParts === null) return false; // "all" is active, not individual parts
-    return maskParts.has(part);
   };
 
   return (
@@ -353,44 +279,6 @@ export function PreviewPanel({ clipPath, modelUrl, clipBodyParts, onReady }: Pre
             ))}
           </div>
         </div>
-
-        {/* Body part mask */}
-        {clipInfo && (
-          <div style={maskSectionStyle}>
-            <span style={maskLabelStyle}>Isolate</span>
-            <div
-              style={maskChipStyle(maskParts === null, '#74b9ff')}
-              onClick={() => toggleMaskPart('all')}
-            >
-              all
-            </div>
-            {clipBodyParts && clipBodyParts.length > 0 && !clipBodyParts.includes('full') && (
-              <div
-                style={maskChipStyle(
-                  maskParts !== null && clipBodyParts.every(p => maskParts.has(p)) && maskParts.size === clipBodyParts.length,
-                  '#a29bfe',
-                )}
-                onClick={() => toggleMaskPart('clip')}
-                title={`Isolate to clip's parts: ${clipBodyParts.join(', ')}`}
-              >
-                🎬 clip
-              </div>
-            )}
-            <span style={{ width: 1, height: 16, background: 'var(--color-border)', flexShrink: 0 }} />
-            {BODY_PARTS.map((part) => (
-              <div
-                key={part}
-                style={maskChipStyle(
-                  isPartActive(part),
-                  BODY_PART_COLOR[part],
-                )}
-                onClick={() => toggleMaskPart(part)}
-              >
-                {BODY_PART_ICON[part]} {part}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

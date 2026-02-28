@@ -84,7 +84,7 @@ const centerBodyStyle: React.CSSProperties = {
 };
 
 const rightPanelStyle: React.CSSProperties = {
-  width: 380,
+  width: 450,
   flexShrink: 0,
   overflow: 'hidden',
 };

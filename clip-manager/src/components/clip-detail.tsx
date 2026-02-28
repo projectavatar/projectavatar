@@ -7,6 +7,7 @@ import type { ClipsJson, ClipData } from '../types.ts';
 import { getClipUsage, getClipStatus } from '../state.ts';
 import type { Action } from '../state.ts';
 import { BodyPartPicker } from './body-part-picker.tsx';
+import { normalizeBodyParts } from '../body-parts.ts';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -289,7 +290,7 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
 
       {/* Body Parts */}
       <BodyPartPicker
-        bodyParts={clip.bodyParts}
+        bodyParts={normalizeBodyParts(clip.bodyParts)}
         onChange={(bodyParts) => update({ bodyParts })}
       />
 
