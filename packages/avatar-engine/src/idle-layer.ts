@@ -21,8 +21,10 @@ export type IdleMode = 'air' | 'ground';
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 
 // Air mode
-const HOVER_AMPLITUDE   = 0.015;   // meters — subtle Y bob
+const HOVER_AMPLITUDE   = 0.012;   // meters — primary Y bob
 const HOVER_FREQUENCY   = 0.4;     // Hz — slow, dreamy
+const HOVER_AMPLITUDE_2 = 0.006;   // meters — secondary bob (smaller)
+const HOVER_FREQUENCY_2 = 0.67;    // Hz — slightly faster, incommensurate
 const TILT_AMPLITUDE    = 0.03;    // radians (~1.7°) — gentle forward/back lean
 const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
 const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
@@ -258,7 +260,8 @@ export class IdleLayer {
   private _updateAir(t: number, delta: number): void {
     // 1. Vertical hover bob — applied to VRM scene root (moves entire model)
     if (this.vrm.scene) {
-      const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE;
+      const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE
+                       + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
       this.vrm.scene.position.y = this.baseY + bobOffset;
     }
 
