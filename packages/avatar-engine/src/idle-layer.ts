@@ -23,7 +23,7 @@ export type IdleMode = 'air' | 'ground';
 // Air mode
 const HOVER_AMPLITUDE   = 0.012;   // meters — primary Y bob
 const HOVER_FREQUENCY   = 0.4;     // Hz — slow, dreamy
-const HOVER_AMPLITUDE_2 = 0.006;   // meters — secondary bob (smaller)
+const HOVER_AMPLITUDE_2 = 0.003;   // meters — secondary bob (smaller)
 const HOVER_FREQUENCY_2 = 0.67;    // Hz — slightly faster, incommensurate
 const TILT_AMPLITUDE    = 0.03;    // radians (~1.7°) — gentle forward/back lean
 const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
