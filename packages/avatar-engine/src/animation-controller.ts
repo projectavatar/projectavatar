@@ -76,6 +76,8 @@ interface SubAction {
   bodyPartGroup: BodyPart;
   /** The configured weight before normalization. */
   baseWeight: number;
+  /** Per-clip fade-out duration (seconds). */
+  fadeOut: number;
 }
 
 // ─── AnimationController ──────────────────────────────────────────────────────
@@ -313,15 +315,17 @@ export class AnimationController {
     //   this.stabilizer.lock();
     // }
 
-    // Crossfade: fade out old sub-actions, clean up after fade completes.
+    // Crossfade: fade out old sub-actions using per-clip fadeOut durations.
     // IMPORTANT: do NOT uncacheClip/uncacheAction during the fade — that
     // instantly removes the action from the mixer, killing the crossfade.
-    // Instead, let the fade-out complete, then stop + uncache.
     const outgoing = this.activeSubActions;
+    let maxFadeOut = 0;
     for (const sub of outgoing) {
-      sub.action.fadeOut(DEFAULT_FADE_OUT);
+      const fo = sub.fadeOut;
+      sub.action.fadeOut(fo);
+      if (fo > maxFadeOut) maxFadeOut = fo;
     }
-    // Clean up after fade-out finishes (with margin)
+    // Clean up after the longest fade-out finishes (with margin)
     if (outgoing.length > 0) {
       const captured = [...outgoing];
       setTimeout(() => {
@@ -331,7 +335,7 @@ export class AnimationController {
           this.mixer.uncacheAction(clip);
           this.mixer.uncacheClip(clip);
         }
-      }, (DEFAULT_FADE_OUT + 0.2) * 1000);
+      }, (maxFadeOut + 0.2) * 1000);
     }
     this.activeSubActions = [];
     // Resolve action clips from the selected group
@@ -419,9 +423,10 @@ export class AnimationController {
       clipId: entry.file,
       bodyPartGroup: group,
       baseWeight: normalizedWeight,
+      fadeOut: entry.fadeOut ?? DEFAULT_FADE_OUT,
     };
-  }
 
+  }
   /**
    * Filter an animation clip to only include tracks for bones in the given body part group.
    * Creates a new clip with a unique name so the mixer caches it separately.
