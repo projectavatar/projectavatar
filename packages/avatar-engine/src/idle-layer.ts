@@ -269,12 +269,13 @@ export class IdleLayer {
       if (this.hipsRestY === null) {
         this.hipsRestY = this.hips.position.y;
       }
-      // Lerp current hips Y toward rest — fast enough to feel locked,
-      // slow enough to not jag during crossfades
+      // Exponential decay toward rest Y — framerate-independent,
+      // no end-of-transition snap like raw lerp.
+      const hipsLerpSpeed = 4.0; // higher = faster convergence
       this.hips.position.y = THREE.MathUtils.lerp(
         this.hips.position.y,
         this.hipsRestY,
-        0.15,
+        1 - Math.exp(-hipsLerpSpeed * delta),
       );
     }
 
