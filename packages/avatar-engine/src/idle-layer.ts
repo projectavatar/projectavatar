@@ -345,9 +345,16 @@ export class IdleLayer {
   private _applyHeadTracking(delta: number): void {
     if (!this.camera || !this.head) return;
 
-    // Get direction from head to camera in head's local space
+    // Get direction from head to camera in world space
     this.head.getWorldPosition(this._headWorldPos);
     this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
+    // direction. Mirror the target direction so the head turns toward camera.
+    if (this.legBendSign === -1) {
+      this._headTargetDir.x = -this._headTargetDir.x;
+      this._headTargetDir.z = -this._headTargetDir.z;
+    }
 
     // Convert world direction to head's parent local space
     const parent = this.head.parent;
@@ -368,11 +375,9 @@ export class IdleLayer {
     this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
-    // Apply as additive rotation scaled by influence.
-    // legBendSign === -1 for VRM 0.x (inverted axes) — negate both.
-    const sign = this.legBendSign;
-    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE * sign;
-    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE * sign;
+    // Apply as additive rotation scaled by influence
+    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE;
+    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
