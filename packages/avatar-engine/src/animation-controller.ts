@@ -256,10 +256,6 @@ export class AnimationController {
   update(delta: number): void {
     const dt = Math.min(delta, 0.1);
 
-    // Procedural idle layer: hover bob, breathing, etc.
-    // Runs independently of FBX clips — has its own toggle.
-    this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
-
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
       // Stabilizer: pin feet/hips during crossfade to prevent sliding
@@ -283,6 +279,11 @@ export class AnimationController {
         }
       }
     }
+
+    // Procedural idle layer: hover bob, breathing, etc.
+    // Runs AFTER mixer so additive offsets aren't overwritten by clips.
+    // Independent of FBX clips toggle — has its own toggle.
+    this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
   }
 
   getActiveClips(): ActiveClipInfo[] {
