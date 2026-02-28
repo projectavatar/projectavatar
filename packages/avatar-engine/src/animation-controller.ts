@@ -228,8 +228,8 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-      // Apply foot IK correction after mixer (pins feet during transitions)
-      this.stabilizer.update(dt);
+      // Stabilizer disabled — crossfade blending handles transitions
+      // this.stabilizer.update(dt);
 
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
@@ -308,10 +308,10 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Lock feet at current position before transition (prevents teleporting)
-    if (this.activeSubActions.length > 0) {
-      this.stabilizer.lock();
-    }
+    // Stabilizer lock disabled — relying on mixer crossfade blending
+    // if (this.activeSubActions.length > 0) {
+    //   this.stabilizer.lock();
+    // }
 
     // Fade out and uncache old sub-actions (prevents mixer memory leak)
     for (const sub of this.activeSubActions) {
