@@ -1,7 +1,7 @@
 /**
  * Clip Manager App — consistent 3-column layout across all tabs.
  *
- * Header: tabs (Clips / Actions / Emotions) + model selector + save
+ * Header: tabs (Actions / Emotions / Clips) + model selector + save
  * Body: [left list | center detail | right preview]
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
