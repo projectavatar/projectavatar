@@ -2,6 +2,7 @@
  * Emotion List — left panel for Emotions tab.
  * Lists all emotions with override/layer count and color indicator.
  */
+import { useMemo, useState } from 'react';
 import type { ClipsJson } from '../types.ts';
 import type { Action } from '../state.ts';
 import { EMOTIONS } from '@project-avatar/shared';
@@ -17,15 +18,15 @@ const panelStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const headerStyle: React.CSSProperties = {
+const searchWrapStyle: React.CSSProperties = {
   padding: '10px 12px',
   borderBottom: '1px solid var(--color-border)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+};
+
+const searchStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 10px',
+  fontSize: 12,
 };
 
 const listStyle: React.CSSProperties = {
@@ -85,13 +86,25 @@ interface EmotionListProps {
 }
 
 export function EmotionList({ data, selectedEmotion, dispatch }: EmotionListProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredEmotions = useMemo(() => {
+    if (!searchQuery) return [...EMOTIONS];
+    const q = searchQuery.toLowerCase();
+    return EMOTIONS.filter(name => name.includes(q));
+  }, [searchQuery]);
   return (
     <div style={panelStyle}>
-      <div style={headerStyle}>
-        {EMOTIONS.length} Emotions
+      <div style={searchWrapStyle}>
+        <input
+          style={searchStyle}
+          placeholder="Search emotions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
       <div style={listStyle}>
-        {EMOTIONS.map(name => {
+        {filteredEmotions.map(name => {
           const emotion = data.emotions[name];
           const selected = selectedEmotion === name;
           const overrideCount = emotion ? Object.keys(emotion.overrides).length : 0;

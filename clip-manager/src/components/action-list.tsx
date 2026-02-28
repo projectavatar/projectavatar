@@ -2,6 +2,7 @@
  * Action List — left panel for Actions tab.
  * Lists all actions with clip count and color indicator.
  */
+import { useMemo, useState } from 'react';
 import type { ClipsJson } from '../types.ts';
 import type { Action } from '../state.ts';
 import { ACTIONS } from '@project-avatar/shared';
@@ -17,15 +18,15 @@ const panelStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const headerStyle: React.CSSProperties = {
+const searchWrapStyle: React.CSSProperties = {
   padding: '10px 12px',
   borderBottom: '1px solid var(--color-border)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+};
+
+const searchStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 10px',
+  fontSize: 12,
 };
 
 const listStyle: React.CSSProperties = {
@@ -85,6 +86,14 @@ interface ActionListProps {
 }
 
 export function ActionList({ data, selectedAction, dispatch }: ActionListProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredActions = useMemo(() => {
+    if (!searchQuery) return [...ACTIONS];
+    const q = searchQuery.toLowerCase();
+    return ACTIONS.filter(name => name.includes(q));
+  }, [searchQuery]);
+
   const getClipCount = (name: string): number => {
     return data.actions[name]?.clips.length ?? 0;
   };
@@ -111,11 +120,16 @@ export function ActionList({ data, selectedAction, dispatch }: ActionListProps) 
 
   return (
     <div style={panelStyle}>
-      <div style={headerStyle}>
-        {ACTIONS.length} Actions
+      <div style={searchWrapStyle}>
+        <input
+          style={searchStyle}
+          placeholder="Search actions..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
       <div style={listStyle}>
-        {ACTIONS.map(name => {
+        {filteredActions.map(name => {
           const selected = selectedAction === name;
           const clipCount = getClipCount(name);
           const statusColor = getStatusColor(name);
