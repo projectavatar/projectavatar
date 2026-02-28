@@ -25,6 +25,19 @@ import type { BodyPart } from './body-parts.ts';
 
 const DEFAULT_FADE_IN = 0.3;
 
+/**
+ * Feet get a faster crossfade to minimize foot skating.
+ * Short enough that sliding is barely visible, long enough to avoid a hard snap.
+ */
+const FEET_FADE_IN = 0.1;
+
+/**
+ * Upper legs (includes hips) get a slower crossfade than the default.
+ * Multiplied with the base fade duration to make hip transitions smoother
+ * and less jarring — the body should shift weight gradually.
+ */
+const UPPER_LEGS_FADE_MULTIPLIER = 2.0;
+
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
 export interface LayerState {
@@ -327,7 +340,10 @@ export class AnimationController {
     const outgoing = this.activeSubActions;
     const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
     for (const sub of outgoing) {
-      sub.action.fadeOut(crossfadeDuration);
+      let outFade = crossfadeDuration;
+      if (sub.bodyPartGroup === 'feet') outFade = Math.min(crossfadeDuration, FEET_FADE_IN);
+      else if (sub.bodyPartGroup === 'upperLegs') outFade = crossfadeDuration * UPPER_LEGS_FADE_MULTIPLIER;
+      sub.action.fadeOut(outFade);
     }
     // Clean up after crossfade completes.
     // Safety: check that each clip isn't still used by activeSubActions
@@ -434,7 +450,11 @@ export class AnimationController {
     action.reset();
     action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
-    action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
+    const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
+    let groupFade = baseFade;
+    if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
+    else if (group === 'upperLegs') groupFade = baseFade * UPPER_LEGS_FADE_MULTIPLIER;
+    action.fadeIn(groupFade);
     action.play();
 
     return {
