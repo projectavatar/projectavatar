@@ -1,11 +1,8 @@
 /**
- * Clip Manager App — v2 layout.
+ * Clip Manager App — consistent 3-column layout across all tabs.
  *
  * Header: tabs (Clips / Actions / Emotions) + model selector + save
- * Body:
- *   - Clips tab: [clip library | clip detail | preview]
- *   - Actions tab: [action editor | preview]
- *   - Emotions tab: [emotion editor | preview]
+ * Body: [left list | center detail | right preview]
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
@@ -14,7 +11,9 @@ import { Header } from './components/header.tsx';
 import { StatusBar } from './components/status-bar.tsx';
 import { ClipLibrary } from './components/clip-library.tsx';
 import { ClipDetail } from './components/clip-detail.tsx';
+import { ActionList } from './components/action-list.tsx';
 import { ActionEditor } from './components/action-editor.tsx';
+import { EmotionList } from './components/emotion-list.tsx';
 import { EmotionEditor } from './components/emotion-editor.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
@@ -83,7 +82,7 @@ export function App() {
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Resolve preview clip path (single clip, Clips tab)
+  // Preview clip path (Clips tab — single clip)
   const previewClipPath = useMemo(() => {
     if (state.activeTab !== 'clips') return null;
     if (!state.previewClip) return null;
@@ -98,7 +97,7 @@ export function App() {
     return clip?.bodyParts;
   }, [state.previewClip, state.data.clips]);
 
-  // Resolve preview action (Actions tab)
+  // Preview action (Actions tab — blended action)
   const previewAction = state.activeTab === 'actions' ? state.previewAction : null;
 
   const handleSave = useCallback(async () => {
@@ -121,7 +120,6 @@ export function App() {
     }
   }, [state.data, dispatch]);
 
-  // Ctrl+S
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -147,9 +145,9 @@ export function App() {
       />
 
       <div style={mainStyle}>
-        {/* Left panel — clip library, only shown on Clips tab */}
-        {state.activeTab === 'clips' && (
-          <div style={leftPanelStyle}>
+        {/* Left panel — list */}
+        <div style={leftPanelStyle}>
+          {state.activeTab === 'clips' && (
             <ClipLibrary
               data={state.data}
               selectedClip={state.selectedClip}
@@ -158,10 +156,24 @@ export function App() {
               energyFilter={state.energyFilter}
               dispatch={dispatch}
             />
-          </div>
-        )}
+          )}
+          {state.activeTab === 'actions' && (
+            <ActionList
+              data={state.data}
+              selectedAction={state.expandedAction}
+              dispatch={dispatch}
+            />
+          )}
+          {state.activeTab === 'emotions' && (
+            <EmotionList
+              data={state.data}
+              selectedEmotion={state.expandedEmotion}
+              dispatch={dispatch}
+            />
+          )}
+        </div>
 
-        {/* Center panel */}
+        {/* Center panel — detail */}
         <div style={centerPanelStyle}>
           <div style={centerBodyStyle}>
             {state.activeTab === 'clips' && (
@@ -169,15 +181,23 @@ export function App() {
                 <ClipDetail clipId={state.selectedClip} data={state.data} dispatch={dispatch} />
               ) : (
                 <div style={{ padding: 20, color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 12 }}>
-                  Select a clip from the library to view details
+                  Select a clip from the library
                 </div>
               )
             )}
             {state.activeTab === 'actions' && (
-              <ActionEditor data={state.data} expandedAction={state.expandedAction} dispatch={dispatch} />
+              <ActionEditor
+                data={state.data}
+                selectedAction={state.expandedAction}
+                dispatch={dispatch}
+              />
             )}
             {state.activeTab === 'emotions' && (
-              <EmotionEditor data={state.data} expandedEmotion={state.expandedEmotion} dispatch={dispatch} />
+              <EmotionEditor
+                data={state.data}
+                selectedEmotion={state.expandedEmotion}
+                dispatch={dispatch}
+              />
             )}
           </div>
         </div>

@@ -1,7 +1,7 @@
 /**
- * Action Editor — v2 with multi-clip blending + body part scoping.
+ * Action Detail Editor — center panel for the selected action.
  *
- * Each action has an ordered clips[] array. Each clip has:
+ * Shows the clip layers for the selected action with:
  * - Clip selector (dropdown)
  * - Weight slider (0–1)
  * - Body part on/off chips (head, torso, arms, legs)
@@ -12,7 +12,6 @@
 import { useCallback } from 'react';
 import type { ClipsJson, ActionData, ClipLayer } from '../types.ts';
 import type { Action } from '../state.ts';
-import { ACTIONS } from '@project-avatar/shared';
 import { BODY_PARTS } from '@project-avatar/avatar-engine';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -20,37 +19,21 @@ import { BODY_PARTS } from '@project-avatar/avatar-engine';
 const containerStyle: React.CSSProperties = {
   height: '100%',
   overflowY: 'auto',
-  padding: '0',
+  padding: '16px',
 };
 
-const actionItemStyle = (expanded: boolean): React.CSSProperties => ({
-  borderBottom: '1px solid var(--color-border)',
-  background: expanded ? 'var(--color-surface)' : 'transparent',
-});
-
-const actionHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 14px',
-  cursor: 'pointer',
-  transition: 'background 0.1s',
-};
-
-const actionNameStyle: React.CSSProperties = {
+const titleStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
+  fontSize: 16,
+  fontWeight: 700,
+  marginBottom: 16,
+};
+
+const emptyStyle: React.CSSProperties = {
+  padding: 20,
+  color: 'var(--color-text-dim)',
+  fontStyle: 'italic',
   fontSize: 12,
-  fontWeight: 600,
-};
-
-const clipCountStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--color-text-muted)',
-};
-
-const bodyStyle: React.CSSProperties = {
-  padding: '0 14px 12px',
 };
 
 const clipCardStyle: React.CSSProperties = {
@@ -156,9 +139,9 @@ const durationRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  marginTop: 8,
-  paddingTop: 8,
-  borderTop: '1px solid rgba(42, 42, 58, 0.3)',
+  marginTop: 12,
+  paddingTop: 12,
+  borderTop: '1px solid var(--color-border)',
 };
 
 const numberStyle: React.CSSProperties = {
@@ -177,11 +160,11 @@ const numberStyle: React.CSSProperties = {
 
 interface ActionEditorProps {
   data: ClipsJson;
-  expandedAction: string | null;
+  selectedAction: string | null;
   dispatch: React.Dispatch<Action>;
 }
 
-export function ActionEditor({ data, expandedAction, dispatch }: ActionEditorProps) {
+export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorProps) {
   const clipIds = Object.keys(data.clips).sort();
 
   const updateAction = useCallback((name: string, partial: Partial<ActionData>) => {
@@ -200,130 +183,103 @@ export function ActionEditor({ data, expandedAction, dispatch }: ActionEditorPro
     const newParts = currentParts.includes(part)
       ? currentParts.filter(p => p !== part)
       : [...currentParts, part];
-    // Don't allow empty — keep at least one
     if (newParts.length === 0) return;
     updateClipLayer(actionName, clips, index, { bodyParts: newParts });
   }, [updateClipLayer]);
 
+  if (!selectedAction) {
+    return <div style={emptyStyle}>Select an action from the list</div>;
+  }
+
+  const action = data.actions[selectedAction];
+  if (!action) {
+    return <div style={emptyStyle}>Action not found: {selectedAction}</div>;
+  }
+
   return (
     <div style={containerStyle}>
-      {ACTIONS.map(name => {
-        const action = data.actions[name];
-        if (!action) return null;
-        const expanded = expandedAction === name;
+      <div style={titleStyle}>{selectedAction}</div>
 
-        return (
-          <div key={name} style={actionItemStyle(expanded)}>
-            {/* Header */}
-            <div
-              style={actionHeaderStyle}
-              onClick={() => dispatch({ type: 'EXPAND_ACTION', action: expanded ? null : name })}
+      {action.clips.map((layer, i) => (
+        <div key={i} style={clipCardStyle}>
+          <div style={clipHeaderStyle}>
+            <select
+              style={selectStyle}
+              value={layer.clip}
+              onChange={(e) => updateClipLayer(selectedAction, action.clips, i, { clip: e.target.value })}
             >
-              <div>
-                <span style={actionNameStyle}>{expanded ? '▾ ' : '▸ '}{name}</span>
-              </div>
-              <span style={clipCountStyle}>
-                {action.clips.length} clip{action.clips.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {/* Expanded body */}
-            {expanded && (
-              <div style={bodyStyle}>
-                {action.clips.map((layer, i) => (
-                  <div key={i} style={clipCardStyle}>
-                    {/* Clip select + remove */}
-                    <div style={clipHeaderStyle}>
-                      <select
-                        style={selectStyle}
-                        value={layer.clip}
-                        onChange={(e) => updateClipLayer(name, action.clips, i, { clip: e.target.value })}
-                      >
-                        {clipIds.map(id => <option key={id} value={id}>{id}</option>)}
-                      </select>
-                      {action.clips.length > 1 && (
-                        <button
-                          style={removeBtnStyle}
-                          onClick={() => {
-                            const newClips = action.clips.filter((_, idx) => idx !== i);
-                            updateAction(name, { clips: newClips });
-                          }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Weight slider */}
-                    <div style={weightRowStyle}>
-                      <span style={labelStyle}>Weight</span>
-                      <input
-                        type="range"
-                        min={0} max={1} step={0.05}
-                        value={layer.weight}
-                        style={sliderStyle}
-                        onChange={(e) => updateClipLayer(name, action.clips, i, {
-                          weight: parseFloat(e.target.value),
-                        })}
-                      />
-                      <span style={weightValueStyle}>{layer.weight.toFixed(2)}</span>
-                    </div>
-
-                    {/* Body part chips */}
-                    <div style={bodyPartRowStyle}>
-                      <span style={labelStyle}>Body</span>
-                      {BODY_PARTS.map(part => (
-                        <button
-                          key={part}
-                          style={chipStyle(layer.bodyParts.includes(part))}
-                          onClick={() => toggleBodyPart(name, action.clips, i, part)}
-                        >
-                          {part}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Add clip button */}
-                <button
-                  style={addBtnStyle}
-                  onClick={() => {
-                    const newClips = [
-                      ...action.clips,
-                      {
-                        clip: clipIds[0] ?? '',
-                        weight: 0.5,
-                        bodyParts: ['head', 'torso', 'arms', 'legs'],
-                      },
-                    ];
-                    updateAction(name, { clips: newClips });
-                  }}
-                >
-                  + Add Clip
-                </button>
-
-                {/* Duration override */}
-                <div style={durationRowStyle}>
-                  <span style={labelStyle}>Duration</span>
-                  <input
-                    type="number"
-                    style={numberStyle}
-                    value={action.durationOverride ?? ''}
-                    placeholder="auto"
-                    step={0.1}
-                    min={0}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? null : parseFloat(e.target.value);
-                      updateAction(name, { durationOverride: val });
-                    }}
-                  />
-                </div>
-              </div>
+              {clipIds.map(id => <option key={id} value={id}>{id}</option>)}
+            </select>
+            {action.clips.length > 1 && (
+              <button
+                style={removeBtnStyle}
+                onClick={() => {
+                  const newClips = action.clips.filter((_, idx) => idx !== i);
+                  updateAction(selectedAction, { clips: newClips });
+                }}
+              >
+                ✕
+              </button>
             )}
           </div>
-        );
-      })}
+
+          <div style={weightRowStyle}>
+            <span style={labelStyle}>Weight</span>
+            <input
+              type="range"
+              min={0} max={1} step={0.05}
+              value={layer.weight}
+              style={sliderStyle}
+              onChange={(e) => updateClipLayer(selectedAction, action.clips, i, {
+                weight: parseFloat(e.target.value),
+              })}
+            />
+            <span style={weightValueStyle}>{layer.weight.toFixed(2)}</span>
+          </div>
+
+          <div style={bodyPartRowStyle}>
+            <span style={labelStyle}>Body</span>
+            {BODY_PARTS.map(part => (
+              <button
+                key={part}
+                style={chipStyle(layer.bodyParts.includes(part))}
+                onClick={() => toggleBodyPart(selectedAction, action.clips, i, part)}
+              >
+                {part}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <button
+        style={addBtnStyle}
+        onClick={() => {
+          const newClips = [
+            ...action.clips,
+            { clip: clipIds[0] ?? '', weight: 0.5, bodyParts: ['head', 'torso', 'arms', 'legs'] },
+          ];
+          updateAction(selectedAction, { clips: newClips });
+        }}
+      >
+        + Add Clip
+      </button>
+
+      <div style={durationRowStyle}>
+        <span style={labelStyle}>Duration</span>
+        <input
+          type="number"
+          style={numberStyle}
+          value={action.durationOverride ?? ''}
+          placeholder="auto"
+          step={0.1}
+          min={0}
+          onChange={(e) => {
+            const val = e.target.value === '' ? null : parseFloat(e.target.value);
+            updateAction(selectedAction, { durationOverride: val });
+          }}
+        />
+      </div>
     </div>
   );
 }
