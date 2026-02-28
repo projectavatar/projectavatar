@@ -19,9 +19,10 @@ const containerStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 14,
-  fontWeight: 600,
-  color: 'var(--color-accent)',
+  fontSize: 16,
+  fontWeight: 700,
+  marginBottom: 16,
+  color: '#fff',
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -30,7 +31,8 @@ const sectionStyle: React.CSSProperties = {
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
+  marginBottom: 16,
   textTransform: 'uppercase',
   letterSpacing: '0.8px',
   color: 'var(--color-text-muted)',
@@ -107,7 +109,8 @@ const statusBadgeStyle = (status: string): React.CSSProperties => ({
   padding: '2px 8px',
   borderRadius: 10,
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
+  marginBottom: 16,
   fontFamily: 'var(--font-mono)',
   color: status === 'mapped' ? 'var(--color-success)' : 'var(--color-orphan)',
   border: `1px solid ${status === 'mapped' ? 'var(--color-success)' : 'var(--color-orphan)'}`,
