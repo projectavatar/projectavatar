@@ -404,16 +404,9 @@ export class AnimationController {
           if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
           else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
 
-          if (outgoing && outgoing.length > 0) {
+          if (outgoing && outgoing.length > 0 && !this._skipCrossfade) {
             const outSub = outgoing.shift()!;
-            if (this._skipCrossfade) {
-              // Non-looping action finished — fade out old, fade in new independently.
-              // Avoids quaternion interpolation from clamped end-pose.
-              outSub.action.fadeOut(fadeDuration * 0.5);
-              sub.action.fadeIn(fadeDuration * 0.5);
-            } else {
-              outSub.action.crossFadeTo(sub.action, fadeDuration, true);
-            }
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
           } else {
             sub.action.fadeIn(fadeDuration);
           }
@@ -467,8 +460,13 @@ export class AnimationController {
       if (duration !== null) {
         this.durationTimer = setTimeout(() => {
           this.durationTimer = null;
-          // Flag to skip crossFadeTo — clamped end-poses cause spinning.
-          // Old actions will be faded out manually instead.
+          // Stop all current actions immediately before transitioning to idle.
+          // This prevents crossfading from a clamped end-pose which causes
+          // wild quaternion interpolation (spinning limbs).
+          for (const sub of this.activeSubActions) {
+            sub.action.stop();
+          }
+          this.activeSubActions = [];
           this._skipCrossfade = true;
           this.onActionFinished?.();
         }, duration * 1000);
