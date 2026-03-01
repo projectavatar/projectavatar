@@ -59,9 +59,23 @@ export class BloomEffect {
   private _ensureComposer(): void {
     if (this.composer) return;
 
-    this.composer = new EffectComposer(this.renderer);
+    // Create render target with alpha for transparent backgrounds (desktop overlay)
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const pixelRatio = this.renderer.getPixelRatio();
+    const renderTarget = new THREE.WebGLRenderTarget(
+      size.x * pixelRatio,
+      size.y * pixelRatio,
+      {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        colorSpace: THREE.SRGBColorSpace,
+      },
+    );
+
+    this.composer = new EffectComposer(this.renderer, renderTarget);
 
     const renderPass = new RenderPass(this.scene, this.camera);
+    renderPass.clearAlpha = 0; // Preserve transparency
     this.composer.addPass(renderPass);
 
     const resolution = new THREE.Vector2(
