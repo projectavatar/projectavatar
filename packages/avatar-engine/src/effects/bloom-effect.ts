@@ -13,6 +13,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -60,6 +61,10 @@ export class BloomEffect {
       options?.threshold ?? DEFAULT_BLOOM_THRESHOLD,
     );
     this.composer.addPass(this.bloomPass);
+
+    // SMAA anti-aliasing — WebGL MSAA doesn't work with postprocessing FBOs
+    const smaaPass = new SMAAPass(resolution.x, resolution.y);
+    this.composer.addPass(smaaPass);
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
