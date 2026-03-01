@@ -28,6 +28,7 @@ const HOVER_FREQUENCY_2 = 0.67;    // Hz — slightly faster, incommensurate
 const TILT_AMPLITUDE    = 0.03;    // radians (~1.7°) — gentle forward/back lean
 const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
 const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
+const BACKWARD_LEAN     = 0.06;    // radians (~3.4°) — static backward lean to balance tucked legs
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
@@ -404,7 +405,13 @@ export class IdleLayer {
       );
     }
 
-    // 3. Gentle body tilt — spine leans forward/back
+    // 3. Backward lean on hips — counterbalances tucked legs
+    if (this.hips) {
+      // VRM 0.x has inverted axes — legBendSign handles this
+      this.hips.rotation.x += -BACKWARD_LEAN * this.legBendSign;
+    }
+
+    // 4. Gentle body tilt — spine leans forward/back
     if (this.spine) {
       const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE;
       this.spine.rotation.x += tiltX;
@@ -416,15 +423,15 @@ export class IdleLayer {
       this.hips.rotation.z += driftZ;
     }
 
-    // 5. Leg dangle — relaxed hanging pose
+    // 6. Leg dangle — relaxed hanging pose
     this._applyLegDangle(t);
 
-    // 6. Relaxed finger curl + wave (skip if clip has its own finger animation)
+    // 7. Relaxed finger curl + wave (skip if clip has its own finger animation)
     if (!this.clipHasFingers) {
       this._applyFingerCurl(t);
     }
 
-    // 7. Subtle head tracking toward camera
+    // 8. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
       this._applyHeadTracking(delta);
     }
