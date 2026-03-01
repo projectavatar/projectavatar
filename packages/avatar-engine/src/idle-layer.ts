@@ -75,6 +75,8 @@ export class IdleLayer {
 
   /** Leg swap blend: 0 = left straight/right tucked, 1 = swapped */
   private legSwapBlend = 0;
+  /** Trailing leg blend — follows legSwapBlend with delay */
+  private legSwapBlendTrail = 0;
   private legSwapTarget = 0;
   private legSwapTimer = 0;
 
@@ -312,12 +314,19 @@ export class IdleLayer {
       this.legSwapTimer = Math.random() * (LEG_SWAP_MAX - LEG_SWAP_MIN) * -1; // negative offset for randomness
       this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
     }
-    // Smooth blend toward target
+    // Lead leg moves first, trailing leg follows with delay
     const swapSpeed = 1.0 / LEG_SWAP_DURATION;
+    const trailSpeed = swapSpeed * 0.4; // trailing leg is slower
     if (this.legSwapBlend < this.legSwapTarget) {
       this.legSwapBlend = Math.min(this.legSwapBlend + swapSpeed * delta, 1);
     } else if (this.legSwapBlend > this.legSwapTarget) {
       this.legSwapBlend = Math.max(this.legSwapBlend - swapSpeed * delta, 0);
+    }
+    // Trail follows lead
+    if (this.legSwapBlendTrail < this.legSwapBlend) {
+      this.legSwapBlendTrail = Math.min(this.legSwapBlendTrail + trailSpeed * delta, this.legSwapBlend);
+    } else if (this.legSwapBlendTrail > this.legSwapBlend) {
+      this.legSwapBlendTrail = Math.max(this.legSwapBlendTrail - trailSpeed * delta, this.legSwapBlend);
     }
 
     // 6. Leg dangle — relaxed hanging pose
@@ -416,7 +425,8 @@ export class IdleLayer {
    * Slight asymmetry between left/right for natural look.
    */
   private _applyLegDangle(): void {
-    const b = this.legSwapBlend;
+    const bLead = this.legSwapBlend;
+    const bTrail = this.legSwapBlendTrail;
     const s = this.legBendSign;
 
     // Lerp between two poses:
@@ -426,33 +436,33 @@ export class IdleLayer {
     // Upper legs
     const straightUpper = 1.1, tuckedUpper = 2.0;
     if (this.leftUpperLeg) {
-      const m = straightUpper + (tuckedUpper - straightUpper) * b;
+      const m = straightUpper + (tuckedUpper - straightUpper) * bLead;
       this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
     if (this.rightUpperLeg) {
-      const m = tuckedUpper + (straightUpper - tuckedUpper) * b;
+      const m = tuckedUpper + (straightUpper - tuckedUpper) * bTrail;
       this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
 
     // Lower legs
     const straightLower = 1.2, tuckedLower = 1.5;
     if (this.leftLowerLeg) {
-      const m = straightLower + (tuckedLower - straightLower) * b;
+      const m = straightLower + (tuckedLower - straightLower) * bLead;
       this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
     if (this.rightLowerLeg) {
-      const m = tuckedLower + (straightLower - tuckedLower) * b;
+      const m = tuckedLower + (straightLower - tuckedLower) * bTrail;
       this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
 
     // Toe droop — more on the tucked leg
     const straightToe = 1.5, tuckedToe = 2.5;
     if (this.leftFoot) {
-      const m = straightToe + (tuckedToe - straightToe) * b;
+      const m = straightToe + (tuckedToe - straightToe) * bLead;
       this.leftFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
     }
     if (this.rightFoot) {
-      const m = tuckedToe + (straightToe - tuckedToe) * b;
+      const m = tuckedToe + (straightToe - tuckedToe) * bTrail;
       this.rightFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
     }
   }
