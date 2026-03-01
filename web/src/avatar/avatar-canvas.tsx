@@ -258,6 +258,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       animControllerRef.current?.setCursorTarget(null);
     };
 
+    console.log('[CursorTrack] isTauri:', isTauri);
     if (isTauri) {
       const poll = async () => {
         try {
@@ -293,7 +294,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
             animControllerRef.current?.setCursorTarget(cursorTarget);
                 lastCursorMove = performance.now();
           }
-        } catch { /* ignore errors during polling */ }
+        } catch (err) { console.error('[CursorPoll]', err); }
       };
       cursorPollId = setInterval(poll, 50); // 20Hz polling
     } else {
