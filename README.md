@@ -253,7 +253,7 @@ This project is licensed under the [GNU Affero General Public License v3.0](LICE
 
 You're free to use, modify, and self-host. If you deploy a modified version as a network service, you must make your source code available under the same license.
 
-The OpenClaw plugin (`@projectavatar/openclaw-avatar`) is licensed under MIT for easy integration.
+
 
 ---
 
