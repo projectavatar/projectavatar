@@ -184,7 +184,22 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     void initModel();
     avatarScene.start();
 
+    // ── Cursor → head tracking ────────────────────────────────────────
+    const cursorTarget = new THREE.Vector3();
+    const onMouseMove = (e: MouseEvent) => {
+      const ctrl = animControllerRef.current;
+      if (!ctrl) return;
+      const rect = canvas.getBoundingClientRect();
+      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      cursorTarget.set(ndcX * 3, ndcY * 2, 2);
+      cursorTarget.unproject(avatarScene.camera);
+      ctrl.setCursorTarget(cursorTarget);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+
     return () => {
+      window.removeEventListener('mousemove', onMouseMove);
       cancelled = true;
       onStateMachine?.(null);
       onEffectsManager?.(null);
@@ -261,36 +276,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       resetConnectionState();
     };
   }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
-  // ── Cursor → head tracking ──────────────────────────────────────────
-  // Convert screen cursor to 3D world point for avatar head tracking.
-  // After 5s idle, head smoothly returns to looking at camera.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const scene = sceneRef.current;
-    if (!canvas || !scene) return;
-
-    const targetPoint = new THREE.Vector3();
-
-    const onMouseMove = (e: MouseEvent) => {
-      const ctrl = animControllerRef.current;
-      if (!ctrl) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      // Project into world space at a plane in front of the model
-      targetPoint.set(ndcX * 3, ndcY * 2, 2);
-      targetPoint.unproject(scene.camera);
-
-      ctrl.setCursorTarget(targetPoint);
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    return () => window.removeEventListener('mousemove', onMouseMove);
-  });
-
-
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas ref={canvasRef} style={{
