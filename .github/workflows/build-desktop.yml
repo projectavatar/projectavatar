@@ -62,6 +62,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Extract release notes
+        id: changelog
+        run: |
+          # Extract the latest version block from desktop/CHANGELOG.md
+          notes=$(awk '/^## \[/{if(found) exit; found=1; next} found' desktop/CHANGELOG.md)
+          # Set as multiline output
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$notes" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,7 +81,7 @@ jobs:
           projectPath: desktop
           tagName: desktop-v__VERSION__
           releaseName: 'Desktop v__VERSION__'
-          releaseBody: 'Project Avatar desktop app. Download the installer for your platform.'
+          releaseBody: ${{ steps.changelog.outputs.body }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

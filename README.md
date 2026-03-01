@@ -226,7 +226,7 @@ project-avatar/
 
 The engine package contains all rendering and animation logic shared between the web app and clip manager:
 
-- **AvatarScene** — Three.js scene with camera, lighting, render loop. Dynamic framing system: orbit target smoothly shifts from body center (zoomed out) to face (zoomed in). Vertical orbit locked in production (±22°). Optional grid floor for preview tools.
+- **AvatarScene** — Three.js scene with camera, lighting, render loop. Dynamic framing system: orbit target smoothly shifts from body center (zoomed out) to face (zoomed in). Vertical orbit locked in production (±22°). Camera state (zoom + angle) persisted to localStorage via spherical coordinates. Optional grid floor for preview tools.
 - **VrmManager** — VRM model loading with VRM 0.x/1.0 normalization. Normalizes all models to 1.6m height, centers hips at world origin (0,0,0). Exposes body/face framing points for dynamic camera targeting.
 - **AnimationController** — Hybrid FBX playback (via `THREE.AnimationMixer`) + procedural idle layer. Accepts a `ClipRegistry` for data-driven clip resolution.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.

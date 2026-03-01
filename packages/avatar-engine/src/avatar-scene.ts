@@ -47,7 +47,12 @@ const CAMERA_STORAGE_KEY = 'project-avatar-camera';
 const CAMERA_SAVE_DEBOUNCE = 500; // ms
 
 interface CameraState {
-  position: [number, number, number];
+  /** Spherical distance from orbit target (zoom level). */
+  distance: number;
+  /** Azimuthal angle in radians (horizontal orbit). */
+  azimuthal: number;
+  /** Polar angle in radians (vertical orbit). */
+  polar: number;
 }
 
 function loadCameraState(): CameraState | null {
@@ -55,7 +60,14 @@ function loadCameraState(): CameraState | null {
     const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.position)) return parsed;
+    const { distance, azimuthal, polar } = parsed;
+    if (
+      typeof distance === 'number' && distance > 0 && Number.isFinite(distance) &&
+      typeof azimuthal === 'number' && Number.isFinite(azimuthal) &&
+      typeof polar === 'number' && Number.isFinite(polar)
+    ) {
+      return { distance, azimuthal, polar };
+    }
     return null;
   } catch { return null; }
 }
@@ -78,7 +90,8 @@ export class AvatarScene {
   private updateCallbacks: Array<(delta: number) => void> = [];
   private onResizeCallback: ((width: number, height: number) => void) | null = null;
   private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  private cameraRestored = false;
+  /** Deferred spherical coords — applied once framing points are set. */
+  private savedSpherical: CameraState | null = null;
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -167,27 +180,30 @@ export class AvatarScene {
 
       this.controls.update();
 
-      // Restore saved camera position/zoom
+      // Restore saved camera angle/zoom (spherical coordinates).
+      // The orbit target is set by dynamic framing after model load —
+      // we only persist the viewer's angle and distance, not position.
       const saved = loadCameraState();
       if (saved) {
-        this.camera.position.set(...saved.position);
-        this.controls.update();
-        this.framingEnabled = false;
-        this.cameraRestored = true;
+        this.savedSpherical = saved;
       }
 
       // Persist camera on change (debounced)
       this.controls.addEventListener('change', () => {
         if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
         this.cameraSaveTimer = setTimeout(() => {
-          const pos = this.camera.position;
           saveCameraState({
-            position: [pos.x, pos.y, pos.z],
+            distance: this.controls!.getDistance(),
+            azimuthal: this.controls!.getAzimuthalAngle(),
+            polar: this.controls!.getPolarAngle(),
           });
-          // Once the user manually moves the camera, stop auto-framing
-          this.framingEnabled = false;
+          this.cameraSaveTimer = null;
         }, CAMERA_SAVE_DEBOUNCE);
       });
+
+      // Flush pending camera save on tab close / navigation
+      this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
     }
 
     this.clock = new THREE.Clock();
@@ -209,10 +225,21 @@ export class AvatarScene {
   setFramingPoints(body: THREE.Vector3, face: THREE.Vector3): void {
     this.bodyCenter.copy(body);
     this.faceCenter.copy(face);
-    // Don't override user's saved camera position with auto-framing
-    if (!this.cameraRestored) {
-      this.framingEnabled = true;
-      this._updateFramingTarget();
+    this.framingEnabled = true;
+    this._updateFramingTarget();
+
+    // Apply deferred spherical coords now that the orbit target is valid.
+    // We position the camera relative to the freshly-computed target.
+    if (this.savedSpherical && this.controls) {
+      const { distance, azimuthal, polar } = this.savedSpherical;
+      const target = this.controls.target;
+      const offset = new THREE.Vector3();
+      // Three.js setFromSphericalCoords(radius, phi, theta) —
+      // phi = polar angle from Y+, theta = azimuthal angle from Z+ in XZ plane
+      offset.setFromSphericalCoords(distance, polar, azimuthal);
+      this.camera.position.copy(target).add(offset);
+      this.controls.update();
+      this.savedSpherical = null;
     }
   }
 
@@ -256,6 +283,7 @@ export class AvatarScene {
     this.stop();
     if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
     this.controls?.dispose();
+    window.removeEventListener('beforeunload', this.handleBeforeUnload);
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.renderer.dispose();
@@ -310,6 +338,18 @@ export class AvatarScene {
   /** Set a resize callback for external compositors. */
   onResize(fn: ((width: number, height: number) => void) | null): void {
     this.onResizeCallback = fn;
+  }
+
+  private handleBeforeUnload(): void {
+    if (this.controls && this.cameraSaveTimer) {
+      clearTimeout(this.cameraSaveTimer);
+      this.cameraSaveTimer = null;
+      saveCameraState({
+        distance: this.controls.getDistance(),
+        azimuthal: this.controls.getAzimuthalAngle(),
+        polar: this.controls.getPolarAngle(),
+      });
+    }
   }
 
   private handleResize(): void {
