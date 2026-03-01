@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../state/store.ts';
+
 import { useWsClient } from '../avatar/avatar-canvas.tsx';
 import { isValidToken } from '@project-avatar/shared';
 import { EFFECT_LABELS, EFFECT_DESCRIPTIONS } from '@project-avatar/avatar-engine';
@@ -181,6 +182,30 @@ export function SettingsDrawer() {
 
   const [activeTab, setActiveTab] = useState<'general' | 'effects'>('general');
 
+  // ── Autostart (desktop only) ──────────────────────────────────────
+  const [autostart, setAutostart] = useState<boolean | null>(null);
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+
+  useEffect(() => {
+    if (!isTauri) return;
+    import('@tauri-apps/plugin-autostart').then(({ isEnabled }) => {
+      isEnabled().then(setAutostart).catch(() => {});
+    });
+  }, [isTauri]);
+
+  const handleToggleAutostart = async () => {
+    if (!isTauri) return;
+    const mod = await import('@tauri-apps/plugin-autostart');
+    const next = !autostart;
+    try {
+      if (next) await mod.enable();
+      else await mod.disable();
+      setAutostart(next);
+    } catch (err) {
+      console.warn('[Settings] Autostart toggle failed:', err);
+    }
+  };
+
   const { sendSetModel } = useWsClient();
 
   const [tokenInput, setTokenInput] = useState(token ?? '');
@@ -331,6 +356,21 @@ export function SettingsDrawer() {
             </div>
           )}
         </div>
+
+        {/* Autostart — desktop only */}
+        {isTauri && autostart !== null && (
+          <div style={sectionStyle}>
+            <div style={effectToggleStyle}>
+              <span>Start with OS</span>
+              <div
+                style={effectToggleSwitchStyle(autostart)}
+                onClick={handleToggleAutostart}
+              >
+                <div style={effectToggleKnobStyle(autostart)} />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
