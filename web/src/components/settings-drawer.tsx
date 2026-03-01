@@ -284,7 +284,7 @@ export function SettingsDrawer() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '4px' }}>
-                {[1, 2, 3].map((s) => (
+                {[1, 2, 3, 4].map((s) => (
                   <button
                     key={s}
                     onClick={() => setRenderScale(s)}
