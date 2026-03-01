@@ -1,40 +1,22 @@
 /**
- * Holographic — scrolling scan lines + subtle tint on the VRM model.
+ * Holographic — scrolling scan lines + fresnel edge glow overlay.
  *
- * Instead of injecting into material shaders (fragile with MToon/custom materials),
- * this uses a screen-space fullscreen pass rendered on top of the model.
- *
- * Actually, the simplest robust approach: overlay a second copy of the mesh
- * with a custom ShaderMaterial that reads world position for scan lines
- * and view direction for fresnel. But that's expensive.
- *
- * Simplest robust approach: modify material color/emissive each frame
- * to simulate scan lines by cycling which "bands" of the model are
- * slightly darker. This doesn't require shader injection at all.
- *
- * ACTUALLY simplest: use onBeforeRender on each mesh to set a uniform,
- * and patch materials with a safe injection strategy that works for both
- * MeshStandardMaterial AND MToonMaterial.
- *
- * Final approach: custom overlay mesh with ShaderMaterial that reads
- * depth and renders scan lines as a post-effect on the model only.
- *
- * ──────────────────────────────────────────────────────────────────
- * REVISED APPROACH: Clone meshes with a custom holographic ShaderMaterial.
- * The clone sits on top of the original and renders additive scan lines +
- * fresnel glow. Zero modification to original materials.
+ * Creates overlay SkinnedMesh clones as siblings of the original VRM meshes
+ * in the same scene graph. They share geometry and skeleton references, so
+ * bone transforms drive them identically. Uses a custom ShaderMaterial with
+ * additive blending — zero modification to original materials.
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const SCAN_LINE_DENSITY  = 120;   // lines per world unit
-const SCAN_LINE_SPEED    = 0.25;  // world units/sec scroll speed
-const SCAN_LINE_ALPHA    = 0.06;  // scan line max opacity
-const SCAN_LINE_WIDTH    = 0.45;  // duty cycle
+const SCAN_LINE_DENSITY  = 120;
+const SCAN_LINE_SPEED    = 0.25;
+const SCAN_LINE_ALPHA    = 0.06;
+const SCAN_LINE_WIDTH    = 0.45;
 const FRESNEL_POWER      = 3.0;
-const FRESNEL_ALPHA      = 0.12;  // edge glow max opacity
+const FRESNEL_ALPHA      = 0.12;
 const FADE_SPEED         = 2.0;
 
 const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
@@ -42,15 +24,34 @@ const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
 // ─── Shaders ──────────────────────────────────────────────────────────────────
 
 const vertexShader = /* glsl */ `
+  #include <skinning_pars_vertex>
+
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
   varying vec3 vViewDir;
 
   void main() {
-    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    #include <skinbase_vertex>
+    #include <begin_vertex>
+    #include <skinning_vertex>
+
+    vec4 worldPos = modelMatrix * vec4(transformed, 1.0);
     vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+
+    vec3 objectNormal = normal;
+    #ifdef USE_SKINNING
+      mat4 skinMatrix = bindMatrix * (
+        skinWeight.x * boneMatrices[int(skinIndex.x)] +
+        skinWeight.y * boneMatrices[int(skinIndex.y)] +
+        skinWeight.z * boneMatrices[int(skinIndex.z)] +
+        skinWeight.w * boneMatrices[int(skinIndex.w)]
+      ) * bindMatrixInverse;
+      objectNormal = (skinMatrix * vec4(objectNormal, 0.0)).xyz;
+    #endif
+
+    vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
     vViewDir = normalize(cameraPosition - worldPos.xyz);
+
     gl_Position = projectionMatrix * viewMatrix * worldPos;
   }
 `;
@@ -71,17 +72,14 @@ const fragmentShader = /* glsl */ `
   varying vec3 vViewDir;
 
   void main() {
-    // Scan lines based on world Y position
     float scanY = vWorldPosition.y * uLineDensity + uTime * uLineSpeed * uLineDensity;
     float scanLine = smoothstep(uLineWidth - 0.1, uLineWidth, fract(scanY));
     float scanAlpha = scanLine * uLineAlpha * uStrength;
 
-    // Fresnel edge glow
     float fresnel = 1.0 - abs(dot(normalize(vViewDir), normalize(vWorldNormal)));
     fresnel = pow(fresnel, uFresnelPower);
     float fresnelAlpha = fresnel * uFresnelAlpha * uStrength;
 
-    // Combine: scan line darkening + edge glow
     float totalAlpha = max(scanAlpha, fresnelAlpha);
     vec3 color = mix(vec3(0.0), uTint, fresnel);
 
@@ -97,15 +95,12 @@ export class Holographic {
   private targetStrength = 0;
   private currentStrength = 0;
   private elapsed = 0;
-  private overlayGroup: THREE.Group;
   private material: THREE.ShaderMaterial;
   private overlayMeshes: THREE.Mesh[] = [];
   private built = false;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
-    this.overlayGroup = new THREE.Group();
-    this.overlayGroup.visible = false;
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
@@ -129,9 +124,6 @@ export class Holographic {
     });
   }
 
-  /** Add this to the scene. */
-  get object3D(): THREE.Object3D { return this.overlayGroup; }
-
   setTint(color: THREE.Color): void {
     (this.material.uniforms['uTint'] as { value: THREE.Color }).value.copy(color);
   }
@@ -141,14 +133,15 @@ export class Holographic {
     this.targetStrength = value ? 1 : 0;
     if (value) {
       if (!this.built) this._buildOverlay();
-      this.overlayGroup.visible = true;
+      for (const m of this.overlayMeshes) m.visible = true;
     }
   }
 
   get enabled(): boolean { return this._enabled; }
 
   update(delta: number): void {
-    if (!this.overlayGroup.visible) return;
+    if (this.overlayMeshes.length === 0) return;
+    if (!this.overlayMeshes[0]!.visible && this.targetStrength === 0) return;
 
     this.elapsed += delta;
     this.material.uniforms['uTime']!.value = this.elapsed;
@@ -159,71 +152,64 @@ export class Holographic {
     );
     this.material.uniforms['uStrength']!.value = this.currentStrength;
 
-    // Sync overlay transforms with VRM skeleton
-    this._syncTransforms();
-
     if (this.currentStrength < 0.001 && this.targetStrength === 0) {
-      this.overlayGroup.visible = false;
+      for (const m of this.overlayMeshes) m.visible = false;
     }
   }
 
   dispose(): void {
-    // Don't dispose geometry — it's shared with the original mesh
+    for (const mesh of this.overlayMeshes) {
+      mesh.parent?.remove(mesh);
+    }
     this.material.dispose();
     this.overlayMeshes = [];
-    if (this.overlayGroup.parent) {
-      this.overlayGroup.parent.remove(this.overlayGroup);
-    }
   }
 
   // ─── Private ──────────────────────────────────────────────────────────
 
   /**
-   * Build overlay meshes that share geometry with the VRM's meshes
-   * but use our holographic ShaderMaterial.
+   * Build overlay meshes as siblings of original VRM meshes.
+   * Shares geometry + skeleton so bone transforms drive them identically.
    */
   private _buildOverlay(): void {
+    const meshesToClone: { source: THREE.Mesh; parent: THREE.Object3D }[] = [];
+
     this.vrm.scene.traverse((child) => {
-      if (!(child instanceof THREE.SkinnedMesh) && !(child instanceof THREE.Mesh)) return;
-
-      let overlay: THREE.Mesh;
-
-      if (child instanceof THREE.SkinnedMesh) {
-        const skinned = new THREE.SkinnedMesh(child.geometry, this.material);
-        skinned.skeleton = child.skeleton;
-        skinned.bindMatrix.copy(child.bindMatrix);
-        skinned.bindMatrixInverse.copy(child.bindMatrixInverse);
-        overlay = skinned;
-      } else {
-        overlay = new THREE.Mesh(child.geometry, this.material);
+      if (child instanceof THREE.SkinnedMesh || child instanceof THREE.Mesh) {
+        if (child.parent) {
+          meshesToClone.push({ source: child, parent: child.parent });
+        }
       }
-
-      // Copy transform — for SkinnedMesh the skeleton binding handles it,
-      // but we still need parent-relative transform
-      overlay.matrixAutoUpdate = false;
-      overlay.frustumCulled = false;
-
-      // Store reference to source for transform sync
-      overlay.userData._holoSource = child;
-
-      this.overlayGroup.add(overlay);
-      this.overlayMeshes.push(overlay);
     });
 
-    this.built = true;
-  }
+    for (const { source, parent } of meshesToClone) {
+      let overlay: THREE.Mesh;
 
-  /**
-   * Sync overlay mesh world matrices with their source meshes.
-   * For SkinnedMeshes, the skeleton handles bone transforms automatically
-   * since we share the same skeleton reference.
-   */
-  private _syncTransforms(): void {
-    for (const overlay of this.overlayMeshes) {
-      const source = overlay.userData._holoSource as THREE.Object3D | undefined;
-      if (source) {
-        overlay.matrixWorld.copy(source.matrixWorld);
+      if (source instanceof THREE.SkinnedMesh) {
+        const skinned = new THREE.SkinnedMesh(source.geometry, this.material);
+        skinned.skeleton = source.skeleton;
+        skinned.bindMatrix.copy(source.bindMatrix);
+        skinned.bindMatrixInverse.copy(source.bindMatrixInverse);
+        // Bind must be called to set up the uniform properly
+        skinned.bind(source.skeleton, source.bindMatrix);
+        overlay = skinned;
+      } else {
+        overlay = new THREE.Mesh(source.geometry, this.material);
       }
+
+      overlay.name = source.name + '_holo';
+      overlay.frustumCulled = false;
+      overlay.renderOrder = source.renderOrder + 1;
+      // Copy local transform so overlay sits exactly on top
+      overlay.position.copy(source.position);
+      overlay.rotation.copy(source.rotation);
+      overlay.scale.copy(source.scale);
+      overlay.visible = true;
+
+      parent.add(overlay);
+      this.overlayMeshes.push(overlay);
     }
+
+    this.built = true;
   }
 }
