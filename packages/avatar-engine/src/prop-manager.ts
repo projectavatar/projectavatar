@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { ClipPropBinding } from './clip-registry.ts';
 import { HOLO_CONFIG } from './effects/holographic.ts';
+import { holoVertexStatic, holoFragment } from './effects/holo-shaders.ts';
 
 /**
  * PropManager — world-space prop spawning with fade and material styles.
@@ -21,55 +22,8 @@ import { HOLO_CONFIG } from './effects/holographic.ts';
 const FADE_DURATION = 0.35; // seconds
 const PROP_BASE_PATH = '/props/';
 
-// ─── Holographic shader (simplified from effects/holographic.ts) ──────────────
 
-const holoVertexShader = /* glsl */ `
-  uniform float uNormalOffset;
 
-  varying vec3 vWorldPosition;
-  varying vec3 vWorldNormal;
-  varying vec3 vViewDir;
-
-  void main() {
-    vec3 pos = position + normal * uNormalOffset;
-    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
-    vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * normal);
-    vViewDir = normalize(cameraPosition - worldPos.xyz);
-    gl_Position = projectionMatrix * viewMatrix * worldPos;
-  }
-`;
-
-const holoFragmentShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uOpacity;
-  uniform vec3  uTint;
-  uniform float uDensity;
-  uniform float uSpeed;
-  uniform float uLineAlpha;
-  uniform float uLineWidth;
-  uniform float uFresnelPower;
-  uniform float uFresnelAlpha;
-
-  varying vec3 vWorldPosition;
-  varying vec3 vWorldNormal;
-  varying vec3 vViewDir;
-
-  void main() {
-    float scanY = vWorldPosition.y * uDensity + uTime * uSpeed * uDensity;
-    float scanLine = smoothstep(uLineWidth - 0.1, uLineWidth, fract(scanY));
-    float scanAlpha = scanLine * uLineAlpha;
-
-    float fresnel = 1.0 - abs(dot(normalize(vViewDir), normalize(vWorldNormal)));
-    fresnel = pow(fresnel, uFresnelPower);
-    float fresnelAlpha = fresnel * uFresnelAlpha;
-
-    float totalAlpha = max(scanAlpha, fresnelAlpha) * uOpacity;
-    vec3 color = mix(uTint * 0.3, uTint, fresnel);
-
-    gl_FragColor = vec4(color, totalAlpha);
-  }
-`;
 
 // ─── Ghostly shader ───────────────────────────────────────────────────────────
 
@@ -290,8 +244,8 @@ export class PropManager {
               uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
               uNormalOffset: { value: HOLO_CONFIG.normalOffset },
             },
-            vertexShader: holoVertexShader,
-            fragmentShader: holoFragmentShader,
+            vertexShader: holoVertexStatic,
+            fragmentShader: holoFragment,
             transparent: true,
             depthWrite: false,
             depthTest: true,
