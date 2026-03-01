@@ -94,6 +94,10 @@ export class EffectsManager {
   /** Signal that the model is visible and effects can render. */
   setModelReady(ready: boolean): void {
     this.modelReady = ready;
+    if (ready) {
+      // Reset trails to current hand positions — clears stale history from load
+      this.energyTrails.reset();
+    }
   }
 
   /** Set the body center for particle orbit. */
