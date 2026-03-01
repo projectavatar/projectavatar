@@ -6,7 +6,7 @@
  * The trail width and opacity decay over the trail length.
  */
 import * as THREE from 'three';
-import type { VRM } from '@pixiv/three-vrm';
+import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -50,6 +50,8 @@ class Trail {
   private alphas: Float32Array;
   private history: THREE.Vector3[] = [];
   private camera: THREE.Camera | null = null;
+  private _tmpUp = new THREE.Vector3();
+  private _tmpTangent = new THREE.Vector3();
 
   constructor(color: THREE.Color) {
     // 2 vertices per segment (left/right of ribbon)
@@ -124,8 +126,8 @@ class Trail {
     if (!this.camera) return;
 
     const cameraPos = this.camera.position;
-    const up = new THREE.Vector3();
-    const tangent = new THREE.Vector3();
+    const up = this._tmpUp;
+    const tangent = this._tmpTangent;
 
     for (let i = 0; i < TRAIL_LENGTH; i++) {
       const point = this.history[i]!;
@@ -172,7 +174,6 @@ class Trail {
 // ─── EnergyTrails ─────────────────────────────────────────────────────────────
 
 export class EnergyTrails {
-  private _vrm: VRM;
   private leftTrail: Trail;
   private rightTrail: Trail;
   private leftHand: THREE.Object3D | null = null;
@@ -182,20 +183,19 @@ export class EnergyTrails {
   private currentOpacity = 0;
   private sampleAccum = 0;
   private initialized = false;
-  private _worldPos = new THREE.Vector3();
+  private _leftWorldPos = new THREE.Vector3();
+  private _rightWorldPos = new THREE.Vector3();
 
   constructor(vrm: VRM) {
-    this._vrm = vrm; void this._vrm;
-
     this.leftTrail  = new Trail(DEFAULT_COLOR);
     this.rightTrail = new Trail(DEFAULT_COLOR);
 
     const h = vrm.humanoid;
     if (h) {
       // Attach to index fingertips — fall back to hand if finger bones missing
-      this.leftHand  = h.getNormalizedBoneNode('leftMiddleDistal' as any)
+      this.leftHand  = h.getNormalizedBoneNode('leftMiddleDistal' as VRMHumanBoneName)
                     ?? h.getNormalizedBoneNode('leftHand');
-      this.rightHand = h.getNormalizedBoneNode('rightMiddleDistal' as any)
+      this.rightHand = h.getNormalizedBoneNode('rightMiddleDistal' as VRMHumanBoneName)
                     ?? h.getNormalizedBoneNode('rightHand');
       this.initialized = !!(this.leftHand || this.rightHand);
     }
@@ -242,12 +242,12 @@ export class EnergyTrails {
       this.sampleAccum = 0;
 
       if (this.leftHand) {
-        this.leftHand.getWorldPosition(this._worldPos);
-        this.leftTrail.addSample(this._worldPos);
+        this.leftHand.getWorldPosition(this._leftWorldPos);
+        this.leftTrail.addSample(this._leftWorldPos);
       }
       if (this.rightHand) {
-        this.rightHand.getWorldPosition(this._worldPos);
-        this.rightTrail.addSample(this._worldPos);
+        this.rightHand.getWorldPosition(this._rightWorldPos);
+        this.rightTrail.addSample(this._rightWorldPos);
       }
     }
 
@@ -258,12 +258,12 @@ export class EnergyTrails {
   /** Reset trails to current hand positions. */
   reset(): void {
     if (this.leftHand) {
-      this.leftHand.getWorldPosition(this._worldPos);
-      this.leftTrail.reset(this._worldPos);
+      this.leftHand.getWorldPosition(this._leftWorldPos);
+      this.leftTrail.reset(this._leftWorldPos);
     }
     if (this.rightHand) {
-      this.rightHand.getWorldPosition(this._worldPos);
-      this.rightTrail.reset(this._worldPos);
+      this.rightHand.getWorldPosition(this._rightWorldPos);
+      this.rightTrail.reset(this._rightWorldPos);
     }
   }
 

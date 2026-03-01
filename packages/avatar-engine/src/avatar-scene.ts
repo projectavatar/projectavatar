@@ -45,6 +45,7 @@ export class AvatarScene {
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
+  private onResizeCallback: ((width: number, height: number) => void) | null = null;
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -243,9 +244,6 @@ export class AvatarScene {
       this.renderer.render(this.scene, this.camera);
     }
   }
-
-  /** Optional resize callback — notifies external systems (e.g. bloom). */
-  private onResizeCallback: ((width: number, height: number) => void) | null = null;
 
   /** Set a resize callback for external compositors. */
   onResize(fn: ((width: number, height: number) => void) | null): void {

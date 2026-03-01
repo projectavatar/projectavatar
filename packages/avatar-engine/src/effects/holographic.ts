@@ -153,10 +153,10 @@ export class Holographic {
 
   /**
    * Create a ShaderMaterial for the holographic overlay.
-   * Each mesh needs its own material instance because skinning flag
-   * differs between SkinnedMesh and regular Mesh.
+   * Skinning is handled by the #include <skinning_pars_vertex> chunks
+   * in the vertex shader — no `skinning` flag needed (removed in r155+).
    */
-  private _createMaterial(isSkinned: boolean): THREE.ShaderMaterial {
+  private _createMaterial(): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
       uniforms: { ...this.uniforms },
       vertexShader,
@@ -166,8 +166,7 @@ export class Holographic {
       depthTest: true,
       side: THREE.FrontSide,
       blending: THREE.AdditiveBlending,
-      skinning: isSkinned,
-    } as THREE.ShaderMaterialParameters & { skinning?: boolean });
+    });
   }
 
   /**
@@ -175,28 +174,20 @@ export class Holographic {
    * Shares geometry + skeleton so bone transforms drive them identically.
    */
   private _buildOverlay(): void {
-    const meshesToClone: { source: THREE.Mesh; parent: THREE.Object3D }[] = [];
+    const meshesToClone: { source: THREE.SkinnedMesh; parent: THREE.Object3D }[] = [];
 
     this.vrm.scene.traverse((child) => {
-      if (child instanceof THREE.SkinnedMesh || child instanceof THREE.Mesh) {
-        if (child.parent) {
-          meshesToClone.push({ source: child, parent: child.parent });
-        }
+      // Only clone SkinnedMeshes — regular meshes (eye highlights, hair planes,
+      // accessories) don't follow bone transforms and would drift from the model.
+      if (child instanceof THREE.SkinnedMesh && child.parent) {
+        meshesToClone.push({ source: child, parent: child.parent });
       }
     });
 
     for (const { source, parent } of meshesToClone) {
-      const isSkinned = source instanceof THREE.SkinnedMesh;
-      const material = this._createMaterial(isSkinned);
-      let overlay: THREE.Mesh;
-
-      if (source instanceof THREE.SkinnedMesh) {
-        const skinned = new THREE.SkinnedMesh(source.geometry, material);
-        skinned.bind(source.skeleton, source.bindMatrix);
-        overlay = skinned;
-      } else {
-        overlay = new THREE.Mesh(source.geometry, material);
-      }
+      const material = this._createMaterial();
+      const overlay = new THREE.SkinnedMesh(source.geometry, material);
+      overlay.bind(source.skeleton, source.bindMatrix);
 
       overlay.name = source.name + '_holo';
       overlay.frustumCulled = false;

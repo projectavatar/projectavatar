@@ -86,11 +86,6 @@ export class EffectsManager {
     return this.state;
   }
 
-  /** Access the bloom EffectComposer for render integration. */
-  get bloomComposer() {
-    return this.bloomEffect.effectComposer;
-  }
-
   /** Whether bloom is active (needs composer.render instead of renderer.render). */
   get isBloomActive(): boolean {
     return this.bloomEffect.isActive;

@@ -85,14 +85,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
-          // Wait 1s after load for first animation frame to settle, then reveal
-          setTimeout(() => {
+          // Reveal after the first mixer tick applies the initial pose (no T-pose flash)
+          animationController.onFirstFrame(() => {
             vrmManager.show();
-            // Signal effects can start (trails were visible before model)
             if (effectsManagerRef.current) {
               effectsManagerRef.current.setModelReady(true);
             }
-          }, 1000);
+          });
         })
         .catch((err) => {
           console.warn('[AvatarCanvas] Animation load failed:', err);
@@ -184,8 +183,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
-    const ratio = Math.min(renderScale, window.devicePixelRatio * renderScale);
-    scene.renderer.setPixelRatio(ratio);
+    scene.renderer.setPixelRatio(renderScale);
     // Force resize to apply
     const canvas = scene.renderer.domElement;
     scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);

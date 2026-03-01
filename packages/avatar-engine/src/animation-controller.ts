@@ -113,6 +113,8 @@ export class AnimationController {
 
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
+  private _firstFrameFired = false;
+  private _firstFrameCallback: (() => void) | null = null;
 
   /** Whether all animations have been preloaded. */
   get loaded(): boolean { return this._loaded; }
@@ -260,6 +262,11 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
+      if (!this._firstFrameFired) {
+        this._firstFrameFired = true;
+        this._firstFrameCallback?.();
+        this._firstFrameCallback = null;
+      }
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
         this.loopCycleElapsed += dt;
@@ -333,6 +340,15 @@ export class AnimationController {
     return clip.tracks.some((track) =>
       FINGER_BONE_NAMES.some((name) => track.name.includes(name)),
     );
+  }
+
+  /** Register a callback to fire after the first mixer update post-load. */
+  onFirstFrame(callback: () => void): void {
+    if (this._firstFrameFired) {
+      callback(); // already happened
+    } else {
+      this._firstFrameCallback = callback;
+    }
   }
 
   dispose(): void {
