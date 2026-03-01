@@ -275,9 +275,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           const w = size.width / scale;
           const h = size.height / scale;
 
-          // NDC
-          const ndcX = (relX / w) * 2 - 1;
-          const ndcY = -(relY / h) * 2 + 1;
+          // NDC — clamp to [-2, 2] so cursor outside window still
+          // gives reasonable head angles without extreme positions
+          const ndcX = Math.max(-2, Math.min(2, (relX / w) * 2 - 1));
+          const ndcY = Math.max(-2, Math.min(2, -(relY / h) * 2 + 1));
 
           const cam = avatarScene.camera;
           const camDir = new THREE.Vector3();
