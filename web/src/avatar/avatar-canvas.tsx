@@ -221,17 +221,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // facing the camera. Scales with zoom level.
     const targetPlane = new THREE.Plane();
 
-    // DEBUG: visible target point + projection plane
-    const debugSphere = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xff0000 }),
-    );
-    const debugPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(8, 6),
-      new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.15 }),
-    );
-    avatarScene.scene.add(debugSphere);
-    avatarScene.scene.add(debugPlane);
 
     const onMouseMove = (e: MouseEvent) => {
       const ctrl = animControllerRef.current;
@@ -251,14 +240,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.5);
       targetPlane.setFromNormalAndCoplanarPoint(camDir, planePos);
 
-      // DEBUG: move plane visual
-      debugPlane.position.copy(planePos);
-      debugPlane.lookAt(planePos.clone().add(camDir));
 
       raycaster.setFromCamera(mouseNDC, cam);
       if (raycaster.ray.intersectPlane(targetPlane, cursorTarget)) {
         ctrl.setCursorTarget(cursorTarget);
-        debugSphere.position.copy(cursorTarget);
         lastCursorMove = performance.now();
       }
     };
@@ -299,8 +284,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam);
           if (raycaster.ray.intersectPlane(plane, cursorTarget)) {
             animControllerRef.current?.setCursorTarget(cursorTarget);
-            debugSphere.position.copy(cursorTarget);
-            lastCursorMove = performance.now();
+                lastCursorMove = performance.now();
           }
         } catch { /* ignore errors during polling */ }
       };
@@ -312,11 +296,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     return () => {
       if (cursorPollId) clearInterval(cursorPollId);
       window.removeEventListener('mousemove', onMouseMove);
-      avatarScene.scene.remove(debugSphere);
-      avatarScene.scene.remove(debugPlane);
       avatarScene.scene.remove(lookAtProxy);
-      debugSphere.geometry.dispose();
-      debugPlane.geometry.dispose();
       cancelled = true;
       onStateMachine?.(null);
       onEffectsManager?.(null);
