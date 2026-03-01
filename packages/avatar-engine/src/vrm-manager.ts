@@ -12,6 +12,9 @@ const TARGET_HEIGHT = 1.6;
  * All loaded VRMs are normalized to TARGET_HEIGHT and repositioned
  * so that the hips bone sits at the world origin (0, 0, 0).
  */
+/** Reduced gravity for spring bones — hair/skirt float gently. VRM default is 1.0. */
+const DEFAULT_SPRING_GRAVITY = 0.3;
+
 export class VrmManager {
   private loader: GLTFLoader;
   private scene: THREE.Scene;
@@ -22,7 +25,8 @@ export class VrmManager {
   private _bodyCenter = new THREE.Vector3(0, 0, 0);
   /** Face center — computed from head bone after load. */
   private _faceCenter = new THREE.Vector3(0, 0.5, 0);
-  private _gravityPower = 0.3;
+  /** Default spring bone gravity — reduced for floaty air-mode feel (VRM default is 1.0). */
+  private _gravityPower = DEFAULT_SPRING_GRAVITY;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -135,11 +139,13 @@ export class VrmManager {
 
   /**
    * Set gravity power for all spring bone joints.
-   * Default Three.js VRM gravity is -1.0 (full Earth gravity).
-   * Lower values (e.g. -0.2) give a floaty zero-G feel.
+   * VRM default is 1.0 (full Earth gravity, direction always downward).
+   * Lower values (e.g. 0.3) give a floaty zero-G feel.
+   * Clamped to [0, 2].
    */
-  setGravityPower(power: number): void {
-    this._gravityPower = power;
+  set gravityPower(power: number) {
+    const clamped = Math.max(0, Math.min(2, Number.isFinite(power) ? power : DEFAULT_SPRING_GRAVITY));
+    this._gravityPower = clamped;
     if (this.currentVrm) {
       this._applyGravity(this.currentVrm);
     }
@@ -151,8 +157,7 @@ export class VrmManager {
     const sbm = vrm.springBoneManager;
     if (!sbm) return;
     for (const joint of sbm.joints) {
-      joint.settings.gravityPower = Math.abs(this._gravityPower);
-      joint.settings.gravityDir.set(0, this._gravityPower < 0 ? -1 : 1, 0);
+      joint.settings.gravityPower = this._gravityPower;
     }
   }
 
