@@ -22,6 +22,7 @@ export class VrmManager {
   private _bodyCenter = new THREE.Vector3(0, 0, 0);
   /** Face center — computed from head bone after load. */
   private _faceCenter = new THREE.Vector3(0, 0.5, 0);
+  private _gravityPower = -0.2;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -92,6 +93,9 @@ export class VrmManager {
     this.scene.add(vrm.scene);
     this.currentVrm = vrm;
 
+    // Apply reduced gravity for floaty spring bones
+    this._applyGravity(vrm);
+
     return vrm;
   }
 
@@ -126,6 +130,29 @@ export class VrmManager {
     } else if (this.placeholder) {
       this.placeholder.rotation.x += delta * 0.5;
       this.placeholder.rotation.y += delta * 0.8;
+    }
+  }
+
+  /**
+   * Set gravity power for all spring bone joints.
+   * Default Three.js VRM gravity is -1.0 (full Earth gravity).
+   * Lower values (e.g. -0.2) give a floaty zero-G feel.
+   */
+  setGravityPower(power: number): void {
+    this._gravityPower = power;
+    if (this.currentVrm) {
+      this._applyGravity(this.currentVrm);
+    }
+  }
+
+  get gravityPower(): number { return this._gravityPower; }
+
+  private _applyGravity(vrm: VRM): void {
+    const sbm = vrm.springBoneManager;
+    if (!sbm) return;
+    for (const joint of sbm.joints) {
+      joint.settings.gravityPower = Math.abs(this._gravityPower);
+      joint.settings.gravityDir.set(0, this._gravityPower < 0 ? -1 : 1, 0);
     }
   }
 
