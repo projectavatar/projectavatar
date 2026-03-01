@@ -204,8 +204,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
 
-      // Compute goal: cursor target (with 2x overshoot) or camera
-      if (cursorActive) {
+      // Compute goal: cursor target or camera
+      // Dead zone: if cursor is too close to proxy, keep looking at camera
+      // (prevents jittery eye snapping when cursor crosses over the model)
+      if (cursorActive && cursorTarget.distanceTo(lookAtProxy.position) > 0.3) {
         eyeGoal.copy(cursorTarget);
       } else {
         eyeGoal.copy(avatarScene.camera.position);
