@@ -15,6 +15,7 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 const PremultiplyAlphaShader = {
   uniforms: {
     tDiffuse: { value: null },
+    alphaThreshold: { value: 0.05 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -25,11 +26,14 @@ const PremultiplyAlphaShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
+    uniform float alphaThreshold;
     varying vec2 vUv;
     void main() {
       vec4 color = texture2D(tDiffuse, vUv);
-      // Premultiply: RGB *= Alpha
-      gl_FragColor = vec4(color.rgb * color.a, color.a);
+      // Discard low-alpha fringe pixels — eliminates AA outline artifacts
+      // on transparent windows regardless of background color.
+      float a = color.a < alphaThreshold ? 0.0 : color.a;
+      gl_FragColor = vec4(color.rgb * a, a);
     }
   `,
 };
