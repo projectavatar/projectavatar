@@ -86,6 +86,9 @@ export class VrmManager {
     this._bodyCenter.set(0, 0, 0); // hips = origin
     this._computeFaceCenter(vrm);
 
+    // Hide model until animations are loaded (prevents T-pose flash)
+    vrm.scene.visible = false;
+
     this.scene.add(vrm.scene);
     this.currentVrm = vrm;
 
@@ -107,6 +110,13 @@ export class VrmManager {
     this.scene.add(this.placeholder);
 
     console.warn('[VrmManager] No VRM model loaded — showing placeholder cube');
+  }
+
+  /** Reveal the model (call after animations are loaded + settled). */
+  show(): void {
+    if (this.currentVrm) {
+      this.currentVrm.scene.visible = true;
+    }
   }
 
   /** Call every frame. Updates VRM spring bones or rotates placeholder. */

@@ -82,10 +82,15 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm, clipRegistry);
       animationController.loadAnimations()
-        .then(() => setAnimationsLoaded(true))
+        .then(() => {
+          setAnimationsLoaded(true);
+          // Wait 1s after load for first animation frame to settle, then reveal
+          setTimeout(() => vrmManager.show(), 1000);
+        })
         .catch((err) => {
           console.warn('[AvatarCanvas] Animation load failed:', err);
           setAnimationsLoaded(true);
+          vrmManager.show(); // show anyway on failure
         });
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
