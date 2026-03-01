@@ -214,7 +214,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       }
 
       // Smooth lerp toward goal — eyes follow at a natural pace
-      const speed = cursorActive ? 1.5 : 1.0;
+      const speed = cursorActive ? 0.8 : 0.6;
       const t = 1 - Math.exp(-speed * dt);
       lookAtProxy.position.lerp(eyeGoal, t);
     });
