@@ -35,6 +35,33 @@ const DEFAULT_GRID_DIVISIONS = 16;
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
+
+// ─── Camera persistence ───────────────────────────────────────────────────────
+
+const CAMERA_STORAGE_KEY = 'project-avatar-camera';
+const CAMERA_SAVE_DEBOUNCE = 500; // ms
+
+interface CameraState {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
+function loadCameraState(): CameraState | null {
+  try {
+    const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.position) && Array.isArray(parsed.target)) return parsed;
+    return null;
+  } catch { return null; }
+}
+
+function saveCameraState(state: CameraState): void {
+  try {
+    localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(state));
+  } catch { /* localStorage unavailable */ }
+}
+
 export class AvatarScene {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -46,6 +73,7 @@ export class AvatarScene {
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
   private onResizeCallback: ((width: number, height: number) => void) | null = null;
+  private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -130,6 +158,31 @@ export class AvatarScene {
       }
 
       this.controls.update();
+
+      // Restore saved camera position/zoom
+      const saved = loadCameraState();
+      if (saved) {
+        this.camera.position.set(...saved.position);
+        this.controls.target.set(...saved.target);
+        this.controls.update();
+        // Disable dynamic framing when user has a saved camera position
+        this.framingEnabled = false;
+      }
+
+      // Persist camera on change (debounced)
+      this.controls.addEventListener('change', () => {
+        if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
+        this.cameraSaveTimer = setTimeout(() => {
+          const pos = this.camera.position;
+          const tgt = this.controls!.target;
+          saveCameraState({
+            position: [pos.x, pos.y, pos.z],
+            target: [tgt.x, tgt.y, tgt.z],
+          });
+          // Once the user manually moves the camera, stop auto-framing
+          this.framingEnabled = false;
+        }, CAMERA_SAVE_DEBOUNCE);
+      });
     }
 
     this.clock = new THREE.Clock();
@@ -193,6 +246,7 @@ export class AvatarScene {
   /** Full cleanup — call when unmounting. */
   dispose(): void {
     this.stop();
+    if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
     this.controls?.dispose();
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
