@@ -28,7 +28,7 @@ const HOVER_FREQUENCY_2 = 0.67;    // Hz — slightly faster, incommensurate
 const TILT_AMPLITUDE    = 0.03;    // radians (~1.7°) — gentle forward/back lean
 const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
 const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
-const BACKWARD_LEAN     = 0.06;    // radians (~3.4°) — static backward lean to balance tucked legs
+const BACKWARD_LEAN     = 0.15;    // radians (~8.6°) — static backward lean to balance tucked legs
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
