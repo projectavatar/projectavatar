@@ -219,7 +219,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const camDir = new THREE.Vector3();
       cam.getWorldDirection(camDir);
       // Plane slightly in front of camera (10% toward origin), facing camera direction
-      const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.1);
+      const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.4);
       targetPlane.setFromNormalAndCoplanarPoint(camDir, planePos);
 
       // DEBUG: move plane visual
