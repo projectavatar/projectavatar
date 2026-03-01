@@ -416,28 +416,44 @@ export class IdleLayer {
    * Slight asymmetry between left/right for natural look.
    */
   private _applyLegDangle(): void {
-    // Left leg: relaxed, mostly straight — the "weight-bearing" leg
+    const b = this.legSwapBlend;
+    const s = this.legBendSign;
+
+    // Lerp between two poses:
+    // b=0: left straight (1.1), right tucked (2.0)
+    // b=1: left tucked (2.0), right straight (1.1)
+
+    // Upper legs
+    const straightUpper = 1.1, tuckedUpper = 2.0;
     if (this.leftUpperLeg) {
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * 1.1 * this.legBendSign;
+      const m = straightUpper + (tuckedUpper - straightUpper) * b;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
-    if (this.leftLowerLeg) {
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * 1.2 * this.legBendSign;
+    if (this.rightUpperLeg) {
+      const m = tuckedUpper + (straightUpper - tuckedUpper) * b;
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
 
-    // Right leg: visibly tucked up — the "casual" leg
-    if (this.rightUpperLeg) {
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * 2.0 * this.legBendSign;
+    // Lower legs
+    const straightLower = 1.2, tuckedLower = 1.5;
+    if (this.leftLowerLeg) {
+      const m = straightLower + (tuckedLower - straightLower) * b;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
     if (this.rightLowerLeg) {
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * 1.5 * this.legBendSign;
+      const m = tuckedLower + (straightLower - tuckedLower) * b;
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
     }
 
-    // Toes droop — more on the tucked leg
+    // Toe droop — more on the tucked leg
+    const straightToe = 1.5, tuckedToe = 2.5;
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * 2.5 * this.legBendSign;
+      const m = straightToe + (tuckedToe - straightToe) * b;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
     }
     if (this.rightFoot) {
-      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * 1.5 * this.legBendSign;
+      const m = tuckedToe + (straightToe - tuckedToe) * b;
+      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
     }
   }
 }
