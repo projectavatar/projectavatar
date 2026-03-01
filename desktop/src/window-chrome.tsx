@@ -14,8 +14,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-const EDGE_SIZE = 6;
-const CORNER_SIZE = 14;
+const EDGE_SIZE = 10;
+const CORNER_SIZE = 20;
 const BORDER_RADIUS = 12;
 const TITLEBAR_HEIGHT = 32;
 
@@ -71,12 +71,15 @@ const btnStyle: React.CSSProperties = {
 export function WindowChrome() {
   // ── Set --titlebar-inset CSS variable ───────────────────────────────
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--titlebar-inset',
-      `${TITLEBAR_HEIGHT}px`,
-    );
+    const root = document.documentElement;
+    root.style.setProperty('--titlebar-inset', `${TITLEBAR_HEIGHT}px`);
+    // Round the window corners and clip content
+    root.style.borderRadius = `${BORDER_RADIUS}px`;
+    root.style.overflow = 'hidden';
     return () => {
-      document.documentElement.style.removeProperty('--titlebar-inset');
+      root.style.removeProperty('--titlebar-inset');
+      root.style.borderRadius = '';
+      root.style.overflow = '';
     };
   }, []);
 
