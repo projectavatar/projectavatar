@@ -182,6 +182,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     };
 
     void initModel();
+
+    const cursorTarget = new THREE.Vector3();
+    let eyeBlend = 0;
+    let lastCursorMove = 0;
+    const EYE_IDLE_TIMEOUT = 5000;
+
     // Blend eye lookAt between camera and cursor
     avatarScene.onUpdate(() => {
       const now = performance.now();
@@ -197,11 +203,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // ── Cursor → head + eye tracking ─────────────────────────────────
     const raycaster = new THREE.Raycaster();
     const mouseNDC = new THREE.Vector2();
-    const cursorTarget = new THREE.Vector3();
-
-    let eyeBlend = 0;
-    let lastCursorMove = 0;
-    const EYE_IDLE_TIMEOUT = 5000;
     // Dynamic plane — always halfway between camera and origin,
     // facing the camera. Scales with zoom level.
     const targetPlane = new THREE.Plane();
