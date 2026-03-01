@@ -117,7 +117,6 @@ export class AvatarScene {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
-      preserveDrawingBuffer: true,
       antialias: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
