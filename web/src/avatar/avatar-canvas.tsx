@@ -259,7 +259,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const onMouseLeave = () => {
       // Cursor left the window — clear target so head/eyes return to camera
-      console.log('[CursorTrack] mouseleave fired');
       lastCursorMove = 0;
       animControllerRef.current?.setCursorTarget(null);
     };
@@ -269,15 +268,23 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     document.addEventListener('mouseleave', onMouseLeave);
 
     // Try to enable Tauri global cursor tracking (replaces mousemove)
-    import('@tauri-apps/api/core').then(({ invoke }) => {
-      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-        console.log('[CursorTrack] Tauri detected — switching to global cursor polling');
-        // Remove web listeners — Tauri handles everything
-        window.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseleave', onMouseLeave);
+    // Test with an actual invoke to confirm we're really in Tauri runtime
+    import('@tauri-apps/api/core').then(async ({ invoke }) => {
+      try {
+        // Probe — if this fails, we're not in a real Tauri context
+        await invoke<[number, number]>('get_cursor_position');
+      } catch {
+        console.log('[CursorTrack] Tauri API available but no runtime — staying on mousemove');
+        return;
+      }
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      console.log('[CursorTrack] Tauri detected — switching to global cursor polling');
+      // Remove web listeners — Tauri handles everything
+      window.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseleave', onMouseLeave);
 
-        const win = getCurrentWindow();
-        const poll = async () => {
+      const win = getCurrentWindow();
+      const poll = async () => {
           try {
             const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
             const pos = await win.outerPosition();
