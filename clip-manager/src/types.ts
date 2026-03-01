@@ -52,6 +52,13 @@ export interface ClipData {
 }
 
 /** A single animation group — one possible animation for an action. */
+export interface VfxBinding {
+  type: string;
+  color?: string;
+  intensity?: number;
+  offsetY?: number;
+}
+
 export interface AnimationGroup {
   /** Relative probability weight (0–1). Normalized at runtime. */
   rarity: number;
@@ -64,12 +71,14 @@ export interface ActionData {
   groups: AnimationGroup[];
   durationOverride: number | null;
   bypassHeadTracking?: boolean;
+  vfx?: VfxBinding[];
 }
 
 export interface EmotionData {
   weightScale: number;
   overrides: Record<string, ClipRef>;
   layers: ClipRef[];
+  vfx?: VfxBinding[];
 }
 
 export interface ClipsJson {

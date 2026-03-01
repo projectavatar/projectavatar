@@ -135,8 +135,6 @@ export class IdleLayer {
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
 
-  /** When true, prop is active — bob offset is exposed for PropManager sync. */
-  private _propActive = false;
   /** Current bob offset in meters (exposed for PropManager to sync prop Y). */
   private _currentBobOffset = 0;
 
@@ -169,8 +167,8 @@ export class IdleLayer {
     return this._currentBobOffset;
   }
 
-  setPropActive(active: boolean): void {
-    this._propActive = active;
+  setPropActive(_active: boolean): void {
+    // Kept for API compatibility — prop sync now uses getBobOffset() directly
   }
 
   /** Enable/disable the idle layer. */

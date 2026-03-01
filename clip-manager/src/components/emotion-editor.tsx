@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import type { ClipsJson, EmotionData } from '../types.ts';
 import type { Action } from '../state.ts';
 import { ACTIONS } from '@project-avatar/shared';
+import { VfxEditor } from './vfx-editor.tsx';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -232,6 +233,12 @@ export function EmotionEditor({ data, selectedEmotion, dispatch }: EmotionEditor
         const layers = [...emotion.layers, { clip: clipIds[0] ?? '', weight: 0.15 }];
         updateEmotion(selectedEmotion, { layers });
       }}>+ Add Layer</button>
+
+      {/* VFX */}
+      <VfxEditor
+        vfx={emotion.vfx ?? []}
+        onChange={(vfx) => updateEmotion(selectedEmotion, { vfx })}
+      />
     </div>
   );
 }

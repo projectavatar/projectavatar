@@ -15,7 +15,8 @@ export type VfxType =
   | 'soft-glow'
   | 'rain'
   | 'embers'
-  | 'confetti';
+  | 'confetti'
+  | 'particle-aura';
 
 export interface VfxBinding {
   type: VfxType;
@@ -81,6 +82,7 @@ export function createVfx(type: VfxType, binding: VfxBinding): VfxInstance {
     case 'rain':            return createRain(binding);
     case 'embers':          return createEmbers(binding);
     case 'confetti':        return createConfetti(binding);
+    case 'particle-aura': return createParticleAuraVfx(binding);
     default:
       console.warn(`[VFX] Unknown type: ${type}`);
       return createSparkles(binding); // fallback
@@ -519,6 +521,98 @@ function createConfetti(binding: VfxBinding): VfxInstance {
         const tumble = 0.5 + 0.5 * Math.sin(time * 6 + phases[i]! * 10);
         const fadeOut = Math.max(1 - (life - 0.6) * 2.5, 0);
         alpha.array[i] = currentOpacity * tumble * fadeOut;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Particle Aura ─────────────────────────────────────────────────────────
+
+function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
+  const count = 80;
+  const color = new THREE.Color(binding.color ?? '#4d99ff');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.4;
+
+  const ORBIT_RADIUS = 0.55;
+  const ORBIT_RADIUS_VAR = 0.3;
+  const ORBIT_SPEED = 0.3;
+  const ORBIT_SPEED_VAR = 0.15;
+  const VERTICAL_RANGE = 0.8;
+  const VERTICAL_BOB = 0.04;
+  const VERTICAL_BOB_FREQ = 0.5;
+  const PULSE_FREQ = 0.8;
+  const PULSE_AMOUNT = 0.3;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  // Per-particle orbital state
+  const orbitR = new Float32Array(count);
+  const orbitSpeed = new Float32Array(count);
+  const orbitPhase = new Float32Array(count);
+  const verticalOffset = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    orbitR[i] = ORBIT_RADIUS + (Math.random() - 0.5) * ORBIT_RADIUS_VAR;
+    orbitSpeed[i] = ORBIT_SPEED + (Math.random() - 0.5) * ORBIT_SPEED_VAR;
+    orbitPhase[i] = Math.random() * Math.PI * 2;
+    verticalOffset[i] = (Math.random() - 0.5) * VERTICAL_RANGE;
+    sizes[i] = (0.06 + Math.random() * 0.04) * intensity;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'particle-aura',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      const pulse = 1.0 + Math.sin(time * PULSE_FREQ * Math.PI * 2) * PULSE_AMOUNT;
+
+      for (let i = 0; i < count; i++) {
+        const angle = time * orbitSpeed[i]! * Math.PI * 2 + orbitPhase[i]!;
+        const r = orbitR[i]!;
+        const bob = Math.sin(time * VERTICAL_BOB_FREQ * Math.PI * 2 + orbitPhase[i]!) * VERTICAL_BOB;
+
+        pos.array[i * 3] = Math.cos(angle) * r;
+        pos.array[i * 3 + 1] = verticalOffset[i]! + bob;
+        pos.array[i * 3 + 2] = Math.sin(angle) * r;
+
+        // Soft pulsing alpha
+        const particlePulse = 0.5 + 0.5 * Math.sin(time * 2 + orbitPhase[i]! * 3);
+        alpha.array[i] = currentOpacity * particlePulse * pulse * 0.7;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;

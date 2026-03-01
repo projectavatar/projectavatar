@@ -672,6 +672,18 @@
           "offsetY": 0.75
         }
       ]
+    },
+    "idle": {
+      "weightScale": 1.0,
+      "overrides": {},
+      "layers": [],
+      "vfx": [
+        {
+          "type": "particle-aura",
+          "color": "#4d99ff",
+          "intensity": 1.0
+        }
+      ]
     }
   }
 }

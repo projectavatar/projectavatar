@@ -132,7 +132,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const effectsManager = new EffectsManager(
         vrm, avatarScene.scene, avatarScene.renderer, avatarScene.camera,
       );
-      effectsManager.setCenter(vrmManager.bodyCenter);
       effectsManagerRef.current = effectsManager;
       onEffectsManager?.(effectsManager);
 
