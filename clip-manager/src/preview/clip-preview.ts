@@ -337,10 +337,9 @@ export class ClipPreview {
     this.vfxManager.loadBindings(emotionVfx, actionVfx);
   }
 
-  /** Set the preview emotion — spawns/despawns VFX. */
-  setPreviewEmotion(emotion: string | null): void {
-    console.log('[ClipPreview] setPreviewEmotion', emotion, '| vfxManager:', !!this.vfxManager);
-    this.vfxManager?.setState(emotion, null);
+  /** Set the preview VFX state — emotion and/or action. */
+  setPreviewVfx(emotion: string | null, action: string | null): void {
+    this.vfxManager?.setState(emotion, action);
   }
 
   async showProp(propId: string, transform: PropTransform): Promise<void> {

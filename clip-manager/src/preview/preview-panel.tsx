@@ -283,16 +283,14 @@ export function PreviewPanel({
     const preview = previewRef.current;
     if (!preview || !clipsData) return;
     preview.initVfx(clipsData as ClipsJsonData);
-    // Re-apply current emotion so updated VFX shows immediately
-    if (previewEmotion) {
-      preview.setPreviewEmotion(previewEmotion);
-    }
-  }, [clipsData, previewEmotion]);
+    // Re-apply current state so updated VFX shows immediately
+    preview.setPreviewVfx(previewEmotion ?? null, previewAction ?? null);
+  }, [clipsData, previewEmotion, previewAction]);
 
-  // VFX emotion preview
+  // VFX preview — emotion or action
   useEffect(() => {
-    previewRef.current?.setPreviewEmotion(previewEmotion ?? null);
-  }, [previewEmotion]);
+    previewRef.current?.setPreviewVfx(previewEmotion ?? null, previewAction ?? null);
+  }, [previewEmotion, previewAction]);
 
   // Play single clip when clipPath changes (Clips tab)
   useEffect(() => {
