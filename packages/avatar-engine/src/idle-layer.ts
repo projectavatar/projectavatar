@@ -119,6 +119,11 @@ export class IdleLayer {
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
 
+  /** Whether head tracking is currently bypassed. */
+  get isHeadTrackingBypassed(): boolean {
+    return this.bypassHeadTracking;
+  }
+
   // Cursor tracking — head follows a target point instead of camera
   private cursorTarget: THREE.Vector3 | null = null;
   private cursorLastMoveTime = 0;

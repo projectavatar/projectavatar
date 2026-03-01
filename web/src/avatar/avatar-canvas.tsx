@@ -196,6 +196,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // Smooth eye tracking — lerp proxy position toward target each frame
     const eyeGoal = new THREE.Vector3();
     avatarScene.onUpdate((dt) => {
+      const ctrl = animControllerRef.current;
+      // Respect bypass flag — some clips disable head/eye tracking
+      if (ctrl?.isHeadTrackingBypassed) {
+        lookAtProxy.position.lerp(avatarScene.camera.position, 1 - Math.exp(-2.0 * dt));
+        return;
+      }
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
 

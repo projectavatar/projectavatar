@@ -336,6 +336,11 @@ export class AnimationController {
     this.idleLayer.setCamera(camera);
   }
 
+  /** Whether head/eye tracking is currently bypassed (e.g. typing animation). */
+  get isHeadTrackingBypassed(): boolean {
+    return this.idleLayer.isHeadTrackingBypassed;
+  }
+
   /** Set cursor world-space position for head tracking. */
   setCursorTarget(worldPos: THREE.Vector3 | null): void {
     this.idleLayer.setCursorTarget(worldPos);
