@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useIdleHide } from './hooks/use-idle-hide.ts';
 import { useStore } from './state/store.ts';
 import { TokenSetup } from './token-setup.tsx';
 import { ModelPickerOverlay } from './model-picker-overlay.tsx';
@@ -81,6 +82,9 @@ export function App() {
   const effects                 = useStore((s) => s.effects);
   const renderScale              = useStore((s) => s.renderScale);
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
+
+  // Auto-hide UI overlays after 5s of mouse inactivity
+  const uiVisible = useIdleHide(5000);
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.
@@ -170,12 +174,23 @@ export function App() {
         )}
 
         {/* StatusBadge always shown — user can see connection state during onboarding */}
-        <StatusBadge />
+        <div style={{
+          opacity: uiVisible ? 1 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: uiVisible ? 'auto' : 'none',
+        }}>
+          <StatusBadge />
+        </div>
 
         {modelId && (
           <>
             <button
-              style={settingsBtnStyle}
+              style={{
+                ...settingsBtnStyle,
+                opacity: uiVisible ? 1 : 0,
+                transition: 'opacity 0.3s ease, border-color 0.15s',
+                pointerEvents: uiVisible ? 'auto' : 'none',
+              }}
               onClick={() => setSettingsOpen(true)}
               title="Settings"
               aria-label="Open settings"
