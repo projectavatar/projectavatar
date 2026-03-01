@@ -214,7 +214,7 @@
     "typing-keyboard": {
       "file": "typing-keyboard.fbx",
       "loop": true,
-      "fadeIn": 0.05,
+      "fadeIn": 0.15,
       "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
