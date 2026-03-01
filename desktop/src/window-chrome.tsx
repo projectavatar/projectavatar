@@ -2,14 +2,11 @@
  * WindowChrome — transparent overlay for borderless window management.
  *
  * Interaction model:
- * - Left-drag anywhere on canvas → move window (via Tauri startDragging)
+ * - Drag the grip handle (top center) → move window
  * - Drag edges/corners → resize window (via Tauri startResizeDragging)
  * - Right-drag on canvas → rotate 3D model (OrbitControls, unaffected)
- * - Hover → dashed border + titlebar with close/pin buttons
+ * - Hover → dashed border + controls (grip, pin, close)
  * - Escape (double-tap) → close window
- *
- * The titlebar and resize edges only appear on hover. When not hovered,
- * the window is fully click-through except for the invisible edge strips.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -54,25 +51,24 @@ function getCursorForDirection(dir: ResizeDir | null): string {
 }
 
 const btnStyle: React.CSSProperties = {
-  width: 24,
-  height: 24,
-  borderRadius: 6,
+  width: 28,
+  height: 28,
+  borderRadius: 8,
   border: 'none',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 12,
+  fontSize: 13,
   cursor: 'pointer',
-  transition: 'background 0.15s',
+  transition: 'background 0.15s, opacity 0.3s ease',
   color: 'rgba(232, 232, 240, 0.8)',
   background: 'rgba(255, 255, 255, 0.08)',
 };
 
 export function WindowChrome() {
-  // ── Set --titlebar-inset CSS variable ───────────────────────────────
+  // ── Round window corners ────────────────────────────────────────────
   useEffect(() => {
     const root = document.documentElement;
-    // Round the window corners and clip content
     root.style.borderRadius = `${BORDER_RADIUS}px`;
     root.style.overflow = 'hidden';
     return () => {
@@ -82,12 +78,14 @@ export function WindowChrome() {
   }, []);
 
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(true); // alwaysOnTop default
+  const [pinned, setPinned] = useState(true);
   const [resizing, setResizing] = useState(false);
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Edge resize + left-click drag ───────────────────────────────────
+  const visible = hovered || resizing;
+
+  // ── Edge resize ─────────────────────────────────────────────────────
 
   useEffect(() => {
     let currentDir: ResizeDir | null = null;
@@ -102,80 +100,23 @@ export function WindowChrome() {
       }
     };
 
-    // Drag threshold: only start window drag after mouse moves 5px from mousedown.
-    // This lets clicks pass through to UI elements and OrbitControls.
-    const DRAG_THRESHOLD = 5;
-    let dragOrigin: { x: number; y: number } | null = null;
-    let dragStarted = false;
-
-    const onMouseDown = (e: MouseEvent) => {
+    const onMouseDown = async (e: MouseEvent) => {
       if (e.button !== 0) return;
-
-      // Skip UI elements — anything clickable/interactive should not trigger drag.
-      // Check the target and its ancestors for interactive elements.
-      const target = e.target as HTMLElement;
-      if (
-        target.closest('[data-no-drag]') ||
-        target.closest('button') ||
-        target.closest('input') ||
-        target.closest('select') ||
-        target.closest('[role="switch"]') ||
-        target.closest('[role="button"]') ||
-        target.closest('[data-clickable]') ||
-        // Any element with an onClick handler or pointer cursor is interactive
-        window.getComputedStyle(target).cursor === 'pointer' ||
-        target.closest('[style*="cursor: pointer"]') ||
-        target.closest('[style*="cursor:pointer"]')
-      ) {
-        return;
-      }
-
-      // Edge resize — immediate, no threshold
       const dir = getResizeDirection(
         e.clientX, e.clientY, window.innerWidth, window.innerHeight,
       );
       if (dir) {
         e.preventDefault();
         e.stopPropagation();
-        getCurrentWindow().startResizeDragging(dir);
-        return;
+        await getCurrentWindow().startResizeDragging(dir);
       }
-
-      // Store origin for drag threshold check
-      dragOrigin = { x: e.clientX, y: e.clientY };
-      dragStarted = false;
-    };
-
-    const onMouseMoveForDrag = (e: MouseEvent) => {
-      if (!dragOrigin || dragStarted) return;
-      const dx = e.clientX - dragOrigin.x;
-      const dy = e.clientY - dragOrigin.y;
-      if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
-        dragStarted = true;
-        dragOrigin = null;
-        getCurrentWindow().startDragging().then(() => {
-          // After OS drag, pointer state is stale. Blur + refocus
-          // the document to force a clean slate for pointer events.
-          window.blur();
-          requestAnimationFrame(() => window.focus());
-        });
-      }
-    };
-
-    const onMouseUp = () => {
-      dragOrigin = null;
-      dragStarted = false;
     };
 
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mousemove', onMouseMoveForDrag);
     window.addEventListener('mousedown', onMouseDown, { capture: true });
-    window.addEventListener('mouseup', onMouseUp);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mousemove', onMouseMoveForDrag);
       window.removeEventListener('mousedown', onMouseDown, { capture: true });
-      window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
     };
   }, []);
@@ -193,8 +134,7 @@ export function WindowChrome() {
     };
   }, []);
 
-  // ── Detect resize via ResizeObserver ─────────────────────────────
-  // While resizing, keep chrome visible even if mouse leaves.
+  // ── Keep chrome visible during resize ───────────────────────────────
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {
@@ -209,14 +149,27 @@ export function WindowChrome() {
     };
   }, []);
 
-  // ── Persist window position & size ──────────────────────────────
-  // Save to localStorage on move/resize, restore on mount.
+  // ── Escape to close (double-tap within 500ms) ──────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const now = Date.now();
+      if (now - lastEscapeRef.current < 500) {
+        getCurrentWindow().close();
+      }
+      lastEscapeRef.current = now;
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── Persist window position & size ──────────────────────────────────
 
   useEffect(() => {
     const win = getCurrentWindow();
     const STORAGE_KEY = 'window-bounds';
 
-    // Restore saved position
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -224,9 +177,8 @@ export function WindowChrome() {
         win.setPosition(new PhysicalPosition(x, y)).catch(() => {});
         win.setSize(new PhysicalSize(width, height)).catch(() => {});
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* ignore */ }
 
-    // Save on move/resize
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     const save = async () => {
       if (saveTimer) clearTimeout(saveTimer);
@@ -252,21 +204,6 @@ export function WindowChrome() {
     };
   }, []);
 
-  // ── Escape to close (double-tap within 500ms) ──────────────────────
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      const now = Date.now();
-      if (now - lastEscapeRef.current < 500) {
-        getCurrentWindow().close();
-      }
-      lastEscapeRef.current = now;
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
   // ── Button handlers ────────────────────────────────────────────────
 
   const handleClose = useCallback((e: React.MouseEvent) => {
@@ -280,6 +217,12 @@ export function WindowChrome() {
     setPinned(next);
     await getCurrentWindow().setAlwaysOnTop(next);
   }, [pinned]);
+
+  const handleGripMouseDown = useCallback(async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    await getCurrentWindow().startDragging();
+  }, []);
 
   return (
     <div
@@ -297,53 +240,80 @@ export function WindowChrome() {
           inset: 2,
           borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
-          opacity: (hovered || resizing) ? 1 : 0,
+          opacity: visible ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Window controls — top right, visible on hover */}
+      {/* Top bar: grip handle (center) + pin/close (right) */}
       <div
         style={{
           position: 'absolute',
-          top: 6,
-          right: 6,
+          top: 10,
+          left: 12,
+          right: 12,
           display: 'flex',
-          gap: 4,
-          opacity: (hovered || resizing) ? 1 : 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: visible ? 1 : 0,
           transition: 'opacity 0.2s ease',
-          pointerEvents: (hovered || resizing) ? 'auto' : 'none',
+          pointerEvents: visible ? 'auto' : 'none',
           userSelect: 'none',
         }}
       >
-        {/* Pin / always-on-top toggle */}
-        <button
-          data-no-drag
-          onClick={handleTogglePin}
-          title={pinned ? 'Unpin from top' : 'Pin to top'}
-          style={{
-            ...btnStyle,
-            color: pinned ? 'var(--color-accent, #6c5ce7)' : 'rgba(232, 232, 240, 0.5)',
-          }}
-        >
-          📌
-        </button>
+        {/* Spacer to balance the right-side buttons */}
+        <div style={{ flex: 1 }} />
 
-        {/* Close */}
-        <button
-          data-no-drag
-          onClick={handleClose}
-          title="Close"
+        {/* Drag grip handle */}
+        <div
+          onMouseDown={handleGripMouseDown}
+          title="Drag to move"
           style={{
-            ...btnStyle,
-            fontSize: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
+            padding: '6px 14px',
+            borderRadius: 8,
+            background: 'rgba(255, 255, 255, 0.06)',
+            cursor: 'grab',
           }}
-          onMouseEnter={(e) => { (e.target as HTMLElement).style.background = 'rgba(231, 76, 60, 0.6)'; }}
-          onMouseLeave={(e) => { (e.target as HTMLElement).style.background = btnStyle.background as string; }}
         >
-          ✕
-        </button>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} style={{
+              width: 4,
+              height: 4,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.45)',
+            }} />
+          ))}
+        </div>
+
+        {/* Right-side buttons */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+          <button
+            data-no-drag
+            onClick={handleTogglePin}
+            title={pinned ? 'Unpin from top' : 'Pin to top'}
+            style={{
+              ...btnStyle,
+              color: pinned ? 'var(--color-accent, #6c5ce7)' : 'rgba(232, 232, 240, 0.5)',
+            }}
+          >
+            📌
+          </button>
+
+          <button
+            data-no-drag
+            onClick={handleClose}
+            title="Close"
+            style={{ ...btnStyle, fontSize: 14 }}
+            onMouseEnter={(e) => { (e.target as HTMLElement).style.background = 'rgba(231, 76, 60, 0.6)'; }}
+            onMouseLeave={(e) => { (e.target as HTMLElement).style.background = btnStyle.background as string; }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
   );
