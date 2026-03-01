@@ -11,7 +11,7 @@ import type { StateMachine, EffectsManager } from '@project-avatar/avatar-engine
 
 const settingsBtnStyle: React.CSSProperties = {
   position: 'fixed',
-  top: 12,
+  top: 'calc(12px + var(--titlebar-inset, 0px))',
   left: 12,
   width: 32,
   height: 32,

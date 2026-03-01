@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   plugins: [react()],
+  // Use web/public as the public directory — models, animations, props live there
+  publicDir: path.resolve(__dirname, '../web/public'),
   clearScreen: false,
   server: {
     port: 5173,
