@@ -165,6 +165,11 @@ export class IdleLayer {
 
   /** Set whether a prop is active — arms will counter-move to stay world-space fixed. */
   setPropActive(active: boolean): void {
+    if (active !== this._propActive) {
+      console.log('[IdleLayer] propActive:', active,
+        '| leftUpperArm:', !!this.leftUpperArm,
+        '| rightUpperArm:', !!this.rightUpperArm);
+    }
     this._propActive = active;
   }
 
@@ -405,6 +410,10 @@ export class IdleLayer {
         const counterY = -bobOffset;
         if (this.leftUpperArm) this.leftUpperArm.position.y += counterY;
         if (this.rightUpperArm) this.rightUpperArm.position.y += counterY;
+        // Debug: log every ~2s (assuming 60fps)
+        if (Math.floor(t * 0.5) !== Math.floor((t - 0.016) * 0.5)) {
+          console.log('[IdleLayer] prop counter-move | bobOffset:', bobOffset.toFixed(4), '| counterY:', counterY.toFixed(4));
+        }
       }
     }
 
