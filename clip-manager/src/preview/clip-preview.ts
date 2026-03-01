@@ -92,7 +92,7 @@ export class ClipPreview {
       this.canvas.height = h;
     }
 
-    this.avatarScene = new AvatarScene(this.canvas, { grid: true, orbit: true });
+    this.avatarScene = new AvatarScene(this.canvas, { grid: true, orbit: true, dev: true });
     this.avatarScene.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.avatarScene.renderer.toneMappingExposure = 1.0;
 

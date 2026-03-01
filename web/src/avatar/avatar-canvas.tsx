@@ -71,7 +71,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const avatarScene = new AvatarScene(canvas, { orbit: true });
+    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 
@@ -109,6 +109,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
           const vrm = await vrmManager.load(modelUrl);
           if (cancelled) return;
           vrmManager.setLookAtTarget(avatarScene.camera);
+          // Dynamic framing: zoomed out → body center, zoomed in → face
+          avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;
