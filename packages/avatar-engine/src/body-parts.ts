@@ -15,6 +15,17 @@ export const BODY_PART_BONES: Record<BodyPart, readonly string[]> = {
   arms: [
     'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
     'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+    // Finger bones
+    'leftThumbMetacarpal', 'leftThumbProximal', 'leftThumbDistal',
+    'leftIndexProximal', 'leftIndexIntermediate', 'leftIndexDistal',
+    'leftMiddleProximal', 'leftMiddleIntermediate', 'leftMiddleDistal',
+    'leftRingProximal', 'leftRingIntermediate', 'leftRingDistal',
+    'leftLittleProximal', 'leftLittleIntermediate', 'leftLittleDistal',
+    'rightThumbMetacarpal', 'rightThumbProximal', 'rightThumbDistal',
+    'rightIndexProximal', 'rightIndexIntermediate', 'rightIndexDistal',
+    'rightMiddleProximal', 'rightMiddleIntermediate', 'rightMiddleDistal',
+    'rightRingProximal', 'rightRingIntermediate', 'rightRingDistal',
+    'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
   ],
   legs: [
     'hips',
