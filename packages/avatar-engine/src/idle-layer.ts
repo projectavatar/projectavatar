@@ -494,7 +494,7 @@ export class IdleLayer {
 
   // ─── Private: ground mode ─────────────────────────────────────────────
 
-  private _updateGround(t: number, delta: number, weight = 1): void {
+  private _updateGround(t: number, _delta: number, weight = 1): void {
 
     // 1. Breathing — chest subtle rotation oscillation
     if (this.chest) {
