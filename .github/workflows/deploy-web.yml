@@ -5,7 +5,7 @@ on:
     branches: [master]
     paths:
       - 'web/**'
-      - 'packages/shared/**'
+      - 'packages/**'
       - '.github/workflows/deploy-web.yml'
 
 jobs:
