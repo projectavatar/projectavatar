@@ -85,8 +85,9 @@ export function WindowChrome() {
 
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(true); // alwaysOnTop default
+  const [resizing, setResizing] = useState(false);
   const lastEscapeRef = useRef(0);
-  const resizingRef = useRef(false);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Edge resize + left-click drag ───────────────────────────────────
 
@@ -138,10 +139,7 @@ export function WindowChrome() {
       if (dir) {
         e.preventDefault();
         e.stopPropagation();
-        resizingRef.current = true;
-        getCurrentWindow().startResizeDragging(dir).finally(() => {
-          resizingRef.current = false;
-        });
+        getCurrentWindow().startResizeDragging(dir);
         return;
       }
 
@@ -183,12 +181,28 @@ export function WindowChrome() {
 
   useEffect(() => {
     const enter = () => setHovered(true);
-    const leave = () => { if (!resizingRef.current) setHovered(false); };
+    const leave = () => setHovered(false);
     document.documentElement.addEventListener('mouseenter', enter);
     document.documentElement.addEventListener('mouseleave', leave);
     return () => {
       document.documentElement.removeEventListener('mouseenter', enter);
       document.documentElement.removeEventListener('mouseleave', leave);
+    };
+  }, []);
+
+  // ── Detect resize via ResizeObserver ─────────────────────────────
+  // While resizing, keep chrome visible even if mouse leaves.
+
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      setResizing(true);
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => setResizing(false), 300);
+    });
+    observer.observe(document.documentElement);
+    return () => {
+      observer.disconnect();
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
     };
   }, []);
 
@@ -237,7 +251,7 @@ export function WindowChrome() {
           inset: 2,
           borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
-          opacity: hovered ? 1 : 0,
+          opacity: (hovered || resizing) ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: 'none',
         }}
@@ -259,9 +273,9 @@ export function WindowChrome() {
           borderRadius: `${BORDER_RADIUS}px ${BORDER_RADIUS}px 0 0`,
           background: 'rgba(10, 10, 15, 0.6)',
           backdropFilter: 'blur(8px)',
-          opacity: hovered ? 1 : 0,
+          opacity: (hovered || resizing) ? 1 : 0,
           transition: 'opacity 0.2s ease',
-          pointerEvents: hovered ? 'auto' : 'none',
+          pointerEvents: (hovered || resizing) ? 'auto' : 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
