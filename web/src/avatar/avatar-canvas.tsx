@@ -43,7 +43,7 @@ export function useWsClient(): WsContextValue {
 
 // ─── Clip Registry (singleton) ────────────────────────────────────────────────
 
-const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
+const clipRegistry = new ClipRegistry(clipsData as unknown as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(avatarScene.scene),
+        new PropManager(vrm.scene),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,

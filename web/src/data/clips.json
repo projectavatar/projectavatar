@@ -221,11 +221,30 @@
       "bodyParts": [
         "head",
         "torso",
-        "arms",
-        "legs",
-        "feet"
+        "arms"
       ],
-      "tags": []
+      "tags": [],
+      "propBinding": {
+        "prop": "keyboard",
+        "transform": {
+          "position": [
+            -0.137,
+            0.04,
+            0.468
+          ],
+          "rotation": [
+            -3.142,
+            0.132,
+            -3.142
+          ],
+          "scale": [
+            1.536,
+            1,
+            1.395
+          ]
+        },
+        "material": "holographic"
+      }
     },
     "typing-touch": {
       "file": "typing-touch.fbx",

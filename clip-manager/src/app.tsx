@@ -80,7 +80,7 @@ const ANIM_BASE = '/animations/';
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export function App() {
-  const [state, dispatch] = useAppState(clipsData as ClipsJson);
+  const [state, dispatch] = useAppState(clipsData as unknown as ClipsJson);
   const unregisteredClips = useScanClips(state.data);
   const availableProps = useScanProps();
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
