@@ -214,7 +214,7 @@ export function PreviewPanel({
     let cancelled = false;
 
     if (propId && propTransform) {
-      preview.onPropTransformChange = onPropTransformChange;
+      preview.onPropTransformChange = (...a) => onPropTransformChangeRef.current?.(...a);
       preview.showProp(propId, propTransform).catch(err => {
         if (!cancelled) console.warn('[PreviewPanel] Failed to show prop:', err);
       });
@@ -282,6 +282,9 @@ export function PreviewPanel({
   }, [modelUrl, onReady]);
 
   // Reload VFX bindings when clips data changes (e.g. VFX editor edits)
+  const onPropTransformChangeRef = useRef(onPropTransformChange);
+  onPropTransformChangeRef.current = onPropTransformChange;
+
   const previewEmotionRef = useRef(previewEmotion);
   previewEmotionRef.current = previewEmotion;
   const previewActionRef = useRef(previewAction);

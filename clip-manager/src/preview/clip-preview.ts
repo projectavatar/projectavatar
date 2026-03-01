@@ -23,7 +23,7 @@ import {
   loadMixamoAnimation,
   loadVRMAAnimation,
 } from '@project-avatar/avatar-engine';
-import type { LayerState, ClipsJsonData, PropTransform } from '@project-avatar/avatar-engine';
+import type { LayerState, ClipsJsonData, PropTransform, VfxBindingJson } from '@project-avatar/avatar-engine';
 
 export interface ClipInfo {
   name: string;
@@ -331,8 +331,20 @@ export class ClipPreview {
   initVfx(clipsData: ClipsJsonData): void {
     this.vfxManager?.clear();
     this.vfxManager = new VfxManager(this.avatarScene.scene);
-    const registry = new ClipRegistry(clipsData);
-    const { emotionVfx, actionVfx } = registry.getVfxBindings();
+    // Extract VFX bindings directly from clips data (avoid instantiating ClipRegistry)
+    const emotionVfx: Record<string, VfxBindingJson[]> = {};
+    const actionVfx: Record<string, VfxBindingJson[]> = {};
+    const data = clipsData as unknown as { emotions?: Record<string, { vfx?: VfxBindingJson[] }>; actions?: Record<string, { vfx?: VfxBindingJson[] }> };
+    if (data.emotions) {
+      for (const [name, em] of Object.entries(data.emotions)) {
+        if (em.vfx?.length) emotionVfx[name] = em.vfx;
+      }
+    }
+    if (data.actions) {
+      for (const [name, act] of Object.entries(data.actions)) {
+        if (act.vfx?.length) actionVfx[name] = act.vfx;
+      }
+    }
     this.vfxManager.loadBindings(emotionVfx, actionVfx);
   }
 

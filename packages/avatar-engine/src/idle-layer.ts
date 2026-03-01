@@ -161,7 +161,6 @@ export class IdleLayer {
     return this.mode;
   }
 
-  /** Set whether a prop is active — arms will counter-move to stay world-space fixed. */
   /** Current bob offset in meters — PropManager uses this to sync prop Y. */
   getBobOffset(): number {
     return this._currentBobOffset;
@@ -551,9 +550,6 @@ export class IdleLayer {
       bone.rotation[axis] = restVal + (curl * gestureMultiplier + wave) * sign * this.legBendSign;
     }
   }
-
-  // ─── Private: arm counter-move for props ──────────────────────────────
-
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
