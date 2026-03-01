@@ -23,7 +23,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 const EDGE_SIZE = 6;
 const CORNER_SIZE = 14;
 const BORDER_RADIUS = 12;
-const TITLEBAR_HEIGHT = 32;
+export const TITLEBAR_HEIGHT = 32;
 
 /**
  * Tauri's ResizeDirection uses cardinal directions:
