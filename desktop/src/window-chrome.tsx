@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { useIdleHide } from '../../web/src/hooks/use-idle-hide.ts';
+import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
@@ -81,13 +82,14 @@ export function WindowChrome() {
   }, []);
 
   const [pinned, setPinned] = useState(true);
+  const [clickThrough, setClickThrough] = useState(false);
   const [resizing, setResizing] = useState(false);
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Same 1s idle hide as the gear button
   const uiVisible = useIdleHide(1000);
-  const visible = uiVisible || resizing;
+  const visible = (uiVisible || resizing) && !clickThrough;
 
   // ── Edge resize ─────────────────────────────────────────────────────
 
@@ -137,6 +139,25 @@ export function WindowChrome() {
     return () => {
       observer.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+    };
+  }, []);
+
+  // ── Click-through toggle (Ctrl+Shift+M) ─────────────────────────
+
+  useEffect(() => {
+    const SHORTCUT = 'CmdOrCtrl+Shift+M';
+    let registered = false;
+
+    register(SHORTCUT, () => {
+      setClickThrough((prev) => {
+        const next = !prev;
+        getCurrentWindow().setIgnoreCursorEvents(next);
+        return next;
+      });
+    }).then(() => { registered = true; }).catch(console.warn);
+
+    return () => {
+      if (registered) unregister(SHORTCUT).catch(() => {});
     };
   }, []);
 
@@ -236,6 +257,28 @@ export function WindowChrome() {
           pointerEvents: 'none',
         }}
       />
+
+      {/* Click-through indicator */}
+      {clickThrough && (
+        <div style={{
+          position: 'absolute',
+          bottom: 8,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          padding: '4px 12px',
+          borderRadius: 6,
+          background: 'rgba(10, 10, 15, 0.75)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid var(--color-border)',
+          color: 'var(--color-text-muted)',
+          fontSize: 11,
+          pointerEvents: 'none',
+          opacity: 0.7,
+          whiteSpace: 'nowrap',
+        }}>
+          Click-through · Ctrl+Shift+M to interact
+        </div>
+      )}
 
       {/* Top bar: grip handle (center) + pin/close (right) */}
       <div
