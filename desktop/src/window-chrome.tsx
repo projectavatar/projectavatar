@@ -85,8 +85,10 @@ export function WindowChrome() {
 
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(true); // alwaysOnTop default
-  const [mouseDown, setMouseDown] = useState(false);
   const lastEscapeRef = useRef(0);
+  // Lock hover ON during resize — OS steals mouse events, so we
+  // lock on resize start and unlock on next mouseenter.
+  const hoverLockedRef = useRef(false);
 
   // ── Edge resize + left-click drag ───────────────────────────────────
 
@@ -138,6 +140,8 @@ export function WindowChrome() {
       if (dir) {
         e.preventDefault();
         e.stopPropagation();
+        hoverLockedRef.current = true;
+        setHovered(true);
         getCurrentWindow().startResizeDragging(dir);
         return;
       }
@@ -161,21 +165,16 @@ export function WindowChrome() {
     const onMouseUp = () => {
       dragOrigin = null;
       dragStarted = false;
-      setMouseDown(false);
     };
-
-    const onGlobalMouseDown = () => setMouseDown(true);
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mousemove', onMouseMoveForDrag);
     window.addEventListener('mousedown', onMouseDown, { capture: true });
-    window.addEventListener('mousedown', onGlobalMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mousemove', onMouseMoveForDrag);
       window.removeEventListener('mousedown', onMouseDown, { capture: true });
-      window.removeEventListener('mousedown', onGlobalMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
     };
@@ -184,8 +183,13 @@ export function WindowChrome() {
   // ── Hover detection ─────────────────────────────────────────────────
 
   useEffect(() => {
-    const enter = () => setHovered(true);
-    const leave = () => setHovered(false);
+    const enter = () => {
+      hoverLockedRef.current = false;
+      setHovered(true);
+    };
+    const leave = () => {
+      if (!hoverLockedRef.current) setHovered(false);
+    };
     document.documentElement.addEventListener('mouseenter', enter);
     document.documentElement.addEventListener('mouseleave', leave);
     return () => {
@@ -239,7 +243,7 @@ export function WindowChrome() {
           inset: 2,
           borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
-          opacity: (hovered || mouseDown) ? 1 : 0,
+          opacity: (hovered) ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: 'none',
         }}
@@ -261,9 +265,9 @@ export function WindowChrome() {
           borderRadius: `${BORDER_RADIUS}px ${BORDER_RADIUS}px 0 0`,
           background: 'rgba(10, 10, 15, 0.6)',
           backdropFilter: 'blur(8px)',
-          opacity: (hovered || mouseDown) ? 1 : 0,
+          opacity: (hovered) ? 1 : 0,
           transition: 'opacity 0.2s ease',
-          pointerEvents: (hovered || mouseDown) ? 'auto' : 'none',
+          pointerEvents: (hovered) ? 'auto' : 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
