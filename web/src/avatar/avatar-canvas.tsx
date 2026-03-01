@@ -252,6 +252,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const isTauri = '__TAURI__' in window;
     let cursorPollId: ReturnType<typeof setInterval> | null = null;
 
+    const onMouseLeave = () => {
+      // Cursor left the window — clear target so head/eyes return to camera
+      lastCursorMove = 0;
+      animControllerRef.current?.setCursorTarget(null);
+    };
+
     if (isTauri) {
       const poll = async () => {
         try {
@@ -291,11 +297,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       cursorPollId = setInterval(poll, 50); // 20Hz polling
     } else {
       window.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseleave', onMouseLeave);
     }
 
     return () => {
       if (cursorPollId) clearInterval(cursorPollId);
       window.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseleave', onMouseLeave);
       avatarScene.scene.remove(lookAtProxy);
       cancelled = true;
       onStateMachine?.(null);
