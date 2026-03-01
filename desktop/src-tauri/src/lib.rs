@@ -1,10 +1,10 @@
 use mouse_position::mouse_position::Mouse;
 
 #[tauri::command]
-fn get_cursor_position() -> (i32, i32) {
+fn get_cursor_position() -> Option<(i32, i32)> {
     match Mouse::get_mouse_position() {
-        Mouse::Position { x, y } => (x, y),
-        Mouse::Error => (-1, -1), // sentinel — JS skips this frame
+        Mouse::Position { x, y } => Some((x, y)),
+        Mouse::Error => None,
     }
 }
 

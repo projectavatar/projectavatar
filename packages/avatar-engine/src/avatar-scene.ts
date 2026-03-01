@@ -36,7 +36,6 @@ const DEFAULT_GRID_DIVISIONS = 16;
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
-
 // ─── Camera persistence ───────────────────────────────────────────────────────
 
 const CAMERA_STORAGE_KEY = 'project-avatar-camera';

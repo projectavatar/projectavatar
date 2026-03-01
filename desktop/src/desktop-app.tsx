@@ -12,14 +12,8 @@ import { useStore } from '../../web/src/state/store.ts';
 import { WindowChrome } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 
-// Enable autostart on first launch
-const AUTOSTART_INIT_KEY = 'autostart-initialized';
-if (!localStorage.getItem(AUTOSTART_INIT_KEY)) {
-  localStorage.setItem(AUTOSTART_INIT_KEY, '1');
-  import('@tauri-apps/plugin-autostart').then(({ enable }) => {
-    enable().catch(() => {});
-  });
-}
+// Autostart opt-in — user enables via Settings → General
+// (first-launch auto-enable removed to avoid dark pattern)
 
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
