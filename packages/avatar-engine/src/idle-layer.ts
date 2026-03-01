@@ -548,11 +548,13 @@ export class IdleLayer {
     const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
 
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
-      // Compute cursor direction
-      const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
-      // Blend between camera and cursor direction
-      this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
-      this._headTargetDir.normalize();
+      // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
+      const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
+      if (distToHead > 0.3) {
+        const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
+        this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
+        this._headTargetDir.normalize();
+      }
     }
 
     // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
@@ -580,8 +582,7 @@ export class IdleLayer {
     this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
-    // Apply as additive rotation — stronger influence when tracking cursor
-    const influence = HEAD_TRACK_INFLUENCE + this.cursorBlend * 0.10; // 0.25 → 0.35
+    const influence = HEAD_TRACK_INFLUENCE; // flat 0.25 — subtle, never jarring
     this.head.rotation.y += this._headCurrentYaw * influence;
     this.head.rotation.x += this._headCurrentPitch * influence;
   }
