@@ -276,7 +276,7 @@ const heartFragment = /* glsl */ `
 `;
 
 function createHearts(binding: VfxBinding): VfxInstance {
-  const count = 15;
+  const count = 10;
   const color = new THREE.Color(binding.color ?? '#ff6688');
   const intensity = binding.intensity ?? 1.0;
   const offsetY = binding.offsetY ?? 0.0;
@@ -296,8 +296,8 @@ function createHearts(binding: VfxBinding): VfxInstance {
 
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * 4;
-    startX[i] = (Math.random() - 0.5) * 0.6;
-    startZ[i] = (Math.random() - 0.5) * 0.4;
+    startX[i] = (Math.random() - 0.5) * 1.2;
+    startZ[i] = (Math.random() - 0.5) * 0.8;
     riseSpeed[i] = 0.15 + Math.random() * 0.15;
     swaySpeed[i] = 0.5 + Math.random() * 1.0;
     swayAmp[i] = 0.05 + Math.random() * 0.1;
@@ -343,7 +343,7 @@ function createHearts(binding: VfxBinding): VfxInstance {
 
         pos.array[i * 3] = startX[i]! + sway;
         pos.array[i * 3 + 1] = life * 1.5;
-        pos.array[i * 3 + 2] = startZ[i]!;
+        pos.array[i * 3 + 2] = 0; // flat 2D — always face camera
 
         const fadeIn = Math.min(life * 4, 1);
         const fadeOut = Math.max(1 - (life - 0.6) * 2.5, 0);
@@ -417,7 +417,7 @@ function createRain(binding: VfxBinding): VfxInstance {
         const life = ((time * 0.8 + phases[i]!) % 1); // 0–1, loops
         pos.array[i * 3] = startX[i]!;
         pos.array[i * 3 + 1] = -life * 1.2; // fall downward
-        pos.array[i * 3 + 2] = startZ[i]!;
+        pos.array[i * 3 + 2] = 0; // flat 2D — always face camera
 
         // Fade in at top, fade out at bottom
         const fadeIn = Math.min(life * 4, 1);
