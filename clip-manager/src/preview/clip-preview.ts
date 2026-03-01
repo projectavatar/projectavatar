@@ -9,8 +9,7 @@
  *    — supports specifying a group index for previewing specific animation groups
  */
 import * as THREE from 'three';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action as ActionName } from '@project-avatar/shared';
 import {
@@ -55,10 +54,10 @@ export class ClipPreview {
   private _disposed = false;
 
   // ─── Prop gizmo ─────────────────────────────────────────────────────────────────────
-  private propLoader = new GLTFLoader();
+  private propLoader: import('three/addons/loaders/GLTFLoader.js').GLTFLoader | null = null;
   private propModelCache = new Map<string, THREE.Object3D>();
   private propInstance: THREE.Object3D | null = null;
-  private gizmo: TransformControls | null = null;
+  private gizmo: import('three/addons/controls/TransformControls.js').TransformControls | null = null;
   private _gizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
 
   /** Callback when the prop transform changes via gizmo drag. */
@@ -329,6 +328,10 @@ export class ClipPreview {
     let model = this.propModelCache.get(propId);
     if (!model) {
       try {
+        if (!this.propLoader) {
+          const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+          this.propLoader = new GLTFLoader();
+        }
         const gltf = await this.propLoader.loadAsync(url);
         model = gltf.scene;
         this.propModelCache.set(propId, model);
@@ -365,7 +368,8 @@ export class ClipPreview {
     this.avatarScene.scene.add(instance);
     this.propInstance = instance;
 
-    // TransformControls gizmo
+    // TransformControls gizmo (lazy loaded)
+    const { TransformControls } = await import('three/addons/controls/TransformControls.js');
     const gizmo = new TransformControls(this.avatarScene.camera, this.canvas);
     gizmo.setMode(this._gizmoMode);
     gizmo.setSize(0.6);
