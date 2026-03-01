@@ -249,12 +249,12 @@ export function WindowChrome() {
           justifyContent: 'center',
           opacity: visible ? 1 : 0,
           transition: 'opacity 0.3s ease',
-          pointerEvents: visible ? 'auto' : 'none',
+          pointerEvents: 'none',
           userSelect: 'none',
         }}
       >
         {/* Spacer to balance the right-side buttons */}
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1, pointerEvents: 'none' }} />
 
         {/* Drag grip handle */}
         <div
@@ -266,6 +266,7 @@ export function WindowChrome() {
             padding: '0 20px',
             gap: 4,
             cursor: 'grab',
+            pointerEvents: visible ? 'auto' : 'none',
           }}
         >
           {[0, 1, 2, 3, 4, 5, 6].map((i) => (
@@ -279,7 +280,7 @@ export function WindowChrome() {
         </div>
 
         {/* Right-side buttons */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 6, pointerEvents: visible ? 'auto' : 'none' }}>
           <button
             onClick={handleTogglePin}
             title={pinned ? 'Unpin from top' : 'Pin to top'}
