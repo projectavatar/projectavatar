@@ -92,6 +92,8 @@ interface SubAction {
   bodyPartGroup: BodyPart;
   /** The configured weight before normalization. */
   baseWeight: number;
+  /** Fade out duration from clip config. */
+  fadeOut?: number;
 }
 
 // ─── AnimationController ──────────────────────────────────────────────────────
@@ -406,7 +408,7 @@ export class AnimationController {
             // crossFadeTo handles weight warping — synchronized fade with no gaps
             outSub.action.crossFadeTo(sub.action, fadeDuration, true);
           } else {
-            sub.action.fadeIn(fadeDuration);
+            sub.action.fadeIn(claimed.entry.fadeIn ?? DEFAULT_FADE_IN);
           }
 
           sub.action.play();
@@ -430,8 +432,8 @@ export class AnimationController {
         const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
         if (idleSub) {
           console.log(`[AnimCtrl] Crossfading ${group} to idle clip`);
-          const fadeDuration = crossfadeDuration;
           for (const sub of subs) {
+            const fadeDuration = sub.fadeOut ?? DEFAULT_FADE_IN;
             sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
           }
           idleSub.action.play();
@@ -442,7 +444,7 @@ export class AnimationController {
       // No idle clip for this part — just fade out
       console.warn(`[AnimCtrl] No idle clip for ${group} — fading to nothing (may spin)`);
       for (const sub of subs) {
-        sub.action.fadeOut(crossfadeDuration);
+        sub.action.fadeOut(sub.fadeOut ?? DEFAULT_FADE_IN);
       }
     }
 
@@ -529,6 +531,7 @@ export class AnimationController {
       clipId: entry.file,
       bodyPartGroup: group,
       baseWeight: normalizedWeight,
+      fadeOut: entry.fadeOut,
     };
   }
 

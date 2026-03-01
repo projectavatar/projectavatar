@@ -212,7 +212,7 @@
     "typing-keyboard": {
       "file": "typing-keyboard.fbx",
       "loop": true,
-      "fadeIn": 0.4,
+      "fadeIn": 0.05,
       "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
@@ -298,14 +298,6 @@
                 "torso",
                 "arms"
               ]
-            },
-            {
-              "clip": "idle",
-              "weight": 0.5,
-              "bodyParts": [
-                "legs",
-                "feet"
-              ]
             }
           ]
         },
@@ -332,8 +324,7 @@
           ]
         }
       ],
-      "durationOverride": null,
-      "bypassHeadTracking": true
+      "durationOverride": null
     },
     "nodding": {
       "groups": [
