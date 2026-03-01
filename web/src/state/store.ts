@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULTS, generateToken } from '@project-avatar/shared';
-import type { Emotion, Action, Prop, Intensity, ChannelState, AvatarEvent } from '@project-avatar/shared';
+import type { Emotion, Action, Intensity, ChannelState, AvatarEvent } from '@project-avatar/shared';
 import { DEFAULT_EFFECTS_STATE } from '@project-avatar/avatar-engine';
 import type { EffectsState } from '@project-avatar/avatar-engine';
 import manifest from '../assets/models/manifest.json';
@@ -11,7 +11,6 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 export interface AvatarState {
   emotion: Emotion;
   action: Action;
-  prop: Prop;
   intensity: Intensity;
 }
 
@@ -135,7 +134,7 @@ export const useStore = create<AppState>((set, get) => ({
   connectionState:      'disconnected',
   reconnectAttempt:     0,
 
-  avatar: { emotion: 'idle', action: 'idle', prop: 'none', intensity: 'medium' },
+  avatar: { emotion: 'idle', action: 'idle', intensity: 'medium' },
   effects: persisted.effects ?? { ...DEFAULT_EFFECTS_STATE },
   renderScale: persisted.renderScale ?? 2,
 

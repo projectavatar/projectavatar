@@ -285,10 +285,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
               <span style={stateLabelStyle}>intensity</span>
               <span style={stateValueStyle}>{avatar.intensity}</span>
             </div>
-            <div style={stateRowStyle}>
-              <span style={stateLabelStyle}>prop</span>
-              <span style={stateValueStyle}>{avatar.prop}</span>
-            </div>
+
           </div>
         </div>
 

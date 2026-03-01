@@ -17,7 +17,7 @@ import type { VRM } from '@pixiv/three-vrm';
 import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
-import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
+import type { ClipRegistry, ClipEntry, ClipPropBinding } from './clip-registry.ts';
 import { IdleLayer } from './idle-layer.ts';
 import type { IdleMode, HandGesture } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
@@ -137,8 +137,16 @@ export class AnimationController {
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
+  /** Get the current idle layer bob offset (for prop sync). */
+  getIdleBobOffset(): number {
+    return this.idleLayer.getBobOffset();
+  }
+
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
+
+  /** Callback when the active prop binding changes (driven by clip selection). */
+  onPropChange?: (binding: ClipPropBinding | undefined) => void;
 
   constructor(vrm: VRM, registry: ClipRegistry) {
     this.vrm = vrm;
@@ -386,6 +394,11 @@ export class AnimationController {
     }
 
     this.currentGroupIndex = groupIndex;
+
+    // Notify prop change — the primary clip determines the prop
+    const propBinding = this.registry.getPropBinding(action, groupIndex);
+    this.onPropChange?.(propBinding);
+    this.idleLayer.setPropActive(!!propBinding);
 
     // Resolve incoming clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);

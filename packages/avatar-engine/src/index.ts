@@ -13,7 +13,7 @@ export { BlinkController } from './blink-controller.ts';
 export { PropManager } from './prop-manager.ts';
 
 export { ClipRegistry } from './clip-registry.ts';
-export type { ClipEntry, ClipJson, ResolvedClips, ClipsJsonData, AnimationGroupJson } from './clip-registry.ts';
+export type { ClipEntry, ClipJson, ResolvedClips, ClipsJsonData, AnimationGroupJson, PropTransform, ClipPropBinding } from './clip-registry.ts';
 
 export { StateMachine } from './state-machine.ts';
 export type { EventLogEntry } from './state-machine.ts';
@@ -38,3 +38,7 @@ export type { BodyPart } from './body-parts.ts';
 // ─── Effects ──────────────────────────────────────────────────────────────────
 export { EffectsManager, DEFAULT_EFFECTS_STATE, EFFECT_LABELS, EFFECT_DESCRIPTIONS } from './effects/index.ts';
 export type { EffectsState } from './effects/index.ts';
+
+export { VfxManager } from './effects/vfx-manager.ts';
+export type { VfxBinding, VfxType } from './effects/emotion-vfx.ts';
+export type { VfxBindingJson } from './clip-registry.ts';

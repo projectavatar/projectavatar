@@ -3,7 +3,8 @@
  * Edit tags, playback settings, see where the clip is used.
  */
 import { useMemo, useCallback } from 'react';
-import type { ClipsJson, ClipData } from '../types.ts';
+import type { ClipsJson, ClipData, ClipPropBinding, PropTransform } from '../types.ts';
+import type { AvailableProp } from '../hooks/use-scan-props.ts';
 import { getClipUsage, getClipStatus } from '../state.ts';
 import type { Action } from '../state.ts';
 import { BodyPartPicker } from './body-part-picker.tsx';
@@ -114,6 +115,13 @@ const statusBadgeStyle = (status: string): React.CSSProperties => ({
 });
 
 const CATEGORIES = ['idle', 'gesture', 'reaction', 'emotion', 'continuous'] as const;
+const MATERIAL_OPTIONS = ['holographic', 'solid', 'ghostly'] as const;
+
+const DEFAULT_TRANSFORM: PropTransform = {
+  position: [0, 0.7, 0.3],
+  rotation: [0, 0, 0],
+  scale: [1, 1, 1],
+};
 const ENERGIES = ['low', 'medium', 'high'] as const;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -122,9 +130,10 @@ interface ClipDetailProps {
   clipId: string;
   data: ClipsJson;
   dispatch: React.Dispatch<Action>;
+  availableProps: AvailableProp[];
 }
 
-export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
+export function ClipDetail({ clipId, data, dispatch, availableProps }: ClipDetailProps) {
   const clip = data.clips[clipId];
   if (!clip) return null;
 
@@ -243,6 +252,64 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
         bodyParts={normalizeBodyParts(clip.bodyParts)}
         onChange={(bodyParts) => update({ bodyParts })}
       />
+
+      {/* Prop Binding */}
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Prop</div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Model</span>
+          <select
+            style={{ ...selectStyle, minWidth: 120 }}
+            value={clip.propBinding?.prop ?? ''}
+            onChange={(e) => {
+              const propId = e.target.value;
+              if (!propId) {
+                update({ propBinding: undefined });
+              } else {
+                const existing = clip.propBinding;
+                update({
+                  propBinding: {
+                    prop: propId,
+                    transform: existing?.transform ?? { ...DEFAULT_TRANSFORM },
+                    material: existing?.material ?? 'holographic',
+                  },
+                });
+              }
+            }}
+          >
+            <option value="">None</option>
+            {availableProps.map(p => (
+              <option key={p.id} value={p.id}>{p.id}</option>
+            ))}
+          </select>
+        </div>
+        {clip.propBinding && (
+          <>
+            <div style={rowStyle}>
+              <span style={labelStyle}>Material</span>
+              <select
+                style={selectStyle}
+                value={clip.propBinding.material ?? 'holographic'}
+                onChange={(e) => {
+                  update({
+                    propBinding: {
+                      ...clip.propBinding!,
+                      material: e.target.value as ClipPropBinding['material'],
+                    },
+                  });
+                }}
+              >
+                {MATERIAL_OPTIONS.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-dim)', marginTop: 4, fontStyle: 'italic' }}>
+              Use the gizmo in the preview to position the prop.
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Usage */}
       <div style={sectionStyle}>

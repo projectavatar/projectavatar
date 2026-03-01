@@ -4,3 +4,7 @@ export { BloomEffect } from './bloom-effect.ts';
 export { Holographic } from './holographic.ts';
 export { EffectsManager, DEFAULT_EFFECTS_STATE, EFFECT_LABELS, EFFECT_DESCRIPTIONS } from './effects-manager.ts';
 export type { EffectsState } from './effects-manager.ts';
+
+export { VfxManager } from './vfx-manager.ts';
+export type { VfxBinding, VfxType, VfxInstance } from './emotion-vfx.ts';
+export { createVfx } from './emotion-vfx.ts';

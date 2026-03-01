@@ -6,6 +6,7 @@
  */
 import { useCallback, useState, useEffect } from 'react';
 import type { ClipsJson, ActionData, AnimationGroup, ClipLayer } from '../types.ts';
+import { VfxEditor } from './vfx-editor.tsx';
 import type { Action } from '../state.ts';
 import { BODY_PARTS } from '@project-avatar/avatar-engine';
 import { BODY_PART_ICON, BODY_PART_COLOR } from '../constants.ts';
@@ -466,6 +467,12 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
           }}
         />
       </div>
+
+      {/* VFX */}
+      <VfxEditor
+        vfx={action.vfx ?? []}
+        onChange={(vfx) => updateAction(selectedAction, { vfx })}
+      />
     </div>
   );
 }

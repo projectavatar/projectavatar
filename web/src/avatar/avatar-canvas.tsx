@@ -9,6 +9,7 @@ import {
   BlinkController,
   PropManager,
   StateMachine,
+  VfxManager,
   ClipRegistry,
   EffectsManager,
 } from '@project-avatar/avatar-engine';
@@ -43,7 +44,7 @@ export function useWsClient(): WsContextValue {
 
 // ─── Clip Registry (singleton) ────────────────────────────────────────────────
 
-const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
+const clipRegistry = new ClipRegistry(clipsData as unknown as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
@@ -76,9 +77,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Detect Tauri desktop — window.__TAURI__ is Tauri's official IPC bridge
-    const isTauri = '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
-    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV, desktop: isTauri });
+    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 
@@ -111,11 +110,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(vrm),
+        new PropManager(avatarScene.scene),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,
-            prop: state.prop, intensity: state.intensity,
+            intensity: state.intensity,
           }),
         },
       );
@@ -123,11 +122,16 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
 
+      // --- Emotion VFX ---
+      const vfxMgr = new VfxManager(avatarScene.scene);
+      const { emotionVfx, actionVfx } = clipRegistry.getVfxBindings();
+      vfxMgr.loadBindings(emotionVfx, actionVfx);
+      stateMachine.setVfxManager(vfxMgr);
+
       // ─── Effects ──────────────────────────────────────────────
       const effectsManager = new EffectsManager(
         vrm, avatarScene.scene, avatarScene.renderer, avatarScene.camera,
       );
-      effectsManager.setCenter(vrmManager.bodyCenter);
       effectsManagerRef.current = effectsManager;
       onEffectsManager?.(effectsManager);
 

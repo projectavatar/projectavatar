@@ -32,6 +32,20 @@ function saveClipsPlugin(): Plugin {
         }
       });
 
+      // GET /api/scan-props — list .glb files in the props folder
+      server.middlewares.use('/api/scan-props', async (_req, res) => {
+        try {
+          const propsDir = resolve(__dirname, '../web/public/props');
+          const files = await readdir(propsDir).catch(() => [] as string[]);
+          const glbFiles = files.filter(f => f.toLowerCase().endsWith('.glb')).sort();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ files: glbFiles }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: String(err) }));
+        }
+      });
+
       server.middlewares.use('/api/save-clips', async (req, res) => {
         if (req.method === 'OPTIONS') {
           res.writeHead(204);

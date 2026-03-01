@@ -9,6 +9,7 @@
  *    — supports specifying a group index for previewing specific animation groups
  */
 import * as THREE from 'three';
+
 import type { VRM } from '@pixiv/three-vrm';
 import type { Action as ActionName } from '@project-avatar/shared';
 import {
@@ -18,10 +19,11 @@ import {
   ExpressionController,
   BlinkController,
   ClipRegistry,
+  VfxManager,
   loadMixamoAnimation,
   loadVRMAAnimation,
 } from '@project-avatar/avatar-engine';
-import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
+import type { LayerState, ClipsJsonData, PropTransform, VfxBindingJson } from '@project-avatar/avatar-engine';
 
 export interface ClipInfo {
   name: string;
@@ -51,6 +53,17 @@ export class ClipPreview {
   private _paused = false;
   private _boneMask: Set<string> | null = null;
   private _disposed = false;
+
+  // ─── Prop gizmo ─────────────────────────────────────────────────────────────────────
+  private propLoader: import('three/addons/loaders/GLTFLoader.js').GLTFLoader | null = null;
+  private propModelCache = new Map<string, THREE.Object3D>();
+  private propInstance: THREE.Object3D | null = null;
+  private gizmo: import('three/addons/controls/TransformControls.js').TransformControls | null = null;
+  private vfxManager: VfxManager | null = null;
+  private _gizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
+
+  /** Callback when the prop transform changes via gizmo drag. */
+  onPropTransformChange?: (transform: PropTransform) => void;
 
   // ─── Engine mode ────────────────────────────────────────────────────────
   private animCtrl: AnimationController | null = null;
@@ -92,7 +105,7 @@ export class ClipPreview {
       this.canvas.height = h;
     }
 
-    this.avatarScene = new AvatarScene(this.canvas, { grid: true, orbit: true, dev: true });
+    this.avatarScene = new AvatarScene(this.canvas, { orbit: true, dev: true });
     // No setFramingPoints() — clip-manager uses its own fixed camera for full-body preview
     this.avatarScene.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.avatarScene.renderer.toneMappingExposure = 1.0;
@@ -124,6 +137,9 @@ export class ClipPreview {
         this.vrm.update(delta);
       }
 
+      // VFX — always update regardless of engine state
+      this.vfxManager?.update(delta);
+
       const info = this.getClipInfo();
       if (info) this.onFrame?.(info);
     });
@@ -150,6 +166,7 @@ export class ClipPreview {
     const vrm = await this.vrmManager.load(url);
     this.vrm = vrm;
     this.vrmManager.setLookAtTarget(this.avatarScene.camera);
+    this.vrmManager.show();
     this.mixer = new THREE.AnimationMixer(vrm.scene);
 
     this.mixer.addEventListener('finished', () => {
@@ -308,8 +325,156 @@ export class ClipPreview {
     };
   }
 
+  // ─── Prop Gizmo ─────────────────────────────────────────────────────────────────────
+
+  /** Initialize VFX manager and load bindings from clip data. */
+  initVfx(clipsData: ClipsJsonData): void {
+    this.vfxManager?.clear();
+    this.vfxManager = new VfxManager(this.avatarScene.scene);
+    // Extract VFX bindings directly from clips data (avoid instantiating ClipRegistry)
+    const emotionVfx: Record<string, VfxBindingJson[]> = {};
+    const actionVfx: Record<string, VfxBindingJson[]> = {};
+    const data = clipsData as unknown as { emotions?: Record<string, { vfx?: VfxBindingJson[] }>; actions?: Record<string, { vfx?: VfxBindingJson[] }> };
+    if (data.emotions) {
+      for (const [name, em] of Object.entries(data.emotions)) {
+        if (em.vfx?.length) emotionVfx[name] = em.vfx;
+      }
+    }
+    if (data.actions) {
+      for (const [name, act] of Object.entries(data.actions)) {
+        if (act.vfx?.length) actionVfx[name] = act.vfx;
+      }
+    }
+    this.vfxManager.loadBindings(emotionVfx, actionVfx);
+  }
+
+  /** Set the preview VFX state — emotion and/or action. */
+  setPreviewVfx(emotion: string | null, action: string | null): void {
+    this.vfxManager?.setState(emotion, action);
+  }
+
+  async showProp(propId: string, transform: PropTransform): Promise<void> {
+    this.removeProp();
+
+    const url = '/props/' + propId + '.glb';
+    let model = this.propModelCache.get(propId);
+    if (!model) {
+      try {
+        if (!this.propLoader) {
+          const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+          this.propLoader = new GLTFLoader();
+        }
+        const gltf = await this.propLoader.loadAsync(url);
+        model = gltf.scene;
+        this.propModelCache.set(propId, model);
+      } catch (err) {
+        console.warn('[ClipPreview] Failed to load prop:', err);
+        return;
+      }
+    }
+
+    const instance = model.clone(true);
+
+    // Semi-transparent material for visibility in preview
+    instance.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0x00ffcc,
+          transparent: true,
+          opacity: 0.4,
+          emissive: 0x00aa88,
+          emissiveIntensity: 0.3,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+      }
+    });
+
+    const [px, py, pz] = transform.position;
+    const [rx, ry, rz] = transform.rotation;
+    const [sx, sy, sz] = transform.scale;
+    instance.position.set(px, py, pz);
+    instance.rotation.set(rx, ry, rz);
+    instance.scale.set(sx, sy, sz);
+
+    this.avatarScene.scene.add(instance);
+    this.propInstance = instance;
+
+    // TransformControls gizmo (lazy loaded)
+    const { TransformControls } = await import('three/addons/controls/TransformControls.js');
+    const gizmo = new TransformControls(this.avatarScene.camera, this.canvas);
+    gizmo.setMode(this._gizmoMode);
+    gizmo.setSize(0.6);
+    gizmo.attach(instance);
+    this.avatarScene.scene.add(gizmo.getHelper());
+    this.gizmo = gizmo;
+
+    gizmo.addEventListener('objectChange', () => {
+      if (!this.propInstance) return;
+      const p = this.propInstance.position;
+      const r = this.propInstance.rotation;
+      const s = this.propInstance.scale;
+      this.onPropTransformChange?.({
+        position: [
+          Math.round(p.x * 1000) / 1000,
+          Math.round(p.y * 1000) / 1000,
+          Math.round(p.z * 1000) / 1000,
+        ],
+        rotation: [
+          Math.round(r.x * 1000) / 1000,
+          Math.round(r.y * 1000) / 1000,
+          Math.round(r.z * 1000) / 1000,
+        ],
+        scale: [
+          Math.round(s.x * 1000) / 1000,
+          Math.round(s.y * 1000) / 1000,
+          Math.round(s.z * 1000) / 1000,
+        ],
+      });
+    });
+  }
+
+  removeProp(): void {
+    if (this.gizmo) {
+      this.gizmo.detach();
+      this.avatarScene.scene.remove(this.gizmo.getHelper());
+      this.gizmo.dispose();
+      this.gizmo = null;
+    }
+    if (this.propInstance) {
+      this.avatarScene.scene.remove(this.propInstance);
+      this.propInstance.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material?.dispose();
+          child.geometry?.dispose();
+        }
+      });
+      this.propInstance = null;
+    }
+  }
+
+  setGizmoMode(mode: 'translate' | 'rotate' | 'scale'): void {
+    this._gizmoMode = mode;
+    if (this.gizmo) this.gizmo.setMode(mode);
+  }
+
+  get gizmoMode(): 'translate' | 'rotate' | 'scale' {
+    return this._gizmoMode;
+  }
+
+  updatePropTransform(transform: PropTransform): void {
+    if (!this.propInstance) return;
+    const [px, py, pz] = transform.position;
+    const [rx, ry, rz] = transform.rotation;
+    const [sx, sy, sz] = transform.scale;
+    this.propInstance.position.set(px, py, pz);
+    this.propInstance.rotation.set(rx, ry, rz);
+    this.propInstance.scale.set(sx, sy, sz);
+  }
+
   dispose(): void {
     this._disposed = true;
+    this.removeProp();
     this.animCtrl?.dispose();
     if (this.mixer) {
       this.mixer.stopAllAction();

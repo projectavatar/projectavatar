@@ -84,7 +84,7 @@
     "idle": {
       "file": "idle.fbx",
       "loop": true,
-      "fadeIn": 0.6,
+      "fadeIn": 0.8,
       "fadeOut": 0.6,
       "category": "idle",
       "energy": "low",
@@ -214,18 +214,37 @@
     "typing-keyboard": {
       "file": "typing-keyboard.fbx",
       "loop": true,
-      "fadeIn": 0.05,
+      "fadeIn": 0.15,
       "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
       "bodyParts": [
         "head",
         "torso",
-        "arms",
-        "legs",
-        "feet"
+        "arms"
       ],
-      "tags": []
+      "tags": [],
+      "propBinding": {
+        "prop": "keyboard",
+        "transform": {
+          "position": [
+            -0.137,
+            0.04,
+            0.468
+          ],
+          "rotation": [
+            -3.142,
+            0.132,
+            -3.142
+          ],
+          "scale": [
+            1.536,
+            1,
+            1.395
+          ]
+        },
+        "material": "holographic"
+      }
     },
     "typing-touch": {
       "file": "typing-touch.fbx",
@@ -242,7 +261,28 @@
         "feet"
       ],
       "tags": [],
-      "handGesture": "pointing"
+      "handGesture": "pointing",
+      "propBinding": {
+        "prop": "tablet",
+        "transform": {
+          "position": [
+            -0.063,
+            0.011,
+            0.318
+          ],
+          "rotation": [
+            2.241,
+            1.547,
+            3.141
+          ],
+          "scale": [
+            2.325,
+            1,
+            2.304
+          ]
+        },
+        "material": "holographic"
+      }
     },
     "idle-stretch": {
       "file": "idle-stretch.fbx",
@@ -418,7 +458,15 @@
           ]
         }
       ],
-      "durationOverride": 3
+      "durationOverride": 3,
+      "vfx": [
+        {
+          "type": "confetti",
+          "color": "#ffdd44",
+          "intensity": 1.2,
+          "offsetY": 1.2
+        }
+      ]
     },
     "dismissive": {
       "groups": [
@@ -547,47 +595,126 @@
     "happy": {
       "weightScale": 1.1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "warm-dust",
+          "color": "#ff88aa",
+          "intensity": 1.0
+        }
+      ]
     },
     "sad": {
       "weightScale": 0.7,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "rain",
+          "color": "#99ccff",
+          "intensity": 1.2
+        }
+      ]
     },
     "angry": {
       "weightScale": 1.15,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "embers",
+          "color": "#ff8833",
+          "intensity": 1.2
+        }
+      ]
     },
     "excited": {
       "weightScale": 1.2,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sparkles",
+          "color": "#ffee66",
+          "intensity": 1.2
+        }
+      ]
     },
     "confused": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "thought-bubbles",
+          "color": "#ffaa44",
+          "intensity": 1,
+          "offsetY": 0.75
+        }
+      ]
     },
     "nervous": {
       "weightScale": 0.85,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sweat-drops",
+          "color": "#88ccee",
+          "intensity": 1,
+          "offsetY": 0.7
+        }
+      ]
     },
     "surprised": {
       "weightScale": 1.1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sparkles",
+          "color": "#ffffff",
+          "intensity": 1.5
+        }
+      ]
     },
     "bashful": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "hearts",
+          "color": "#ffaacc",
+          "intensity": 0.6
+        }
+      ]
     },
     "thinking": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "thought-bubbles",
+          "color": "#88ccff",
+          "intensity": 1,
+          "offsetY": 0.75
+        }
+      ]
+    },
+    "idle": {
+      "weightScale": 1,
+      "overrides": {},
+      "layers": [],
+      "vfx": [
+        {
+          "type": "particle-aura",
+          "color": "#4d99ff",
+          "intensity": 1,
+          "offsetY": 0.2
+        }
+      ]
     }
   }
 }

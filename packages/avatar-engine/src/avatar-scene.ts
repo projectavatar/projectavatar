@@ -21,11 +21,7 @@ export interface AvatarSceneOptions {
   orbit?: boolean;
   /** Dev mode — unlocks vertical camera rotation. Default: false. */
   dev?: boolean;
-  /**
-   * Desktop mode — right-click only for rotation (left-click reserved
-   * for window drag). Scroll zoom still works. Default: false.
-   */
-  desktop?: boolean;
+
 }
 
 const DEFAULT_GRID_SIZE = 4;
@@ -167,7 +163,7 @@ export class AvatarScene {
         MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.ROTATE,
       };
-      if (!options?.desktop) mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+      // Left-click reserved for future interactions (selection, drag)
       this.controls.mouseButtons = mouseButtons;
       // No panning — orbit target must stay on the model
       this.controls.enablePan = false;
@@ -323,6 +319,8 @@ export class AvatarScene {
 
   private tick(): void {
     const delta = this.clock.getDelta();
+    // Check for container resize every frame (handles layout changes, not just window resize)
+    this.handleResize();
     this._updateFramingTarget();
     this.controls?.update();
     for (const cb of this.updateCallbacks) {

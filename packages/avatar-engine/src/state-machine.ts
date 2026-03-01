@@ -1,10 +1,11 @@
 import { DEFAULTS } from '@project-avatar/shared';
-import type { AvatarEvent, Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
+import type { AvatarEvent, Emotion, Action, Intensity } from '@project-avatar/shared';
 import type { ExpressionController } from './expression-controller.ts';
 import type { AnimationController } from './animation-controller.ts';
 import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
+import type { VfxManager } from './effects/vfx-manager.ts';
 
 /**
  * Avatar state machine coordinating all subsystems.
@@ -21,7 +22,6 @@ import type { PropManager } from './prop-manager.ts';
 interface AvatarState {
   emotion: Emotion;
   action: Action;
-  prop: Prop;
   intensity: Intensity;
   lastEventTime: number;
 }
@@ -29,7 +29,6 @@ interface AvatarState {
 const DEFAULT_STATE: AvatarState = {
   emotion: 'idle',
   action: 'idle',
-  prop: 'none',
   intensity: 'medium',
   lastEventTime: 0,
 };
@@ -39,7 +38,6 @@ export interface EventLogEntry {
   timestamp: number;
   emotion: Emotion;
   action: Action;
-  prop?: Prop;
   intensity?: Intensity;
   source: 'relay' | 'dev-panel' | 'system';
 }
@@ -52,6 +50,7 @@ export class StateMachine {
   private animationCtrl: AnimationController;
   private blinkCtrl: BlinkController;
   private propManager: PropManager;
+  private vfxManager: VfxManager | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimeoutMs: number;
   private onStateChange?: (state: Readonly<AvatarState>) => void;
@@ -84,6 +83,11 @@ export class StateMachine {
       this.state.action = 'idle';
       this.animationCtrl.playAction('idle', this.state.intensity, this.state.emotion);
       this.onStateChange?.(this.state);
+    };
+
+    // When animation controller selects a new clip group, update the prop
+    this.animationCtrl.onPropChange = (binding) => {
+      void this.propManager.setPropBinding(binding);
     };
   }
 
@@ -120,10 +124,12 @@ export class StateMachine {
       this.animationCtrl.playAction(event.action, this.state.intensity, this.state.emotion);
     }
 
-    // Update prop
-    if (event.prop !== undefined && event.prop !== prev.prop) {
-      this.state.prop = event.prop;
-      void this.propManager.setProp(event.prop);
+    // Props are now driven by clip selection (via AnimationController.onPropChange).
+    // The event.prop field from avatar_signal is ignored — props are tied to clips.
+
+    // Update VFX based on current emotion + action
+    if (event.emotion || event.action) {
+      this.vfxManager?.setState(this.state.emotion, this.state.action);
     }
 
     // Notify listener
@@ -134,6 +140,13 @@ export class StateMachine {
   }
 
   /** Set camera for head tracking. */
+  /** Set VFX manager (optional, added post-construction). */
+  setVfxManager(mgr: VfxManager): void {
+    this.vfxManager = mgr;
+    // Apply initial state so idle VFX shows on load
+    mgr.setState(this.state.emotion, this.state.action);
+  }
+
   setCamera(camera: import('three').Camera): void {
     this.animationCtrl.setCamera(camera);
   }
@@ -163,6 +176,13 @@ export class StateMachine {
   update(delta: number): void {
     this.animationCtrl.update(delta);
 
+    // Prop fade animations — pass bob offset so props track the idle layer bob
+    const bobOffset = this.animationCtrl.getIdleBobOffset();
+    this.propManager.update(delta, bobOffset);
+
+    // VFX animations
+    this.vfxManager?.update(delta);
+
     // Expression layers respect toggles
     const layers = this.animationCtrl.layers;
     if (layers.expressions) {
@@ -186,6 +206,9 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+    this.vfxManager?.clear();
+    this.vfxManager = null;
+    this.propManager.clear();
   }
 
   private resetIdleTimer(): void {
@@ -202,7 +225,6 @@ export class StateMachine {
       timestamp: Date.now(),
       emotion: event.emotion,
       action: event.action,
-      prop: event.prop,
       intensity: event.intensity,
       source,
     });

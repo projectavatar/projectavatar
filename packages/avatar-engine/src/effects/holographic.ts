@@ -7,76 +7,25 @@
  * additive blending — zero modification to original materials.
  */
 import * as THREE from 'three';
+import { holoVertexSkinned, holoFragment } from './holo-shaders.ts';
 import type { VRM } from '@pixiv/three-vrm';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const SCAN_LINE_DENSITY  = 100;
-const SCAN_LINE_SPEED    = 0.35;
-const SCAN_LINE_ALPHA    = 0.18;
-const SCAN_LINE_WIDTH    = 0.5;
-const FRESNEL_POWER      = 2.0;
-const FRESNEL_ALPHA      = 0.35;
-const FADE_SPEED         = 2.0;
+export const HOLO_CONFIG = {
+  density:      80,
+  speed:        0.1,
+  lineAlpha:    0.2,
+  lineWidth:    0.55,
+  fresnelPower: 2.0,
+  fresnelAlpha: 0.4,
+  tint:         [0.5, 0.8, 1.0] as const,
+  normalOffset: 0.002,
+  brightness:    1.2,
+};
 
-const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
-
-// ─── Shaders ──────────────────────────────────────────────────────────────────
-
-const vertexShader = /* glsl */ `
-  #include <common>
-  #include <skinning_pars_vertex>
-
-  varying vec3 vWorldPosition;
-  varying vec3 vWorldNormal;
-  varying vec3 vViewDir;
-
-  void main() {
-    #include <skinbase_vertex>
-    #include <beginnormal_vertex>
-    #include <skinnormal_vertex>
-    #include <begin_vertex>
-    #include <skinning_vertex>
-
-    vec4 worldPos = modelMatrix * vec4(transformed, 1.0);
-    vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
-    vViewDir = normalize(cameraPosition - worldPos.xyz);
-
-    gl_Position = projectionMatrix * viewMatrix * worldPos;
-  }
-`;
-
-const fragmentShader = /* glsl */ `
-  uniform float uTime;
-  uniform float uStrength;
-  uniform vec3  uTint;
-  uniform float uLineDensity;
-  uniform float uLineSpeed;
-  uniform float uLineAlpha;
-  uniform float uLineWidth;
-  uniform float uFresnelPower;
-  uniform float uFresnelAlpha;
-
-  varying vec3 vWorldPosition;
-  varying vec3 vWorldNormal;
-  varying vec3 vViewDir;
-
-  void main() {
-    float scanY = vWorldPosition.y * uLineDensity + uTime * uLineSpeed * uLineDensity;
-    float scanLine = smoothstep(uLineWidth - 0.1, uLineWidth, fract(scanY));
-    float scanAlpha = scanLine * uLineAlpha * uStrength;
-
-    float fresnel = 1.0 - abs(dot(normalize(vViewDir), normalize(vWorldNormal)));
-    fresnel = pow(fresnel, uFresnelPower);
-    float fresnelAlpha = fresnel * uFresnelAlpha * uStrength;
-
-    float totalAlpha = max(scanAlpha, fresnelAlpha);
-    vec3 color = mix(vec3(0.0), uTint, fresnel);
-
-    gl_FragColor = vec4(color, totalAlpha);
-  }
-`;
+const FADE_SPEED = 2.0;
+const DEFAULT_TINT = new THREE.Color(...HOLO_CONFIG.tint);
 
 // ─── Holographic ──────────────────────────────────────────────────────────────
 
@@ -92,14 +41,16 @@ export class Holographic {
   /** Shared uniforms — all overlay materials reference the same uniform objects. */
   private uniforms = {
     uTime:         { value: 0 },
-    uStrength:     { value: 0 },
+    uOpacity:      { value: 0 },
     uTint:         { value: DEFAULT_TINT.clone() },
-    uLineDensity:  { value: SCAN_LINE_DENSITY },
-    uLineSpeed:    { value: SCAN_LINE_SPEED },
-    uLineAlpha:    { value: SCAN_LINE_ALPHA },
-    uLineWidth:    { value: SCAN_LINE_WIDTH },
-    uFresnelPower: { value: FRESNEL_POWER },
-    uFresnelAlpha: { value: FRESNEL_ALPHA },
+    uDensity:  { value: HOLO_CONFIG.density },
+    uSpeed:    { value: HOLO_CONFIG.speed },
+    uLineAlpha:    { value: HOLO_CONFIG.lineAlpha },
+    uLineWidth:    { value: HOLO_CONFIG.lineWidth },
+    uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
+    uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
+    uNormalOffset: { value: HOLO_CONFIG.normalOffset },
+    uBrightness:   { value: HOLO_CONFIG.brightness },
   };
 
   constructor(vrm: VRM) {
@@ -132,7 +83,7 @@ export class Holographic {
       this.currentStrength, this.targetStrength,
       1 - Math.exp(-FADE_SPEED * delta),
     );
-    this.uniforms.uStrength.value = this.currentStrength;
+    this.uniforms.uOpacity.value = this.currentStrength;
 
     if (this.currentStrength < 0.001 && this.targetStrength === 0) {
       for (const m of this.overlayMeshes) m.visible = false;
@@ -159,8 +110,8 @@ export class Holographic {
   private _createMaterial(): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
       uniforms: { ...this.uniforms },
-      vertexShader,
-      fragmentShader,
+      vertexShader: holoVertexSkinned,
+      fragmentShader: holoFragment,
       transparent: true,
       depthWrite: false,
       depthTest: true,

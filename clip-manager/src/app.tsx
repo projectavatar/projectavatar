@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
-import type { ClipsJson } from './types.ts';
+import type { ClipsJson, PropTransform, ClipPropBinding } from './types.ts';
 import { Header } from './components/header.tsx';
 import { StatusBar } from './components/status-bar.tsx';
 import { ClipLibrary } from './components/clip-library.tsx';
@@ -19,6 +19,7 @@ import { PreviewPanel } from './preview/preview-panel.tsx';
 
 import clipsData from '@data/clips.json';
 import { useScanClips } from './hooks/use-scan-clips.ts';
+import { useScanProps } from './hooks/use-scan-props.ts';
 
 // ─── Model options ────────────────────────────────────────────────────────────
 
@@ -79,8 +80,9 @@ const ANIM_BASE = '/animations/';
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export function App() {
-  const [state, dispatch] = useAppState(clipsData as ClipsJson);
+  const [state, dispatch] = useAppState(clipsData as unknown as ClipsJson);
   const unregisteredClips = useScanClips(state.data);
+  const availableProps = useScanProps();
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -102,6 +104,18 @@ export function App() {
   // Preview action (Actions tab — blended action)
   const previewAction = state.activeTab === 'actions' ? state.previewAction : null;
   const previewGroupIndex = state.activeTab === 'actions' ? state.previewGroupIndex : 0;
+
+  // Clip prop preview — show prop gizmo when selected clip has a propBinding (Clips tab)
+  const selectedClipData = state.activeTab === 'clips' && state.selectedClip
+    ? state.data.clips[state.selectedClip] : null;
+  const propPreviewId = selectedClipData?.propBinding?.prop ?? null;
+  const propPreviewTransform = selectedClipData?.propBinding?.transform ?? null;
+
+  const handlePropTransformChange = useCallback((transform: PropTransform) => {
+    if (!state.selectedClip || !selectedClipData?.propBinding) return;
+    const newBinding: ClipPropBinding = { ...selectedClipData.propBinding, transform };
+    dispatch({ type: 'UPDATE_CLIP', clipId: state.selectedClip, data: { propBinding: newBinding } });
+  }, [state.selectedClip, selectedClipData, dispatch]);
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
@@ -175,6 +189,7 @@ export function App() {
               dispatch={dispatch}
             />
           )}
+
         </div>
 
         {/* Center panel — detail */}
@@ -182,7 +197,7 @@ export function App() {
           <div style={centerBodyStyle}>
             {state.activeTab === 'clips' && (
               state.selectedClip ? (
-                <ClipDetail clipId={state.selectedClip} data={state.data} dispatch={dispatch} />
+                <ClipDetail clipId={state.selectedClip} data={state.data} dispatch={dispatch} availableProps={availableProps} />
               ) : (
                 <div style={{ padding: 20, color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 12 }}>
                   Select a clip from the library
@@ -203,6 +218,7 @@ export function App() {
                 dispatch={dispatch}
               />
             )}
+
           </div>
         </div>
 
@@ -215,6 +231,10 @@ export function App() {
             clipsData={state.data}
             previewAction={previewAction}
             previewGroupIndex={previewGroupIndex}
+            propId={propPreviewId}
+            propTransform={propPreviewTransform}
+            onPropTransformChange={handlePropTransformChange}
+            previewEmotion={state.activeTab === 'emotions' ? state.expandedEmotion : null}
           />
         </div>
       </div>

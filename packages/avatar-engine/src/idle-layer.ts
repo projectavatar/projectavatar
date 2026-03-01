@@ -135,6 +135,9 @@ export class IdleLayer {
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
 
+  /** Current bob offset in meters (exposed for PropManager to sync prop Y). */
+  private _currentBobOffset = 0;
+
   /**
    * Sign multiplier for leg bend direction (+1 or -1).
    * Detected from the bone chain geometry — some VRM models have flipped axes.
@@ -156,6 +159,15 @@ export class IdleLayer {
   /** Get current mode. */
   getMode(): IdleMode {
     return this.mode;
+  }
+
+  /** Current bob offset in meters — PropManager uses this to sync prop Y. */
+  getBobOffset(): number {
+    return this._currentBobOffset;
+  }
+
+  setPropActive(_active: boolean): void {
+    // Kept for API compatibility — prop sync now uses getBobOffset() directly
   }
 
   /** Enable/disable the idle layer. */
@@ -386,6 +398,9 @@ export class IdleLayer {
       const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE
                        + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
       this.vrm.scene.position.y = this.baseY + bobOffset;
+
+      // Store current bob offset so PropManager can sync prop Y position
+      this._currentBobOffset = bobOffset;
     }
 
     // 2. Smooth hips Y lock — prevent clips from moving the model up/down.

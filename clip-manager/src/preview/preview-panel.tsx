@@ -13,7 +13,7 @@ import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
 import { getBonesForParts } from '@project-avatar/avatar-engine';
 import { LAYER_LABELS } from '@project-avatar/avatar-engine';
-import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
+import type { LayerState, ClipsJsonData, PropTransform } from '@project-avatar/avatar-engine';
 import type { Action as ActionName } from '@project-avatar/shared';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -167,14 +167,23 @@ interface PreviewPanelProps {
   previewAction?: string | null;
   /** Group index to preview (Actions tab — specific group) */
   previewGroupIndex?: number;
+  /** Emotion to preview VFX for (Emotions tab) */
+  previewEmotion?: string | null;
   /** Called when preview is ready */
   onReady?: () => void;
+  /** Prop to show in the preview (Props tab) */
+  propId?: string | null;
+  /** Prop transform for gizmo (Props tab) */
+  propTransform?: PropTransform | null;
+  /** Called when the gizmo changes the prop transform */
+  onPropTransformChange?: (transform: PropTransform) => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
 export function PreviewPanel({
   clipPath, modelUrl, clipBodyParts, clipsData, previewAction, previewGroupIndex = 0, onReady,
+  propId, propTransform, onPropTransformChange, previewEmotion,
 }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
@@ -194,8 +203,40 @@ export function PreviewPanel({
     blink: true,
     idleLayer: true,
   });
+  const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
 
   const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
+
+  // Prop gizmo — show prop when propId is set (Props tab)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !modelLoaded) return;
+    let cancelled = false;
+
+    if (propId && propTransform) {
+      preview.onPropTransformChange = (...a) => onPropTransformChangeRef.current?.(...a);
+      preview.showProp(propId, propTransform).catch(err => {
+        if (!cancelled) console.warn('[PreviewPanel] Failed to show prop:', err);
+      });
+    } else {
+      preview.removeProp();
+      preview.onPropTransformChange = undefined;
+    }
+
+    return () => { cancelled = true; };
+  }, [propId, modelLoaded]);
+
+  // Sync prop transform from external changes (number inputs)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !propTransform || !propId) return;
+    preview.updatePropTransform(propTransform);
+  }, [propTransform]);
+
+  // Sync gizmo mode
+  useEffect(() => {
+    previewRef.current?.setGizmoMode(gizmoMode);
+  }, [gizmoMode]);
 
   // Initialize preview engine
   useEffect(() => {
@@ -229,6 +270,7 @@ export function PreviewPanel({
       if (data) {
         try {
           await preview.enableEngine(data as ClipsJsonData);
+          preview.initVfx(data as ClipsJsonData);
           setEngineReady(true);
         } catch (err) {
           console.warn('[PreviewPanel] Engine init failed:', err);
@@ -238,6 +280,28 @@ export function PreviewPanel({
       console.error('[PreviewPanel] Failed to load model:', err);
     });
   }, [modelUrl, onReady]);
+
+  // Reload VFX bindings when clips data changes (e.g. VFX editor edits)
+  const onPropTransformChangeRef = useRef(onPropTransformChange);
+  onPropTransformChangeRef.current = onPropTransformChange;
+
+  const previewEmotionRef = useRef(previewEmotion);
+  previewEmotionRef.current = previewEmotion;
+  const previewActionRef = useRef(previewAction);
+  previewActionRef.current = previewAction;
+
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !clipsData) return;
+    preview.initVfx(clipsData as ClipsJsonData);
+    // Re-apply current state so updated VFX shows immediately
+    preview.setPreviewVfx(previewEmotionRef.current ?? null, previewActionRef.current ?? null);
+  }, [clipsData]);
+
+  // VFX preview — emotion or action changes
+  useEffect(() => {
+    previewRef.current?.setPreviewVfx(previewEmotion ?? null, previewAction ?? null);
+  }, [previewEmotion, previewAction]);
 
   // Play single clip when clipPath changes (Clips tab)
   useEffect(() => {
@@ -291,6 +355,7 @@ export function PreviewPanel({
       if (!preview.engineActive) {
         try {
           await preview.enableEngine(data as ClipsJsonData);
+          preview.initVfx(data as ClipsJsonData);
           setEngineReady(true);
         } catch (err) {
           console.warn('[PreviewPanel] Engine init failed for action preview:', err);
@@ -360,7 +425,52 @@ export function PreviewPanel({
 
   return (
     <div style={containerStyle}>
-      <div ref={containerRef} style={canvasWrapStyle} />
+      <div style={canvasWrapStyle}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        {propId && (
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: 4,
+            background: 'rgba(10, 10, 15, 0.7)',
+            borderRadius: 6,
+            padding: '4px 6px',
+            backdropFilter: 'blur(8px)',
+          }}>
+            {([
+              ['translate', '↔'],
+              ['rotate', '↻'],
+              ['scale', '⇔'],
+            ] as const).map(([mode, icon]) => (
+              <button
+                key={mode}
+                title={mode}
+                onClick={() => setGizmoMode(mode)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 4,
+                  border: gizmoMode === mode ? '1px solid var(--color-accent)' : '1px solid transparent',
+                  background: gizmoMode === mode ? 'rgba(var(--color-accent-rgb, 100, 180, 255), 0.2)' : 'transparent',
+                  color: gizmoMode === mode ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={controlsStyle}>
         {/* Label */}
@@ -452,6 +562,7 @@ export function PreviewPanel({
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );
