@@ -16,7 +16,7 @@ interface VfxBindingLoose {
   offsetY?: number;
 }
 
-const FADE_SPEED = 3.0; // opacity units per second
+const FADE_SPEED = 0.5; // ~2s crossfade // opacity units per second
 
 export class VfxManager {
   private scene: THREE.Scene;
