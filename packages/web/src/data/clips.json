@@ -602,7 +602,7 @@
         {
           "type": "warm-dust",
           "color": "#ff88aa",
-          "intensity": 1.0
+          "intensity": 1
         }
       ]
     },

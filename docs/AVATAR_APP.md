@@ -11,7 +11,7 @@ It comes in two forms from the same codebase:
 - **Browser app** — primary, `app.projectavatar.io`, zero install, OBS-ready
 - **Desktop app** (Tauri) — optional, native window, always-on-top, system tray
 
-The rendering core (`web/src/avatar/`) is pure TypeScript + Three.js — no Tauri or browser-specific dependencies — so it runs identically in both contexts.
+The rendering core (`packages/web/src/avatar/`) is pure TypeScript + Three.js — no Tauri or browser-specific dependencies — so it runs identically in both contexts.
 
 ---
 
@@ -491,6 +491,6 @@ cd web && npm run build
 # dist/ → deploy to Cloudflare Pages
 ```
 
-Auto-deployed from `web/` directory on push to `master` via Cloudflare Pages GitHub integration.
+Auto-deployed from `packages/web/` directory on push to `master` via Cloudflare Pages GitHub integration.
 
 Custom domain: `app.projectavatar.io`

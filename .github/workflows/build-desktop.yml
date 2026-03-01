@@ -68,7 +68,7 @@ jobs:
         id: changelog
         shell: bash
         run: |
-          # Extract the latest version block from desktop/CHANGELOG.md
+          # Extract the latest version block from packages/desktop/CHANGELOG.md
           notes=$(awk '/^## \[/{if(found) exit; found=1; next} found' packages/desktop/CHANGELOG.md)
           # Set as multiline output
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
