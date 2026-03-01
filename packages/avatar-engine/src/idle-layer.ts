@@ -84,7 +84,7 @@ export class IdleLayer {
   private initialized = false;
 
   // Finger bones
-  private fingerBones: { bone: THREE.Object3D; curl: number; restZ: number; sign: number }[] = [];
+  private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z' }[] = [];
   private bypassHeadTracking = false;
 
 
@@ -242,7 +242,8 @@ export class IdleLayer {
       const isThumb = name.toLowerCase().includes('thumb');
       let sign = name.startsWith('left') ? -1 : 1;
       if (isThumb) sign = -sign;
-      if (bone) this.fingerBones.push({ bone, curl, restZ: bone.rotation.z, sign });
+      const axis = isThumb ? 'y' as const : 'z' as const;
+      if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis });
     }
 
     // Detect leg bend direction from bone chain geometry.
@@ -465,8 +466,8 @@ export class IdleLayer {
 
   /** Apply a relaxed finger curl — natural resting hand pose. */
   private _applyFingerCurl(): void {
-    for (const { bone, curl, restZ, sign } of this.fingerBones) {
-      bone.rotation.z = restZ + curl * sign * this.legBendSign;
+    for (const { bone, curl, restVal, sign, axis } of this.fingerBones) {
+      bone.rotation[axis] = restVal + curl * sign * this.legBendSign;
     }
   }
 
