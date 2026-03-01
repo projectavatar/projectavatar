@@ -99,34 +99,62 @@ export function WindowChrome() {
       }
     };
 
-    const onMouseDown = async (e: MouseEvent) => {
+    // Drag threshold: only start window drag after mouse moves 5px from mousedown.
+    // This lets clicks pass through to UI elements and OrbitControls.
+    const DRAG_THRESHOLD = 5;
+    let dragOrigin: { x: number; y: number } | null = null;
+    let dragStarted = false;
+
+    const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
 
-      // Skip if clicking on a UI element (buttons, inputs, etc)
+      // Skip UI elements
       const target = e.target as HTMLElement;
       if (target.closest('[data-no-drag]') || target.closest('button') || target.closest('input') || target.closest('select')) {
         return;
       }
 
+      // Edge resize — immediate, no threshold
       const dir = getResizeDirection(
         e.clientX, e.clientY, window.innerWidth, window.innerHeight,
       );
       if (dir) {
         e.preventDefault();
         e.stopPropagation();
-        await getCurrentWindow().startResizeDragging(dir);
-      } else {
-        // Left-click anywhere else → drag window
-        e.preventDefault();
-        await getCurrentWindow().startDragging();
+        getCurrentWindow().startResizeDragging(dir);
+        return;
+      }
+
+      // Store origin for drag threshold check
+      dragOrigin = { x: e.clientX, y: e.clientY };
+      dragStarted = false;
+    };
+
+    const onMouseMoveForDrag = (e: MouseEvent) => {
+      if (!dragOrigin || dragStarted) return;
+      const dx = e.clientX - dragOrigin.x;
+      const dy = e.clientY - dragOrigin.y;
+      if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
+        dragStarted = true;
+        dragOrigin = null;
+        getCurrentWindow().startDragging();
       }
     };
 
+    const onMouseUp = () => {
+      dragOrigin = null;
+      dragStarted = false;
+    };
+
     window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousemove', onMouseMoveForDrag);
     window.addEventListener('mousedown', onMouseDown, { capture: true });
+    window.addEventListener('mouseup', onMouseUp);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousemove', onMouseMoveForDrag);
       window.removeEventListener('mousedown', onMouseDown, { capture: true });
+      window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
     };
   }, []);
