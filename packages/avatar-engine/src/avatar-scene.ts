@@ -319,6 +319,8 @@ export class AvatarScene {
 
   private tick(): void {
     const delta = this.clock.getDelta();
+    // Check for container resize every frame (handles layout changes, not just window resize)
+    this.handleResize();
     this._updateFramingTarget();
     this.controls?.update();
     for (const cb of this.updateCallbacks) {
