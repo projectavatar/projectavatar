@@ -1,5 +1,10 @@
 # Desktop Changelog
 
+## [0.2.3] — 2026-03-01
+
+### Added
+- DevTools enabled in production builds (`Ctrl+Shift+I` to inspect).
+
 ## [0.2.2] — 2026-03-01
 
 ### Fixed

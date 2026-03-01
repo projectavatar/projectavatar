@@ -1,6 +1,6 @@
 [package]
 name = "project-avatar-desktop"
-version = "0.2.2"
+version = "0.2.3"
 description = "Project Avatar — Desktop"
 authors = ["linh-n"]
 edition = "2021"
