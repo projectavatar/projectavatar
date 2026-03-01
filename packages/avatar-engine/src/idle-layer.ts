@@ -35,8 +35,9 @@ const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward cam
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
-const LEG_SWAP_INTERVAL  = 5.0;    // seconds — how often legs swap
-const LEG_SWAP_DURATION  = 1.5;    // seconds — crossfade between poses
+const LEG_SWAP_MIN       = 20.0;   // seconds — min time before swap
+const LEG_SWAP_MAX       = 25.0;   // seconds — max time before swap
+const LEG_SWAP_DURATION  = 2.5;    // seconds — slow, natural crossfade
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
@@ -305,8 +306,10 @@ export class IdleLayer {
 
     // 5. Leg swap — periodically switch which leg is tucked
     this.legSwapTimer += delta;
-    if (this.legSwapTimer >= LEG_SWAP_INTERVAL) {
-      this.legSwapTimer = 0;
+    // Random interval between swaps so it feels natural
+    const swapInterval = LEG_SWAP_MIN + (LEG_SWAP_MAX - LEG_SWAP_MIN) * 0.5;
+    if (this.legSwapTimer >= swapInterval) {
+      this.legSwapTimer = Math.random() * (LEG_SWAP_MAX - LEG_SWAP_MIN) * -1; // negative offset for randomness
       this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
     }
     // Smooth blend toward target
