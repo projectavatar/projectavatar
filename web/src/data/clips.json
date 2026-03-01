@@ -260,38 +260,6 @@
               ]
             }
           ]
-        },
-        {
-          "rarity": 0.12,
-          "clips": [
-            {
-              "clip": "idle-happy",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs",
-                "feet"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.12,
-          "clips": [
-            {
-              "clip": "idle-switch",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs",
-                "feet"
-              ]
-            }
-          ]
         }
       ],
       "durationOverride": null
@@ -404,9 +372,9 @@
               "bodyParts": [
                 "head",
                 "torso",
+                "feet",
                 "arms",
-                "legs",
-                "feet"
+                "legs"
               ]
             }
           ]
@@ -450,11 +418,7 @@
               "clip": "dismissive",
               "weight": 1,
               "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs",
-                "feet"
+                "head"
               ]
             }
           ]
