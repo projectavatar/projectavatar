@@ -9,7 +9,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|_app| {
             // Workaround: WebView2 on Windows doesn't apply transparency until a
             // resize event forces it to repaint. Nudging the window size by 1px

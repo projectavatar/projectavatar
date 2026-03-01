@@ -12,7 +12,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { useIdleHide } from '../../web/src/hooks/use-idle-hide.ts';
-import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
@@ -82,14 +81,13 @@ export function WindowChrome() {
   }, []);
 
   const [pinned, setPinned] = useState(true);
-  const [clickThrough, setClickThrough] = useState(false);
   const [resizing, setResizing] = useState(false);
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Same 1s idle hide as the gear button
   const uiVisible = useIdleHide(1000);
-  const visible = (uiVisible || resizing) && !clickThrough;
+  const visible = uiVisible || resizing;
 
   // ── Edge resize ─────────────────────────────────────────────────────
 
@@ -142,25 +140,6 @@ export function WindowChrome() {
     };
   }, []);
 
-  // ── Click-through toggle (Ctrl+Shift+M) ─────────────────────────
-
-  useEffect(() => {
-    const SHORTCUT = 'CmdOrCtrl+Shift+M';
-    let registered = false;
-
-    register(SHORTCUT, () => {
-      setClickThrough((prev) => {
-        const next = !prev;
-        getCurrentWindow().setIgnoreCursorEvents(next);
-        return next;
-      });
-    }).then(() => { registered = true; }).catch(console.warn);
-
-    return () => {
-      if (registered) unregister(SHORTCUT).catch(() => {});
-    };
-  }, []);
-
   // ── Escape to close (double-tap within 500ms) ──────────────────────
 
   useEffect(() => {
@@ -174,6 +153,78 @@ export function WindowChrome() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── Smart click-through: pass clicks through transparent areas ──
+  // Read the canvas pixel alpha under the cursor. If transparent,
+  // let clicks fall through to the desktop. If opaque (avatar),
+  // capture clicks for interaction.
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let ignoring = false;
+
+    const onMouseMove = (e: MouseEvent) => {
+      // Check if cursor is over a UI element (buttons, drawers, etc)
+      const target = e.target as HTMLElement;
+      const overUI = target.closest('button') ||
+        target.closest('input') ||
+        target.closest('select') ||
+        target.closest('[data-no-drag]') ||
+        target.closest('[data-clickable]') ||
+        window.getComputedStyle(target).cursor === 'pointer';
+
+      if (overUI) {
+        if (ignoring) {
+          ignoring = false;
+          win.setIgnoreCursorEvents(false);
+        }
+        return;
+      }
+
+      // Read pixel from canvas
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Out of canvas bounds → pass through
+      if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) {
+        if (!ignoring) {
+          ignoring = true;
+          win.setIgnoreCursorEvents(true);
+        }
+        return;
+      }
+
+      // Read pixel from the WebGL canvas
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) return;
+
+      const pixelRatio = window.devicePixelRatio || 1;
+      const px = Math.floor(x * pixelRatio);
+      const py = gl.drawingBufferHeight - Math.floor(y * pixelRatio) - 1;
+      const pixel = new Uint8Array(4);
+      gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+
+      const hasContent = pixel[3] > 10; // alpha threshold
+
+      if (hasContent && ignoring) {
+        ignoring = false;
+        win.setIgnoreCursorEvents(false);
+      } else if (!hasContent && !ignoring) {
+        ignoring = true;
+        win.setIgnoreCursorEvents(true);
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      if (ignoring) win.setIgnoreCursorEvents(false);
+    };
   }, []);
 
   // ── Persist window position & size ──────────────────────────────────
@@ -257,28 +308,6 @@ export function WindowChrome() {
           pointerEvents: 'none',
         }}
       />
-
-      {/* Click-through indicator */}
-      {clickThrough && (
-        <div style={{
-          position: 'absolute',
-          bottom: 8,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          padding: '4px 12px',
-          borderRadius: 6,
-          background: 'rgba(10, 10, 15, 0.75)',
-          backdropFilter: 'blur(8px)',
-          border: '1px solid var(--color-border)',
-          color: 'var(--color-text-muted)',
-          fontSize: 11,
-          pointerEvents: 'none',
-          opacity: 0.7,
-          whiteSpace: 'nowrap',
-        }}>
-          Click-through · Ctrl+Shift+M to interact
-        </div>
-      )}
 
       {/* Top bar: grip handle (center) + pin/close (right) */}
       <div
