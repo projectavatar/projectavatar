@@ -185,7 +185,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     avatarScene.start();
 
     // ── Cursor → head tracking ────────────────────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouseNDC = new THREE.Vector2();
     const cursorTarget = new THREE.Vector3();
+    // Plane at z=2 facing the camera (between camera and model)
+    const targetPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -2);
 
     // DEBUG: visible target point + projection plane
     const debugSphere = new THREE.Mesh(
@@ -204,13 +208,15 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const ctrl = animControllerRef.current;
       if (!ctrl) return;
       const rect = canvas.getBoundingClientRect();
-      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      cursorTarget.set(ndcX * 3, ndcY * 2, 2);
-      cursorTarget.unproject(avatarScene.camera);
-      ctrl.setCursorTarget(cursorTarget);
-      // DEBUG: move sphere to cursor target
-      debugSphere.position.copy(cursorTarget);
+      mouseNDC.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(mouseNDC, avatarScene.camera);
+      if (raycaster.ray.intersectPlane(targetPlane, cursorTarget)) {
+        ctrl.setCursorTarget(cursorTarget);
+        debugSphere.position.copy(cursorTarget);
+      }
     };
     window.addEventListener('mousemove', onMouseMove);
 
