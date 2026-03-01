@@ -14,6 +14,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { PremultiplyAlphaPass } from './premultiply-alpha-pass.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -114,6 +115,11 @@ export class BloomEffect {
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
+
+    // Premultiply alpha for correct OS compositor blending.
+    // Without this, semi-transparent edges show dark fringe on light backgrounds.
+    const premultiplyPass = new PremultiplyAlphaPass();
+    this.composer.addPass(premultiplyPass);
   }
 
   /** Whether bloom is currently active (even during fade). */
