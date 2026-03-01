@@ -125,7 +125,7 @@ export class IdleLayer {
   private restPositions = new Map<THREE.Object3D, THREE.Vector3>();
 
   /** Base Y position for the VRM scene (set by VrmManager). */
-  private baseY = -0.4;
+  private baseY = 0;
 
   /** Camera reference for subtle head tracking. */
   private camera: THREE.Camera | null = null;
@@ -167,7 +167,6 @@ export class IdleLayer {
 
   /** Set the current hand gesture. */
   setHandGesture(gesture: HandGesture): void {
-    console.log(`[IdleLayer] setHandGesture: ${gesture}`);
     this.currentGesture = gesture;
   }
 
@@ -457,8 +456,6 @@ export class IdleLayer {
       this._applyHeadTracking(delta);
     }
   }
-
-    // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
   // ─── Private: head tracking ──────────────────────────────────────────
 

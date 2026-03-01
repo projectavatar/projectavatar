@@ -75,10 +75,6 @@ export class VrmManager {
     }
   }
 
-  /**
-   * Make the VRM's eyes track a target object (typically the camera).
-   * Uses VRM's built-in lookAt system with autoUpdate.
-   */
   /** Enable/disable VRM lookAt auto-update. */
   setLookAtEnabled(enabled: boolean): void {
     if (this.currentVrm?.lookAt) {

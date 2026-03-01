@@ -19,24 +19,17 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
 import { IdleLayer } from './idle-layer.ts';
-import type { IdleMode } from './idle-layer.ts';
+import type { IdleMode, HandGesture } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const DEFAULT_FADE_IN = 0.3;
+/** In air mode, dampen leg/feet clip weight so idle dangle dominates. */
+const AIR_LEG_WEIGHT = 0.45;
 
-/**
- * Feet get a faster crossfade to minimize foot skating.
- * Short enough that sliding is barely visible, long enough to avoid a hard snap.
- */
 
-/**
- * Legs (hips + upper/lower leg, excludes feet) get a slower crossfade than the default.
- * Multiplied with the base fade duration to make hip transitions smoother
- * and less jarring — the body should shift weight gradually.
- */
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -176,7 +169,7 @@ export class AnimationController {
 
     // Start idle with a random group
     const groupIndex = this.registry.selectGroup('idle');
-    const initGesture = this.registry.getHandGesture('idle', groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
+    const initGesture = this.registry.getHandGesture('idle', groupIndex) as HandGesture | undefined;
     this.idleLayer.setHandGesture(initGesture ?? 'relaxed');
     this._playBlendedAction('idle', 'idle', 'medium', groupIndex);
     this._loaded = true;
@@ -205,12 +198,7 @@ export class AnimationController {
     const groupIndex = this.registry.selectGroup(action);
 
     // Update idle layer based on action properties
-    const bypass = this.registry.shouldBypassHeadTracking(action);
-    this.idleLayer.setBypassHeadTracking(bypass);
-    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
-    const gesture = this.registry.getHandGesture(action, groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
-    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
-    console.log(`[AnimCtrl] action=${action} gesture=${gesture ?? 'relaxed'} bypass=${bypass}`);
+    this._syncIdleLayerState(action, groupIndex);
 
     this._playBlendedAction(action, this.currentEmotion, intensity, groupIndex);
   }
@@ -224,11 +212,7 @@ export class AnimationController {
     this.currentIntensity = intensity;
     this.currentEmotion = emotion;
 
-    const bypass = this.registry.shouldBypassHeadTracking(action);
-    this.idleLayer.setBypassHeadTracking(bypass);
-    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
-    const gesture = this.registry.getHandGesture(action, groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
-    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+    this._syncIdleLayerState(action, groupIndex);
 
     this._playBlendedAction(action, emotion, intensity, groupIndex);
   }
@@ -444,12 +428,10 @@ export class AnimationController {
     const idleFallbackEntry = this._getIdleFallbackClip();
     for (const [group, subs] of outgoingByGroup) {
       if (subs.length === 0) continue;
-      console.log(`[AnimCtrl] Unclaimed body part: ${group}, ${subs.length} outgoing subs`);
       const idleEntry = idleFallbackEntry;
       if (idleEntry) {
         const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
         if (idleSub) {
-          console.log(`[AnimCtrl] Crossfading ${group} to idle clip`);
           for (const sub of subs) {
             const fadeDuration = sub.fadeOut ?? DEFAULT_FADE_IN;
             sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
@@ -460,7 +442,6 @@ export class AnimationController {
         }
       }
       // No idle clip for this part — just fade out
-      console.warn(`[AnimCtrl] No idle clip for ${group} — fading to nothing (may spin)`);
       for (const sub of subs) {
         sub.action.fadeOut(sub.fadeOut ?? DEFAULT_FADE_IN);
       }
@@ -532,7 +513,6 @@ export class AnimationController {
     action.reset();
     // In air mode, dampen leg/feet clip weights so the idle layer's
     // dangle pose dominates but clips still have some influence.
-    const AIR_LEG_WEIGHT = 0.45;
     let effectiveWeight = normalizedWeight;
     if (this.idleLayer.getMode() === 'air' && (group === 'legs' || group === 'feet')) {
       effectiveWeight *= AIR_LEG_WEIGHT;
@@ -554,9 +534,16 @@ export class AnimationController {
   }
 
   /**
-   * Filter an animation clip to only include tracks for bones in the given body part group.
-   * Creates a new clip with a unique name so the mixer caches it separately.
+   * Sync idle layer state (head tracking bypass, hand gesture) with current action.
    */
+  private _syncIdleLayerState(action: Action, groupIndex: number): void {
+    const bypass = this.registry.shouldBypassHeadTracking(action);
+    this.idleLayer.setBypassHeadTracking(bypass);
+    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
+    const gesture = this.registry.getHandGesture(action, groupIndex) as HandGesture | undefined;
+    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+  }
+
   /**
    * Get the first idle clip entry with ALL body parts — used as fallback
    * for unclaimed body parts during transitions.
@@ -574,6 +561,10 @@ export class AnimationController {
     };
   }
 
+  /**
+   * Filter an animation clip to only include tracks for bones in the given body part group.
+   * Creates a new clip with a unique name so the mixer caches it separately.
+   */
   private _filterClipToGroup(clip: THREE.AnimationClip, group: BodyPart): THREE.AnimationClip {
     const groupBones = BODY_PART_BONES[group];
     const groupNodeNames = new Set<string>();

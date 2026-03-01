@@ -2,7 +2,7 @@
  * Hook to scan the animations folder for unregistered FBX files.
  * Fetches the file list from the dev server and compares against clips.json.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ClipsJson } from '../types.ts';
 
 export interface UnregisteredClip {
@@ -13,9 +13,13 @@ export interface UnregisteredClip {
 
 export function useScanClips(data: ClipsJson): UnregisteredClip[] {
   const [unregistered, setUnregistered] = useState<UnregisteredClip[]>([]);
-  const registeredFiles = Object.values(data.clips).map(c => c.file);
+  const registeredKey = useMemo(
+    () => Object.values(data.clips).map(c => c.file).sort().join(','),
+    [data.clips],
+  );
 
   useEffect(() => {
+    const registeredFiles = registeredKey.split(',');
     let cancelled = false;
 
     async function scan() {
@@ -43,7 +47,7 @@ export function useScanClips(data: ClipsJson): UnregisteredClip[] {
     // Re-scan periodically to pick up new files
     const interval = setInterval(scan, 5000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [registeredFiles.join(',')]);
+  }, [registeredKey]);
 
   return unregistered;
 }
