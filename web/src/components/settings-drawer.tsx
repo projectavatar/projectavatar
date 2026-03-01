@@ -164,12 +164,14 @@ export function SettingsDrawer() {
     relayUrl,
     theme,
     effects,
+    renderScale,
     settingsOpen,
     connectionState,
     setToken,
     setRelayUrl,
     setTheme,
     setEffect,
+    setRenderScale,
     setSettingsOpen,
     generateAndSetToken,
   } = useStore();
@@ -244,6 +246,37 @@ export function SettingsDrawer() {
                 Toggle visual effects on the avatar. Some effects work best together (e.g. Eye Glow + Bloom).
               </div>
             </div>
+            <div style={effectToggleStyle}>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}>
+                  Render Scale
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  Higher = sharper but heavier ({renderScale}x)
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[1, 2, 3].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setRenderScale(s)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      border: `1px solid ${renderScale === s ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                      background: renderScale === s ? 'rgba(108, 92, 231, 0.2)' : 'transparent',
+                      color: renderScale === s ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {(Object.keys(EFFECT_LABELS) as (keyof EffectsState)[]).map((effect) => (
               <div key={effect} style={effectToggleStyle}>
                 <div>

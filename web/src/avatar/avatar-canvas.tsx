@@ -47,10 +47,11 @@ const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, renderScale = 2 }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
   onStateMachine?: (sm: StateMachine | null) => void;
   onEffectsManager?: (em: EffectsManager | null) => void;
+  renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -178,6 +179,17 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager 
       sceneRef.current = null;
     };
   }, [modelUrl, setAvatarState]);
+
+  // Sync render scale (pixel ratio)
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const ratio = Math.min(renderScale, window.devicePixelRatio * renderScale);
+    scene.renderer.setPixelRatio(ratio);
+    // Force resize to apply
+    const canvas = scene.renderer.domElement;
+    scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  }, [renderScale]);
 
   // WebSocket lifecycle
   useEffect(() => {

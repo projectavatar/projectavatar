@@ -34,6 +34,7 @@ export interface AppState {
   channelStateReceived: boolean;
   avatar: AvatarState;
   effects: EffectsState;
+  renderScale: number;
   settingsOpen: boolean;
   devPanelOpen: boolean;
   theme: 'dark' | 'transparent';
@@ -46,6 +47,7 @@ export interface AppState {
   setReconnectAttempt: (attempt: number) => void;
   setAvatarState: (state: Partial<AvatarState>) => void;
   setEffect: (effect: keyof EffectsState, enabled: boolean) => void;
+  setRenderScale: (scale: number) => void;
   setSettingsOpen: (open: boolean) => void;
   setDevPanelOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'transparent') => void;
@@ -83,7 +85,7 @@ function updateUrlParams(params: Record<string, string | null>) {
   } catch { /* SSR / restricted */ }
 }
 
-function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects'>> {
+function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects' | 'renderScale'>> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
@@ -95,16 +97,18 @@ function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'mo
       modelUrl: typeof parsed['modelUrl'] === 'string' ? parsed['modelUrl'] : undefined,
       theme:    parsed['theme'] === 'transparent' ? 'transparent' : undefined,
       effects:  parsed['effects'] && typeof parsed['effects'] === 'object' ? parsed['effects'] as EffectsState : undefined,
+      renderScale: typeof parsed['renderScale'] === 'number' ? parsed['renderScale'] as number : undefined,
     };
   } catch { return {}; }
 }
 
-function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects'>) {
+function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects' | 'renderScale'>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       token: state.token, relayUrl: state.relayUrl,
       modelId: state.modelId, modelUrl: state.modelUrl, theme: state.theme,
       effects: state.effects,
+      renderScale: state.renderScale,
     }));
   } catch { /* localStorage unavailable */ }
 }
@@ -133,6 +137,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   avatar: { emotion: 'idle', action: 'idle', prop: 'none', intensity: 'medium' },
   effects: persisted.effects ?? { ...DEFAULT_EFFECTS_STATE },
+  renderScale: persisted.renderScale ?? 2,
 
   settingsOpen:  false,
   devPanelOpen:  false,
@@ -161,6 +166,11 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       effects: { ...state.effects, [effect]: enabled },
     }));
+    persistState(get());
+  },
+
+  setRenderScale: (renderScale) => {
+    set({ renderScale });
     persistState(get());
   },
 

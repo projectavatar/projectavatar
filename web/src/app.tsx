@@ -79,6 +79,7 @@ export function App() {
   const theme                  = useStore((s) => s.theme);
   const channelStateReceived   = useStore((s) => s.channelStateReceived);
   const effects                 = useStore((s) => s.effects);
+  const renderScale              = useStore((s) => s.renderScale);
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
@@ -132,6 +133,8 @@ export function App() {
     if (effectsManager) effectsManager.applyState(effects);
   }, [effectsManager, effects]);
 
+  // Sync render scale — not available on sceneRef yet, pass via prop
+
   useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }, [theme]);
@@ -147,7 +150,7 @@ export function App() {
   return (
     <WsContext.Provider value={wsContextValue}>
       <div style={avatarContainerStyle}>
-        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} />
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} renderScale={renderScale} />
 
         {showPicker && <ModelPickerOverlay />}
 
