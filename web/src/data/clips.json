@@ -611,8 +611,8 @@
       "vfx": [
         {
           "type": "rain",
-          "color": "#6699cc",
-          "intensity": 0.8
+          "color": "#99ccff",
+          "intensity": 1.2
         }
       ]
     },
@@ -623,8 +623,8 @@
       "vfx": [
         {
           "type": "embers",
-          "color": "#ff6622",
-          "intensity": 1.0
+          "color": "#ff8833",
+          "intensity": 1.2
         }
       ]
     },

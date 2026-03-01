@@ -358,7 +358,7 @@ function createHearts(binding: VfxBinding): VfxInstance {
 // ─── Rain ─────────────────────────────────────────────────────────────────────
 
 function createRain(binding: VfxBinding): VfxInstance {
-  const count = 25;
+  const count = 35;
   const color = new THREE.Color(binding.color ?? '#6699cc');
   const intensity = binding.intensity ?? 1.0;
   const offsetY = binding.offsetY ?? 0.8;
@@ -377,7 +377,7 @@ function createRain(binding: VfxBinding): VfxInstance {
     phases[i] = Math.random();
     startX[i] = (Math.random() - 0.5) * 0.8;
     startZ[i] = (Math.random() - 0.5) * 0.5;
-    sizes[i] = (0.02 + Math.random() * 0.015) * intensity;
+    sizes[i] = (0.06 + Math.random() * 0.04) * intensity;
     colors[i * 3] = color.r;
     colors[i * 3 + 1] = color.g;
     colors[i * 3 + 2] = color.b;
@@ -421,7 +421,7 @@ function createRain(binding: VfxBinding): VfxInstance {
         // Fade in at top, fade out at bottom
         const fadeIn = Math.min(life * 4, 1);
         const fadeOut = 1 - life;
-        alpha.array[i] = currentOpacity * fadeIn * fadeOut * 0.7;
+        alpha.array[i] = currentOpacity * fadeIn * fadeOut;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;
@@ -433,7 +433,7 @@ function createRain(binding: VfxBinding): VfxInstance {
 // ─── Embers ───────────────────────────────────────────────────────────────────
 
 function createEmbers(binding: VfxBinding): VfxInstance {
-  const count = 20;
+  const count = 30;
   const color = new THREE.Color(binding.color ?? '#ff6622');
   const intensity = binding.intensity ?? 1.0;
   const offsetY = binding.offsetY ?? 0;
@@ -452,7 +452,7 @@ function createEmbers(binding: VfxBinding): VfxInstance {
     phases[i] = Math.random();
     driftX[i] = (Math.random() - 0.5) * 0.6;
     driftZ[i] = (Math.random() - 0.5) * 0.4;
-    sizes[i] = (0.03 + Math.random() * 0.03) * intensity;
+    sizes[i] = (0.07 + Math.random() * 0.05) * intensity;
     // Warm gradient: orange to red
     const warmth = Math.random();
     colors[i * 3] = color.r;
@@ -500,7 +500,7 @@ function createEmbers(binding: VfxBinding): VfxInstance {
         // Flicker + lifecycle fade
         const flicker = 0.6 + 0.4 * Math.sin(time * 12 + phases[i]! * 20);
         const fadeOut = 1 - life * life; // quadratic fade
-        alpha.array[i] = currentOpacity * flicker * fadeOut * 0.8;
+        alpha.array[i] = currentOpacity * flicker * fadeOut;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;
