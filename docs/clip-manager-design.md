@@ -2,7 +2,7 @@
 
 ## Overview
 
-A separate Vite app (`clip-manager/`) in the monorepo for managing FBX animation clips, their metadata/tags, and action/emotion mappings. Replaces the hardcoded `clip-map.ts` with a JSON-driven registry.
+A separate Vite app (`packages/clip-manager/`) in the monorepo for managing FBX animation clips, their metadata/tags, and action/emotion mappings. Replaces the hardcoded `clip-map.ts` with a JSON-driven registry.
 
 Has its own VRM preview panel — can play any FBX clip directly on a loaded model, including orphaned/unmapped clips. Writes `clips.json` directly to the avatar web app via File System Access API.
 
@@ -10,14 +10,14 @@ Has its own VRM preview panel — can play any FBX clip directly on a loaded mod
 
 ```
 clips.json (source of truth, committed to repo)
-    ↓ (import at build time by web/)
+    ↓ (import at build time by packages/web/)
 clip-registry.ts (typed loader, replaces clip-map.ts resolver)
     ↓
 animation-controller.ts (reads resolved clips at runtime)
 
-Clip Manager (clip-manager/, localhost:5174)
+Clip Manager (packages/clip-manager/, localhost:5174)
     ↓ (File System Access API — direct save)
-web/src/data/clips.json
+packages/web/src/data/clips.json
 ```
 
 ### Why separate app
@@ -105,7 +105,7 @@ web/src/data/clips.json
 
 ## UI Design
 
-### Separate app: `clip-manager/`, port 5174
+### Separate app: `packages/clip-manager/`, port 5174
 
 ### Layout: Three-panel + header + status bar
 
@@ -191,7 +191,7 @@ web/src/data/clips.json
 ### Header Bar
 
 - **Model dropdown**: switch VRM model
-- **Save**: File System Access API → writes to `web/src/data/clips.json`
+- **Save**: File System Access API → writes to `packages/web/src/data/clips.json`
   - First save prompts picker, then cached
   - Ctrl+S shortcut
 - **Export**: download fallback
@@ -234,7 +234,7 @@ class ClipPreview {
 }
 ```
 
-Reuses `mixamo-loader.ts` from `web/src/avatar/` (shared import or copy).
+Reuses `mixamo-loader.ts` from `packages/web/src/avatar/` (shared import or copy).
 
 ## Migration Plan
 
@@ -246,7 +246,7 @@ Reuses `mixamo-loader.ts` from `web/src/avatar/` (shared import or copy).
 5. Validate identical runtime behavior
 
 ### Phase 2: Clip Manager app scaffold
-1. `clip-manager/` Vite + React app in monorepo
+1. `packages/clip-manager/` Vite + React app in monorepo
 2. Three-panel layout shell
 3. VRM preview with clip playback (standalone Three.js scene)
 4. Clip library panel (reads clips.json)
@@ -267,8 +267,8 @@ Reuses `mixamo-loader.ts` from `web/src/avatar/` (shared import or copy).
 ## Technical Notes
 
 - **Port**: 5174 (avatar viewer on 5173)
-- **Shared code**: imports from `web/src/avatar/mixamo-loader.ts` for FBX loading
-- **VRM models**: reads from `web/public/models/` (or symlink)
-- **FBX files**: reads from `web/public/animations/` (or symlink)
+- **Shared code**: imports from `packages/web/src/avatar/mixamo-loader.ts` for FBX loading
+- **VRM models**: reads from `packages/web/public/models/` (or symlink)
+- **FBX files**: reads from `packages/web/public/animations/` (or symlink)
 - **State**: local useReducer (not Zustand — different app)
 - **Styling**: CSS variables matching avatar viewer's design tokens

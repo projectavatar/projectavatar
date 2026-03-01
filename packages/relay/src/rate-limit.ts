@@ -1,4 +1,4 @@
-import { RATE_LIMITS } from '../../packages/shared/src/constants.js';
+import { RATE_LIMITS } from '../../shared/src/constants.js';
 import type { Env } from './types.js';
 
 interface RateLimitResult {

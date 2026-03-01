@@ -24,7 +24,7 @@ This document is the complete technical blueprint for Project Avatar. A develope
 
 ## Repository Structure
 
-Monorepo. One repo, three packages, shared types. **`web/` is the primary deliverable** — the browser app is the product. The Tauri desktop app wraps it and adds native features but is secondary.
+Monorepo. One repo, three packages, shared types. **`packages/web/` is the primary deliverable** — the browser app is the product. The Tauri desktop app wraps it and adds native features but is secondary.
 
 ```
 project-avatar/
@@ -39,7 +39,7 @@ project-avatar/
 │       ├── package.json
 │       └── tsconfig.json
 │
-├── web/                          # *** PRIMARY *** Browser app (Cloudflare Pages)
+│   ├── web/                      # *** PRIMARY *** Browser app (Cloudflare Pages)
 │   ├── src/
 │   │   ├── main.tsx              # React entry
 │   │   ├── App.tsx               # Token setup → avatar view router
@@ -85,7 +85,7 @@ project-avatar/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── relay/                        # Cloudflare Workers relay server
+│   └── relay/                    # Cloudflare Workers relay server
 │   ├── src/
 │   │   ├── index.ts              # Worker entry, routing
 │   │   ├── channel.ts            # Durable Object: WebSocket pub/sub hub
@@ -527,7 +527,7 @@ Open CORS because the avatar app's origin is `tauri://localhost` or `https://tau
 ### Goal
 A working browser app at `app.projectavatar.io` that renders a VRM avatar, connects to the relay via WebSocket, and reacts to avatar events with expressions, animations, and props. **This is the primary deliverable** — the Tauri desktop app is a thin wrapper built on top of this in Phase 4.
 
-The entire avatar renderer (`web/src/avatar/`) is built as pure TypeScript + Three.js with zero Tauri or browser-specific dependencies. It runs identically in a browser tab, an OBS browser source, and a Tauri webview.
+The entire avatar renderer (`packages/web/src/avatar/`) is built as pure TypeScript + Three.js with zero Tauri or browser-specific dependencies. It runs identically in a browser tab, an OBS browser source, and a Tauri webview.
 
 ### What to Build
 
@@ -1751,7 +1751,7 @@ Multi-screen model change:
 - `SetModelMessage` and `WebSocketClientMessage` for client→server messages
 - `ChannelStateResponse` for the HTTP state endpoint
 
-**`relay/src/channel.ts`**
+**`packages/relay/src/channel.ts`**
 - New DO storage keys: `model`, `lastAgentEventAt`
 - Lazy in-memory cache for all three storage fields (same pattern as existing `lastEventCache`)
 - `handlePush`: atomic dual-write of `lastEvent` + `lastAgentEventAt` via `storage.put(map)`
@@ -1759,15 +1759,15 @@ Multi-screen model change:
 - `webSocketMessage`: handles `set_model` from clients — validates, persists, broadcasts `model_changed`
 - `handleGetState`: new HTTP GET `/state` handler returning current `ChannelState` as JSON
 
-**`relay/src/index.ts`**
+**`packages/relay/src/index.ts`**
 - New route: `GET /channel/:token/state` → routes to DO's `/state` handler
 
-**`web/src/ws/web-socket-client.ts`**
+**`packages/web/src/ws/web-socket-client.ts`**
 - New constructor params: `onChannelState`, `onModelChanged`
 - `handleMessage()` switch: handles `channel_state`, `avatar_event`, `model_changed`
 - New public `sendSetModel(model: string | null)`: sends `set_model` over open WebSocket
 
-**`web/src/state/store.ts`**
+**`packages/web/src/state/store.ts`**
 - Removed model from URL params entirely (only token remains in URL)
 - `updateUrlParams` strips stale `?model=` params from old URLs on load
 - Added `lastAgentEventAt: number | null` field
@@ -1775,12 +1775,12 @@ Multi-screen model change:
 - `setModelId` no longer updates URL params
 - localStorage model = optimistic cache only, overwritten by `applyChannelState` on connect
 
-**`web/src/avatar/avatar-canvas.tsx`**
+**`packages/web/src/avatar/avatar-canvas.tsx`**
 - Wires `onChannelState` → `applyChannelState`, `onModelChanged` → `setModelId`
 - Provides `WsContext` with `sendSetModel` via React context (no prop drilling)
 - `useWsClient()` hook for descendant components to access `sendSetModel`
 
-**`web/src/app.tsx`**
+**`packages/web/src/app.tsx`**
 - Replaced full-screen wizard gate with layered approach:
   - No token → `<TokenSetup />`
   - Token + no model + connecting → canvas + connecting indicator
@@ -1788,17 +1788,17 @@ Multi-screen model change:
   - Token + model → full avatar experience (no blocker)
 - Canvas always mounts as soon as token is available — WS connects immediately
 
-**`web/src/token-setup.tsx`** *(new)*
+**`packages/web/src/token-setup.tsx`** *(new)*
 - Handles the no-token case: auto-generates a token, shows share links
 - Token-only share URL (`?token=abc123`, no model param)
 - Existing token paste + validation
 
-**`web/src/model-picker-overlay.tsx`** *(new)*
+**`packages/web/src/model-picker-overlay.tsx`** *(new)*
 - Overlay rendered on top of the live canvas
 - On select: calls `sendSetModel(id)` via `useWsClient()`
 - Store updates when `model_changed` echo arrives from DO — overlay disappears naturally
 
-**`web/src/components/settings-drawer.tsx`**
+**`packages/web/src/components/settings-drawer.tsx`**
 - Share links updated: `?token=abc123` only (no model param)
 - Model picker: calls `sendSetModel` on change (disabled when not connected)
 - Hint text: "Model change syncs to all connected screens instantly."
@@ -1877,14 +1877,14 @@ Updated `StatusBadge`:
 
 Or a combined badge if screen space is tight — designer's call. Keep it minimal.
 
-**`web/src/state/store.ts`**
+**`packages/web/src/state/store.ts`**
 - Add computed getter `agentPresence: 'active' | 'recent' | 'away'`
 - Update `lastAgentEventAt` when an `avatar_event` arrives (in `setAvatarState` or a new `recordAgentEvent()` action)
 
-**`web/src/avatar/avatar-canvas.tsx`**
+**`packages/web/src/avatar/avatar-canvas.tsx`**
 - In the `onEvent` callback, call `recordAgentEvent()` after forwarding to the state machine
 
-**`web/src/components/status-badge.tsx`**
+**`packages/web/src/components/status-badge.tsx`**
 - Read `agentPresence` from store
 - Render a second dot/label for agent status alongside the WS status
 
@@ -1961,7 +1961,7 @@ Prevent silent WebSocket disconnections from Cloudflare's idle timeout (default 
 
 This is a small, focused change. No new features — just reliability.
 
-**`relay/src/channel.ts`**
+**`packages/relay/src/channel.ts`**
 
 Cloudflare's Hibernation API handles WS ping/pong automatically at the protocol level when you call `state.acceptWebSocket(server)` — Cloudflare pings connected sockets before they'd otherwise time out, and the browser responds with pong. So **the DO side may require no changes** depending on Cloudflare's current behavior.
 
@@ -1980,7 +1980,7 @@ async alarm(): Promise<void> {
 
 Schedule the alarm when the first client connects; cancel when last client disconnects.
 
-**`web/src/ws/web-socket-client.ts`**
+**`packages/web/src/ws/web-socket-client.ts`**
 
 Handle incoming `ping` message (if the DO sends them) and respond with `pong`. If using browser-native WebSocket ping/pong frames (not JSON messages), this is handled automatically by the browser — no app-level code needed.
 
@@ -2031,11 +2031,11 @@ Tauri desktop app, bundled VRM models, settings UI polish, voice lip-sync.
 }
 ```
 
-Thin wrapper: `app/src/main.tsx` imports from `web/src/` via path alias. No duplicated renderer code.
+Thin wrapper: `app/src/main.tsx` imports from `packages/web/src/` via path alias. No duplicated renderer code.
 
 **5.2 — Bundled VRM Models**
 
-`web/src/assets/models/manifest.json` exists but has no actual `.vrm` files. Source CC0/CC-BY models from VRoid Hub. Add 3-5 options. Custom import via file picker (browser `<input type="file">` / Tauri file dialog).
+`packages/web/src/assets/models/manifest.json` exists but has no actual `.vrm` files. Source CC0/CC-BY models from VRoid Hub. Add 3-5 options. Custom import via file picker (browser `<input type="file">` / Tauri file dialog).
 
 **5.3 — System Tray (Desktop)**
 

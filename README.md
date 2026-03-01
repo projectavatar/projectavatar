@@ -136,7 +136,7 @@ The default relay runs at `relay.projectavatar.io`. To run your own:
 
 ```bash
 git clone https://github.com/ragr3t/projectavatar.git
-cd projectavatar/relay
+cd projectavatar/packages/relay
 npm install
 cp wrangler.example.toml wrangler.toml
 npx wrangler deploy
@@ -187,7 +187,7 @@ project-avatar/
 ├── packages/
 │   ├── shared/               # Shared types, schema, constants, skill template
 │   ├── avatar-engine/        # 3D rendering engine (Three.js + VRM)
-│   │   └── src/
+│   │   │   └── src/
 │   │       ├── avatar-scene.ts        # Three.js scene, camera, lights, render loop
 │   │       ├── vrm-manager.ts         # VRM model loading + placeholder
 │   │       ├── animation-controller.ts # Hybrid FBX + procedural animation
@@ -200,23 +200,23 @@ project-avatar/
 │   │       ├── body-parts.ts          # Bone ↔ body part mapping (5 groups)
 │   │       └── procedural/            # Idle layer (breathing, sway, drift)
 │   └── openclaw-avatar/      # @projectavatar/openclaw-avatar — OpenClaw plugin
-├── desktop/                   # Tauri v2 desktop app (Windows + macOS)
-│   ├── src/                   # Desktop-specific React shell (WindowChrome)
-│   └── src-tauri/             # Rust backend (transparent, borderless window)
-├── web/                       # Browser app (Cloudflare Pages → app.projectavatar.io)
-│   └── src/
-│       ├── avatar/
-│       │   └── avatar-canvas.tsx      # React wrapper for engine + WebSocket
-│       ├── ws/                        # WebSocket client
-│       ├── state/                     # Zustand store
-│       ├── components/                # Dev panel, settings, status badge
-│       └── data/clips.json           # Animation mapping (source of truth)
-├── clip-manager/              # Animation clip editor (dev tool, :5174)
-│   └── src/
-│       ├── preview/                   # 3D preview (uses avatar-engine)
-│       ├── components/                # Clip library, action/emotion editors
-│       └── state.ts                   # useReducer state management
-├── relay/                     # Cloudflare Workers relay server
+│   ├── desktop/               # Tauri v2 desktop app (Windows + macOS)
+│   │   ├── src/               # Desktop-specific React shell (WindowChrome)
+│   │   └── src-tauri/         # Rust backend (transparent, borderless window)
+│   ├── web/                   # Browser app (Cloudflare Pages → app.projectavatar.io)
+│   │   └── src/
+│   │       ├── avatar/
+│   │       │   └── avatar-canvas.tsx      # React wrapper for engine + WebSocket
+│   │       ├── ws/                    # WebSocket client
+│   │       ├── state/                 # Zustand store
+│   │       ├── components/            # Dev panel, settings, status badge
+│   │       └── data/clips.json       # Animation mapping (source of truth)
+│   ├── clip-manager/          # Animation clip editor (dev tool, :5174)
+│   │   └── src/
+│   │       ├── preview/               # 3D preview (uses avatar-engine)
+│   │       ├── components/            # Clip library, action/emotion editors
+│   │       └── state.ts               # useReducer state management
+│   └── relay/                 # Cloudflare Workers relay server
 ├── scripts/                   # CLI tools (gen-skill-md, extract-pose, etc.)
 └── docs/                      # Documentation
 ```
@@ -237,7 +237,7 @@ The engine package contains all rendering and animation logic shared between the
 - **StateMachine** — Coordinates all controllers, dispatches avatar events, manages idle timeout.
 - **Layer toggles** — FBX clips, idle noise, expressions, head offset, blink — each independently toggleable via dev panel or clip manager.
 
-Both `web/` and `clip-manager/` depend on `@project-avatar/avatar-engine`. Three.js and `@pixiv/three-vrm` are peer dependencies.
+Both `packages/web/` and `packages/clip-manager/` depend on `@project-avatar/avatar-engine`. Three.js and `@pixiv/three-vrm` are peer dependencies.
 
 ---
 

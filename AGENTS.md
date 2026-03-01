@@ -7,12 +7,12 @@ Coding agent context for this repository.
 Monorepo with independently deployable packages:
 
 - `packages/shared/` — shared types, validation, constants. Imported by all packages.
-- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, weight-based multi-clip blending with body part scoping, transition stabilization. Shared by `web/` and `clip-manager/`.
+- `packages/avatar-engine/` — **3D rendering engine**. Three.js + VRM animation, expressions, weight-based multi-clip blending with body part scoping, transition stabilization. Shared by `packages/web/` and `packages/clip-manager/`.
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
-- `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
-- `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
-- `desktop/` — **Tauri v2 desktop app**. Wraps `web/` in a native window: transparent, borderless, always-on-top. WindowChrome component adds hover border + resize/drag/rotate controls. Builds for Windows + macOS via GitHub Actions.
-- `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation blending. Port 5174. Assets served from `web/public/` via shared `publicDir`.
+- `packages/relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
+- `packages/web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
+- `packages/desktop/` — **Tauri v2 desktop app**. Wraps `web/` in a native window: transparent, borderless, always-on-top. WindowChrome component adds hover border + resize/drag/rotate controls. Builds for Windows + macOS via GitHub Actions.
+- `packages/clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation blending. Port 5174. Assets served from `packages/web/public/` via shared `publicDir`.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
@@ -88,7 +88,7 @@ Four toggleable effects, all off by default, persisted to localStorage:
 ### Animation Data Pipeline
 
 ```
-clips.json (web/src/data/) — source of truth for all clip metadata + mappings
+clips.json (packages/web/src/data/) — source of truth for all clip metadata + mappings
     ↓ passed at runtime
 ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getAllClipFiles)
     ↓
@@ -96,7 +96,7 @@ AnimationController (avatar-engine) — runtime playback via Three.js AnimationM
     ↓ post-mixer
 TransitionStabilizer (avatar-engine) — soft pins for hips/hands; foot skating handled by crossfade timing
 
-Clip Manager (clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
+Clip Manager (packages/clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)
 clips.json
 ```
@@ -133,25 +133,25 @@ Client → server messages (`WebSocketClientMessage`):
 - `src/effects/` — Visual effects: particle-aura, energy-trails, bloom-effect, holographic, effects-manager.
 
 ### Relay
-- `relay/src/channel.ts` — Durable Object. Handles push, stream, state, set_model.
-- `relay/src/index.ts` — Worker entry. Routes: `POST /push/:token`, `GET /stream/:token`, `GET /channel/:token/state`, 
+- `packages/relay/src/channel.ts` — Durable Object. Handles push, stream, state, set_model.
+- `packages/relay/src/index.ts` — Worker entry. Routes: `POST /push/:token`, `GET /stream/:token`, `GET /channel/:token/state`, 
 
 ### Web App
-- `web/src/avatar/avatar-canvas.tsx` — React wrapper: creates engine instances + wires WebSocket.
-- `web/src/state/store.ts` — Zustand store. `applyChannelState()` is the single write path for DO state.
-- `web/src/ws/web-socket-client.ts` — WebSocket client with keepalive (60s dead-connection timer).
-- `web/src/components/dev-panel.tsx` — Layer toggles, event sender, clip inspector.
-- `web/src/data/clips.json` — Animation clip registry.
-- `web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
+- `packages/web/src/avatar/avatar-canvas.tsx` — React wrapper: creates engine instances + wires WebSocket.
+- `packages/web/src/state/store.ts` — Zustand store. `applyChannelState()` is the single write path for DO state.
+- `packages/web/src/ws/web-socket-client.ts` — WebSocket client with keepalive (60s dead-connection timer).
+- `packages/web/src/components/dev-panel.tsx` — Layer toggles, event sender, clip inspector.
+- `packages/web/src/data/clips.json` — Animation clip registry.
+- `packages/web/src/app.tsx` — Routing: no token → TokenSetup, no model → ModelPickerOverlay, both → avatar.
 
 ### Clip Manager
-- `clip-manager/src/app.tsx` — Three-panel layout: library, editor, preview.
-- `clip-manager/src/preview/clip-preview.ts` — Composes engine primitives. Supports bone masking + full engine mode with layer toggles.
-- `clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, layer toggles, body part masking.
-- `clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips.
-- `clip-manager/src/state.ts` — useReducer-based state management.
+- `packages/clip-manager/src/app.tsx` — Three-panel layout: library, editor, preview.
+- `packages/clip-manager/src/preview/clip-preview.ts` — Composes engine primitives. Supports bone masking + full engine mode with layer toggles.
+- `packages/clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, layer toggles, body part masking.
+- `packages/clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips.
+- `packages/clip-manager/src/state.ts` — useReducer-based state management.
 
-### Desktop App (`desktop/`)
+### Desktop App (`packages/desktop/`)
 - `src/desktop-app.tsx` — Wraps web `<App />`, forces transparent theme, suppresses context menu.
 - `src/window-chrome.tsx` — Hover border (dashed, rounded), edge/corner resize, left-drag to move, right-click to rotate.
 - `src-tauri/tauri.conf.json` — Window config: transparent, no decorations, always-on-top.
@@ -173,9 +173,9 @@ OpenClaw loads TypeScript via jiti. The plugin ships `src/*.ts` directly. No `ts
 
 ```bash
 cd packages/openclaw-avatar && npm test   # vitest, 39 tests
-cd relay && npx tsc --noEmit              # type check relay
-cd web && npm run build                   # full web build
-cd clip-manager && npm run build          # clip manager build
+cd packages/relay && npx tsc --noEmit              # type check relay
+cd packages/web && npm run build                   # full web build
+cd packages/clip-manager && npm run build          # clip manager build
 npx tsc -p packages/avatar-engine/tsconfig.json --noEmit  # engine type check
 ```
 

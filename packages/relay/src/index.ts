@@ -1,6 +1,6 @@
 import { isValidToken, tokenToChannelName } from './auth.js';
 import { checkRateLimit } from './rate-limit.js';
-import { CORS_HEADERS } from '../../packages/shared/src/constants.js';
+import { CORS_HEADERS } from '../../shared/src/constants.js';
 import type { Env } from './types.js';
 
 export { Channel } from './channel.js';

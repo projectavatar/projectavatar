@@ -95,7 +95,7 @@ export default defineConfig({
     allowedHosts: ['avatar-config.wtch.ing'],
     fs: {
       allow: [
-        resolve(__dirname, '..'),
+        resolve(__dirname, '../..'),
       ],
     },
   },

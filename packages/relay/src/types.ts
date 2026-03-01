@@ -1,4 +1,4 @@
-import type { AvatarEvent } from '../../packages/shared/src/schema.js';
+import type { AvatarEvent } from '../../shared/src/schema.js';
 
 export interface Env {
   CHANNEL: DurableObjectNamespace;

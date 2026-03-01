@@ -4,10 +4,10 @@
  *
  * Usage:
  *   npx tsx scripts/extract-pose.ts <fbx-file> [frame]
- *   npx tsx scripts/extract-pose.ts web/public/animations/standing-idle.fbx
- *   npx tsx scripts/extract-pose.ts web/public/animations/standing-idle.fbx 0
- *   npx tsx scripts/extract-pose.ts web/public/animations/standing-idle.fbx 30
- *   npx tsx scripts/extract-pose.ts web/public/animations/standing-idle.fbx all
+ *   npx tsx scripts/extract-pose.ts packages/web/public/animations/standing-idle.fbx
+ *   npx tsx scripts/extract-pose.ts packages/web/public/animations/standing-idle.fbx 0
+ *   npx tsx scripts/extract-pose.ts packages/web/public/animations/standing-idle.fbx 30
+ *   npx tsx scripts/extract-pose.ts packages/web/public/animations/standing-idle.fbx all
  *
  * Options:
  *   <fbx-file>  Path to a Mixamo FBX file (downloaded "without skin")
