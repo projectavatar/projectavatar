@@ -36,8 +36,10 @@ const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
 // Air mode — leg sway (sine variation on dangle)
-const LEG_SWAY_FREQUENCY = 0.08;   // Hz — very slow cycle
-const LEG_SWAY_AMOUNT    = 0.4;    // 0–1 — how much the tuck varies
+const LEG_SWAY_FREQ_1   = 0.08;   // Hz — primary slow cycle
+const LEG_SWAY_FREQ_2   = 0.13;   // Hz — secondary, incommensurate
+const LEG_SWAY_AMOUNT_1 = 0.3;    // primary variation
+const LEG_SWAY_AMOUNT_2 = 0.15;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
@@ -399,8 +401,10 @@ export class IdleLayer {
     const s = this.legBendSign;
 
     // Sine-driven variation — each leg on a different phase
-    const leftSway  = Math.sin(t * LEG_SWAY_FREQUENCY * Math.PI * 2) * LEG_SWAY_AMOUNT;
-    const rightSway = Math.sin(t * LEG_SWAY_FREQUENCY * Math.PI * 2 + Math.PI * 0.7) * LEG_SWAY_AMOUNT;
+    const leftSway  = Math.sin(t * LEG_SWAY_FREQ_1 * Math.PI * 2) * LEG_SWAY_AMOUNT_1
+                    + Math.sin(t * LEG_SWAY_FREQ_2 * Math.PI * 2 + 0.9) * LEG_SWAY_AMOUNT_2;
+    const rightSway = Math.sin(t * LEG_SWAY_FREQ_1 * Math.PI * 2 + Math.PI * 0.7) * LEG_SWAY_AMOUNT_1
+                    + Math.sin(t * LEG_SWAY_FREQ_2 * Math.PI * 2 + 2.3) * LEG_SWAY_AMOUNT_2;
 
     // Base multipliers: left = straighter (1.1), right = more tucked (2.0)
     // Sway adds/subtracts from these
