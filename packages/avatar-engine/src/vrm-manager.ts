@@ -22,7 +22,7 @@ export class VrmManager {
   private _bodyCenter = new THREE.Vector3(0, 0, 0);
   /** Face center — computed from head bone after load. */
   private _faceCenter = new THREE.Vector3(0, 0.5, 0);
-  private _gravityPower = -0.2;
+  private _gravityPower = 0.3;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
