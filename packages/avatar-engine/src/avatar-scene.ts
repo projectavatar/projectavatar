@@ -74,6 +74,7 @@ export class AvatarScene {
   private updateCallbacks: Array<(delta: number) => void> = [];
   private onResizeCallback: ((width: number, height: number) => void) | null = null;
   private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private cameraRestored = false;
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -165,8 +166,8 @@ export class AvatarScene {
         this.camera.position.set(...saved.position);
         this.controls.target.set(...saved.target);
         this.controls.update();
-        // Disable dynamic framing when user has a saved camera position
         this.framingEnabled = false;
+        this.cameraRestored = true;
       }
 
       // Persist camera on change (debounced)
@@ -204,8 +205,11 @@ export class AvatarScene {
   setFramingPoints(body: THREE.Vector3, face: THREE.Vector3): void {
     this.bodyCenter.copy(body);
     this.faceCenter.copy(face);
-    this.framingEnabled = true;
-    this._updateFramingTarget();
+    // Don't override user's saved camera position with auto-framing
+    if (!this.cameraRestored) {
+      this.framingEnabled = true;
+      this._updateFramingTarget();
+    }
   }
 
   /** Register an update callback invoked each frame with delta time. */
