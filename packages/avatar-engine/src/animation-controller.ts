@@ -137,6 +137,11 @@ export class AnimationController {
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
+  /** Get the current idle layer bob offset (for prop sync). */
+  getIdleBobOffset(): number {
+    return this.idleLayer.getBobOffset();
+  }
+
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
 

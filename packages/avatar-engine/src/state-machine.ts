@@ -162,8 +162,9 @@ export class StateMachine {
   update(delta: number): void {
     this.animationCtrl.update(delta);
 
-    // Prop fade animations
-    this.propManager.update(delta);
+    // Prop fade animations — pass bob offset so props track the idle layer bob
+    const bobOffset = this.animationCtrl.getIdleBobOffset();
+    this.propManager.update(delta, bobOffset);
 
     // Expression layers respect toggles
     const layers = this.animationCtrl.layers;

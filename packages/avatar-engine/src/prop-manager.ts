@@ -193,9 +193,14 @@ export class PropManager {
   /**
    * Update fade animations. Call every frame.
    */
-  update(delta: number): void {
+  update(delta: number, bobOffset = 0): void {
     this.elapsed += delta;
     this.holoUniforms.uTime.value = this.elapsed;
+
+    // Sync active prop Y position to match idle layer bob
+    if (this.activeProp && bobOffset !== 0) {
+      this.activeProp.root.position.y = this.activeProp.binding.transform.position[1] + bobOffset;
+    }
 
     // Update active prop fade-in
     if (this.activeProp) {

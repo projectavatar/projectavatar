@@ -135,10 +135,10 @@ export class IdleLayer {
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
 
-  /** When true, counter-move arms to cancel bob (keeps hands fixed for props). */
+  /** When true, prop is active — bob offset is exposed for PropManager sync. */
   private _propActive = false;
-  private leftUpperArm: THREE.Object3D | null = null;
-  private rightUpperArm: THREE.Object3D | null = null;
+  /** Current bob offset in meters (exposed for PropManager to sync prop Y). */
+  private _currentBobOffset = 0;
 
   /**
    * Sign multiplier for leg bend direction (+1 or -1).
@@ -164,11 +164,14 @@ export class IdleLayer {
   }
 
   /** Set whether a prop is active — arms will counter-move to stay world-space fixed. */
+  /** Current bob offset in meters — PropManager uses this to sync prop Y. */
+  getBobOffset(): number {
+    return this._currentBobOffset;
+  }
+
   setPropActive(active: boolean): void {
     if (active !== this._propActive) {
-      console.log('[IdleLayer] propActive:', active,
-        '| leftUpperArm:', !!this.leftUpperArm,
-        '| rightUpperArm:', !!this.rightUpperArm);
+      console.log('[IdleLayer] propActive:', active);
     }
     this._propActive = active;
   }
@@ -255,8 +258,6 @@ export class IdleLayer {
     this.leftFoot      = get('leftFoot');
     this.rightFoot     = get('rightFoot');
     this.head          = get('head');
-    this.leftUpperArm  = get('leftUpperArm');
-    this.rightUpperArm = get('rightUpperArm');
 
     this.initialized = !!(this.hips || this.spine || this.chest);
 
@@ -404,13 +405,8 @@ export class IdleLayer {
                        + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
       this.vrm.scene.position.y = this.baseY + bobOffset;
 
-      // Counter-move hands when a prop is active — keeps hands world-space stable
-      // while the body bobs. We offset the upperArm bones in world Y by the
-      // negative bob, then convert back to local space.
-      if (this._propActive) {
-        this._counterMoveArm(this.leftUpperArm, -bobOffset);
-        this._counterMoveArm(this.rightUpperArm, -bobOffset);
-      }
+      // Store current bob offset so PropManager can sync prop Y position
+      this._currentBobOffset = bobOffset;
     }
 
     // 2. Smooth hips Y lock — prevent clips from moving the model up/down.
@@ -565,23 +561,6 @@ export class IdleLayer {
 
 
   /**
-   * Shift a bone so that its world-space Y moves by `deltaY`.
-   * We convert the world-Y offset into the bone's local space
-   * (accounting for parent transforms / scale / rotation).
-   */
-  private _counterMoveArm(bone: THREE.Object3D | null, deltaY: number): void {
-    if (!bone || !bone.parent) return;
-
-    // Get the parent's world matrix inverse to convert world offset → local offset
-    const parentInverse = new THREE.Matrix4().copy(bone.parent.matrixWorld).invert();
-    // World-space offset vector (pure Y)
-    const worldOffset = new THREE.Vector3(0, deltaY, 0);
-    // Transform to local space (direction only — ignore translation)
-    const localOffset = worldOffset.transformDirection(parentInverse);
-
-    bone.position.add(localOffset);
-  }
-
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
   /**
