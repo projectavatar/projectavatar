@@ -13,6 +13,17 @@
 - **Autostart with OS** — App registers to launch on OS startup by default. Toggle in Settings → General.
 - **Rounded window corners** — Content clipped to 12px border-radius.
 
+### Cursor Tracking
+
+- **Head follows cursor** — Avatar's head subtly turns toward the mouse cursor (40% influence, smooth exponential lerp).
+- **Eye follows cursor** — VRM lookAt proxy blends between camera and cursor target for natural eye movement.
+- **Dead zone** — Head ignores cursor within 0.3 units of the head position, preventing jitter when cursor crosses over the model.
+- **5-second idle return** — Head and eyes smoothly return to looking at the camera after cursor stops moving.
+- **Desktop global cursor** — Rust plugin (`mouse_position` crate) polls OS-level cursor position at ~30Hz. Tracks cursor even outside the window.
+- **Tauri auto-detection** — Probes with real invoke before switching from mousemove to global polling. Falls back gracefully on web.
+- **Bypass head/eye tracking** — Clips can set `bypassHeadTracking: true` to override cursor tracking (e.g. typing, searching animations).
+- **Clip manager UI** — New "Bypass Head/Eye Tracking" checkbox in action editor.
+
 ### Fixes
 
 - DevTools now available in production builds (`devtools` Cargo feature).

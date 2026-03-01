@@ -582,7 +582,7 @@ export class IdleLayer {
     this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
-    const influence = HEAD_TRACK_INFLUENCE; // flat 0.25 — subtle, never jarring
+    const influence = HEAD_TRACK_INFLUENCE;
     this.head.rotation.y += this._headCurrentYaw * influence;
     this.head.rotation.x += this._headCurrentPitch * influence;
   }
