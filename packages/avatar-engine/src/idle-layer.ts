@@ -35,9 +35,9 @@ const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward cam
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
-const LEG_SWAP_MIN       = 20.0;   // seconds — min time before swap
-const LEG_SWAP_MAX       = 25.0;   // seconds — max time before swap
-const LEG_SWAP_DURATION  = 2.5;    // seconds — slow, natural crossfade
+const LEG_SWAP_MIN       = 5.0;   // seconds — min time before swap
+const LEG_SWAP_MAX       = 6.0;   // seconds — max time before swap
+const LEG_SWAP_DURATION  = 0.5;    // seconds — slow, natural crossfade
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
@@ -314,20 +314,13 @@ export class IdleLayer {
       this.legSwapTimer = Math.random() * (LEG_SWAP_MAX - LEG_SWAP_MIN) * -1; // negative offset for randomness
       this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
     }
-    // Lead leg moves first, trailing leg follows with delay
-    const swapSpeed = 1.0 / LEG_SWAP_DURATION;
-    const trailSpeed = swapSpeed * 0.4; // trailing leg is slower
-    if (this.legSwapBlend < this.legSwapTarget) {
-      this.legSwapBlend = Math.min(this.legSwapBlend + swapSpeed * delta, 1);
-    } else if (this.legSwapBlend > this.legSwapTarget) {
-      this.legSwapBlend = Math.max(this.legSwapBlend - swapSpeed * delta, 0);
-    }
-    // Trail follows lead
-    if (this.legSwapBlendTrail < this.legSwapBlend) {
-      this.legSwapBlendTrail = Math.min(this.legSwapBlendTrail + trailSpeed * delta, this.legSwapBlend);
-    } else if (this.legSwapBlendTrail > this.legSwapBlend) {
-      this.legSwapBlendTrail = Math.max(this.legSwapBlendTrail - trailSpeed * delta, this.legSwapBlend);
-    }
+    // Exponential ease — fast start, slow finish (natural deceleration)
+    const leadSpeed = 3.0 / LEG_SWAP_DURATION;
+    const trailSpeed = leadSpeed * 0.4;
+    const leadLerp = 1 - Math.exp(-leadSpeed * delta);
+    const trailLerp = 1 - Math.exp(-trailSpeed * delta);
+    this.legSwapBlend += (this.legSwapTarget - this.legSwapBlend) * leadLerp;
+    this.legSwapBlendTrail += (this.legSwapBlend - this.legSwapBlendTrail) * trailLerp;
 
     // 6. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
