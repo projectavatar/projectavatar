@@ -149,7 +149,7 @@ export class AvatarScene {
       this.controls.mouseButtons = {
         LEFT: THREE.MOUSE.ROTATE,
         MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.ROTATE,
+        RIGHT: THREE.MOUSE.PAN,
       };
       // Lock vertical rotation in production — no peeking allowed
       if (!options?.dev) {
