@@ -103,6 +103,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         })
         .catch((err) => {
           console.warn('[AvatarCanvas] Animation load failed:', err);
+          document.title = `ANIM ERROR: ${err}`;
           setAnimationsLoaded(true);
           vrmManager.show(); // show anyway on failure
         });
@@ -166,6 +167,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         } catch (err) {
           if (cancelled) return;
           console.warn('[AvatarCanvas] Failed to load VRM:', err);
+          document.title = `VRM LOAD ERROR: ${err}`;
           vrmManager.showPlaceholder();
           avatarScene.onUpdate((delta) => vrmManager.update(delta));
         }
