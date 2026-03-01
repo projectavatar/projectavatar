@@ -171,13 +171,45 @@ function createThoughtBubbles(binding: VfxBinding): VfxInstance {
   };
 }
 
-// ─── Sparkles ─────────────────────────────────────────────────────────────────
+// ─── Sparkles (starburst) ───────────────────────────────────────────────────
+
+/** 4-point star fragment shader — flat twinkle shape. */
+const starFragment = /* glsl */ `
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  void main() {
+    vec2 uv = gl_PointCoord - vec2(0.5);
+    float ax = abs(uv.x);
+    float ay = abs(uv.y);
+
+    // 4-point star: thin cross shape with falloff
+    float cross1 = max(ax * 3.0, ay) ; // vertical spike
+    float cross2 = max(ax, ay * 3.0);  // horizontal spike
+    float star = min(cross1, cross2);
+
+    // Diagonal spikes (rotated 45°)
+    vec2 ruv = vec2(uv.x * 0.707 + uv.y * 0.707, -uv.x * 0.707 + uv.y * 0.707);
+    float rax = abs(ruv.x);
+    float ray = abs(ruv.y);
+    float cross3 = max(rax * 4.0, ray);
+    float cross4 = max(rax, ray * 4.0);
+    float diag = min(cross3, cross4);
+
+    float shape = min(star, diag);
+
+    if (shape > 0.35) discard;
+
+    float glow = smoothstep(0.35, 0.0, shape);
+    gl_FragColor = vec4(vColor, vAlpha * glow);
+  }
+`;
 
 function createSparkles(binding: VfxBinding): VfxInstance {
-  const count = 30;
-  const color = new THREE.Color(binding.color ?? '#ffdd44');
+  const count = 20;
+  const color = new THREE.Color(binding.color ?? '#ffee66');
   const intensity = binding.intensity ?? 1.0;
-  const offsetY = binding.offsetY ?? 0.4;
+  const offsetY = binding.offsetY ?? 0.3;
 
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -185,16 +217,25 @@ function createSparkles(binding: VfxBinding): VfxInstance {
   const alphas = new Float32Array(count);
   const colors = new Float32Array(count * 3);
 
-  const phases = new Float32Array(count);
-  const velocities = new Float32Array(count);
+  // Per-particle burst state
+  const burstAngle = new Float32Array(count);    // radial direction (XZ plane)
+  const burstElevation = new Float32Array(count); // vertical angle
+  const burstSpeed = new Float32Array(count);
+  const burstPhase = new Float32Array(count);     // lifecycle offset
+  const twinkleFreq = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
-    phases[i] = Math.random() * Math.PI * 2;
-    velocities[i] = 0.2 + Math.random() * 0.4;
-    sizes[i] = (0.04 + Math.random() * 0.04) * intensity;
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
+    burstAngle[i] = Math.random() * Math.PI * 2;
+    burstElevation[i] = (Math.random() - 0.3) * 1.2; // bias upward
+    burstSpeed[i] = 0.3 + Math.random() * 0.4;
+    burstPhase[i] = Math.random() * 3; // stagger lifecycle
+    twinkleFreq[i] = 3 + Math.random() * 6; // fast twinkle
+    sizes[i] = (0.15 + Math.random() * 0.15) * intensity;
+    // Warm white-gold with variation
+    const warmth = 0.8 + Math.random() * 0.2;
+    colors[i * 3] = color.r * warmth;
+    colors[i * 3 + 1] = color.g * warmth;
+    colors[i * 3 + 2] = color.b * (0.6 + Math.random() * 0.4);
   }
 
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -204,7 +245,7 @@ function createSparkles(binding: VfxBinding): VfxInstance {
 
   const mat = new THREE.ShaderMaterial({
     vertexShader: particleVertex,
-    fragmentShader: particleFragment,
+    fragmentShader: starFragment,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -227,20 +268,21 @@ function createSparkles(binding: VfxBinding): VfxInstance {
       const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
 
       for (let i = 0; i < count; i++) {
-        const t = time * velocities[i]! + phases[i]!;
-        const life = (t % 3) / 3; // 0–1 lifecycle, repeats every 3s
+        const life = ((time * burstSpeed[i]! + burstPhase[i]!) % 3) / 3; // 0–1 over 3s
 
-        // Rise upward, spread outward
-        const angle = phases[i]! + time * 0.3;
-        const spread = 0.3 + life * 0.3;
-        pos.array[i * 3] = Math.cos(angle) * spread;
-        pos.array[i * 3 + 1] = life * 0.6;
-        pos.array[i * 3 + 2] = Math.sin(angle) * spread;
+        // Burst outward from center
+        const radius = life * 0.8;
+        const angle = burstAngle[i]!;
+        pos.array[i * 3] = Math.cos(angle) * radius;
+        pos.array[i * 3 + 1] = burstElevation[i]! * life;
+        pos.array[i * 3 + 2] = Math.sin(angle) * radius;
 
-        // Fade in, hold, fade out
-        const fadeIn = Math.min(life * 5, 1);
-        const fadeOut = Math.max(1 - (life - 0.7) * 3.3, 0);
-        alpha.array[i] = currentOpacity * fadeIn * fadeOut * (0.6 + 0.4 * Math.sin(t * 8));
+        // Twinkle — rapid on/off flashing
+        const twinkle = Math.pow(Math.sin(time * twinkleFreq[i]! + burstPhase[i]! * 10) * 0.5 + 0.5, 2);
+        // Lifecycle fade
+        const fadeIn = Math.min(life * 6, 1);
+        const fadeOut = Math.max(1 - (life - 0.5) * 2, 0);
+        alpha.array[i] = currentOpacity * twinkle * fadeIn * fadeOut;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;

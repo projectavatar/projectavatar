@@ -635,8 +635,8 @@
       "vfx": [
         {
           "type": "sparkles",
-          "color": "#ffdd44",
-          "intensity": 1.0
+          "color": "#ffee66",
+          "intensity": 1.2
         }
       ]
     },
