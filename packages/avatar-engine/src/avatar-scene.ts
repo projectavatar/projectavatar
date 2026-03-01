@@ -60,8 +60,14 @@ function loadCameraState(): CameraState | null {
     const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (typeof parsed.distance === 'number') return parsed;
-    // Discard legacy position-based format
+    const { distance, azimuthal, polar } = parsed;
+    if (
+      typeof distance === 'number' && distance > 0 && Number.isFinite(distance) &&
+      typeof azimuthal === 'number' && Number.isFinite(azimuthal) &&
+      typeof polar === 'number' && Number.isFinite(polar)
+    ) {
+      return { distance, azimuthal, polar };
+    }
     return null;
   } catch { return null; }
 }
@@ -191,13 +197,14 @@ export class AvatarScene {
             azimuthal: this.controls!.getAzimuthalAngle(),
             polar: this.controls!.getPolarAngle(),
           });
+          this.cameraSaveTimer = null;
         }, CAMERA_SAVE_DEBOUNCE);
       });
-    }
 
-    // Flush pending camera save on tab close / navigation
-    this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
-    window.addEventListener('beforeunload', this.handleBeforeUnload);
+      // Flush pending camera save on tab close / navigation
+      this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+      window.addEventListener('beforeunload', this.handleBeforeUnload);
+    }
 
     this.clock = new THREE.Clock();
 
@@ -227,7 +234,8 @@ export class AvatarScene {
       const { distance, azimuthal, polar } = this.savedSpherical;
       const target = this.controls.target;
       const offset = new THREE.Vector3();
-      // Spherical → Cartesian offset from target
+      // Three.js setFromSphericalCoords(radius, phi, theta) —
+      // phi = polar angle from Y+, theta = azimuthal angle from Z+ in XZ plane
       offset.setFromSphericalCoords(distance, polar, azimuthal);
       this.camera.position.copy(target).add(offset);
       this.controls.update();
