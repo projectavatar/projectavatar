@@ -18,6 +18,7 @@ import { EmotionEditor } from './components/emotion-editor.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
 import clipsData from '@data/clips.json';
+import { useScanClips } from './hooks/use-scan-clips.ts';
 
 // ─── Model options ────────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ const ANIM_BASE = '/animations/';
 
 export function App() {
   const [state, dispatch] = useAppState(clipsData as ClipsJson);
+  const unregisteredClips = useScanClips(state.data);
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -155,6 +157,7 @@ export function App() {
               searchQuery={state.searchQuery}
               categoryFilter={state.categoryFilter}
               energyFilter={state.energyFilter}
+              unregisteredClips={unregisteredClips}
               dispatch={dispatch}
             />
           )}

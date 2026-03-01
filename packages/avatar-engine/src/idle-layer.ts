@@ -38,8 +38,8 @@ const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 // Air mode — leg sway (sine variation on dangle)
 const LEG_SWAY_FREQ_1   = 0.08;   // Hz — primary slow cycle
 const LEG_SWAY_FREQ_2   = 0.13;   // Hz — secondary, incommensurate
-const LEG_SWAY_AMOUNT_1 = 0.3;    // primary variation
-const LEG_SWAY_AMOUNT_2 = 0.15;   // secondary (subtler)
+const LEG_SWAY_AMOUNT_1 = 0.05;    // primary variation
+const LEG_SWAY_AMOUNT_2 = 0.025;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend

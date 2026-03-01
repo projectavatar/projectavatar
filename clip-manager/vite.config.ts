@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readdir } from 'node:fs/promises';
 import type { Plugin } from 'vite';
 const CLIPS_JSON_PATH = resolve(__dirname, '../web/src/data/clips.json');
 /** Maximum request body size (1 MB). */
@@ -18,6 +18,20 @@ function saveClipsPlugin(): Plugin {
   return {
     name: 'save-clips',
     configureServer(server) {
+      // GET /api/scan-clips — list .fbx files in the animations folder
+      server.middlewares.use('/api/scan-clips', async (_req, res) => {
+        try {
+          const animDir = resolve(__dirname, '../web/public/animations');
+          const files = await readdir(animDir);
+          const fbxFiles = files.filter(f => f.toLowerCase().endsWith('.fbx')).sort();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ files: fbxFiles }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: String(err) }));
+        }
+      });
+
       server.middlewares.use('/api/save-clips', async (req, res) => {
         if (req.method === 'OPTIONS') {
           res.writeHead(204);
