@@ -29,10 +29,17 @@ export const holoFragment = /* glsl */ `
   float hash(float n) { return fract(sin(n) * 43758.5453); }
 
   void main() {
-    // Scan lines
-    float scanY = vWorldPosition.y * uDensity + uTime * uSpeed * uDensity;
+    // Scan lines with randomized density/speed drift
+    float densityDrift = uDensity * (0.9 + 0.2 * sin(uTime * 0.3 + 2.7));
+    float speedDrift = uSpeed * (0.6 + 0.8 * sin(uTime * 0.17 + 1.3));
+    float scanY = vWorldPosition.y * densityDrift + uTime * speedDrift * densityDrift;
     float scanLine = smoothstep(uLineWidth - 0.1, uLineWidth, fract(scanY));
     float scanAlpha = scanLine * uLineAlpha;
+
+    // Secondary scan lines — finer, faster, perpendicular feel
+    float scan2 = fract(vWorldPosition.y * densityDrift * 3.0 + uTime * speedDrift * 0.7);
+    float scanLine2 = smoothstep(0.85, 0.9, scan2);
+    scanAlpha = max(scanAlpha, scanLine2 * uLineAlpha * 0.3);
 
     // Fresnel edge glow
     float fresnel = 1.0 - abs(dot(normalize(vViewDir), normalize(vWorldNormal)));
