@@ -5,12 +5,13 @@
  * - Drag the grip handle (top center) → move window
  * - Drag edges/corners → resize window (via Tauri startResizeDragging)
  * - Right-drag on canvas → rotate 3D model (OrbitControls, unaffected)
- * - Hover → dashed border + controls (grip, pin, close)
+ * - Hover/move mouse → controls appear, hide after 1s idle
  * - Escape (double-tap) → close window
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
+import { useIdleHide } from '../../web/src/hooks/use-idle-hide.ts';
 
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
@@ -50,19 +51,21 @@ function getCursorForDirection(dir: ResizeDir | null): string {
   }
 }
 
-const btnStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 8,
-  border: 'none',
+// Match gear button style exactly
+const chromeBtnStyle: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 6,
+  border: '1px solid var(--color-border)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 13,
+  fontSize: 14,
   cursor: 'pointer',
-  transition: 'background 0.15s, opacity 0.3s ease',
-  color: 'rgba(232, 232, 240, 0.8)',
-  background: 'rgba(255, 255, 255, 0.08)',
+  transition: 'border-color 0.15s',
+  color: 'var(--color-text-muted)',
+  background: 'rgba(10, 10, 15, 0.75)',
+  backdropFilter: 'blur(8px)',
 };
 
 export function WindowChrome() {
@@ -77,13 +80,14 @@ export function WindowChrome() {
     };
   }, []);
 
-  const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(true);
   const [resizing, setResizing] = useState(false);
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const visible = hovered || resizing;
+  // Same 1s idle hide as the gear button
+  const uiVisible = useIdleHide(1000);
+  const visible = uiVisible || resizing;
 
   // ── Edge resize ─────────────────────────────────────────────────────
 
@@ -118,19 +122,6 @@ export function WindowChrome() {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mousedown', onMouseDown, { capture: true });
       document.body.style.cursor = '';
-    };
-  }, []);
-
-  // ── Hover detection ─────────────────────────────────────────────────
-
-  useEffect(() => {
-    const enter = () => setHovered(true);
-    const leave = () => setHovered(false);
-    document.documentElement.addEventListener('mouseenter', enter);
-    document.documentElement.addEventListener('mouseleave', leave);
-    return () => {
-      document.documentElement.removeEventListener('mouseenter', enter);
-      document.documentElement.removeEventListener('mouseleave', leave);
     };
   }, []);
 
@@ -241,7 +232,7 @@ export function WindowChrome() {
           borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
           opacity: visible ? 1 : 0,
-          transition: 'opacity 0.2s ease',
+          transition: 'opacity 0.3s ease',
           pointerEvents: 'none',
         }}
       />
@@ -250,14 +241,14 @@ export function WindowChrome() {
       <div
         style={{
           position: 'absolute',
-          top: 10,
+          top: 12,
           left: 12,
           right: 12,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           opacity: visible ? 1 : 0,
-          transition: 'opacity 0.2s ease',
+          transition: 'opacity 0.3s ease',
           pointerEvents: visible ? 'auto' : 'none',
           userSelect: 'none',
         }}
@@ -270,16 +261,14 @@ export function WindowChrome() {
           onMouseDown={handleGripMouseDown}
           title="Drag to move"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-            padding: '6px 14px',
-            borderRadius: 8,
-            background: 'rgba(255, 255, 255, 0.06)',
+            ...chromeBtnStyle,
+            width: 'auto',
+            padding: '0 20px',
+            gap: 4,
             cursor: 'grab',
           }}
         >
-          {[0, 1, 2, 3, 4].map((i) => (
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} style={{
               width: 4,
               height: 4,
@@ -290,13 +279,12 @@ export function WindowChrome() {
         </div>
 
         {/* Right-side buttons */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
           <button
-            data-no-drag
             onClick={handleTogglePin}
             title={pinned ? 'Unpin from top' : 'Pin to top'}
             style={{
-              ...btnStyle,
+              ...chromeBtnStyle,
               color: pinned ? 'var(--color-accent, #6c5ce7)' : 'rgba(232, 232, 240, 0.5)',
             }}
           >
@@ -304,12 +292,11 @@ export function WindowChrome() {
           </button>
 
           <button
-            data-no-drag
             onClick={handleClose}
             title="Close"
-            style={{ ...btnStyle, fontSize: 14 }}
+            style={chromeBtnStyle}
             onMouseEnter={(e) => { (e.target as HTMLElement).style.background = 'rgba(231, 76, 60, 0.6)'; }}
-            onMouseLeave={(e) => { (e.target as HTMLElement).style.background = btnStyle.background as string; }}
+            onMouseLeave={(e) => { (e.target as HTMLElement).style.background = chromeBtnStyle.background as string; }}
           >
             ✕
           </button>
