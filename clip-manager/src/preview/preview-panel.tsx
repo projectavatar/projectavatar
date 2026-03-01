@@ -13,7 +13,7 @@ import { ClipPreview } from './clip-preview.ts';
 import type { ClipInfo } from './clip-preview.ts';
 import { getBonesForParts } from '@project-avatar/avatar-engine';
 import { LAYER_LABELS } from '@project-avatar/avatar-engine';
-import type { LayerState, ClipsJsonData } from '@project-avatar/avatar-engine';
+import type { LayerState, ClipsJsonData, PropTransform } from '@project-avatar/avatar-engine';
 import type { Action as ActionName } from '@project-avatar/shared';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -169,12 +169,19 @@ interface PreviewPanelProps {
   previewGroupIndex?: number;
   /** Called when preview is ready */
   onReady?: () => void;
+  /** Prop to show in the preview (Props tab) */
+  propId?: string | null;
+  /** Prop transform for gizmo (Props tab) */
+  propTransform?: PropTransform | null;
+  /** Called when the gizmo changes the prop transform */
+  onPropTransformChange?: (transform: PropTransform) => void;
 }
 
 const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
 export function PreviewPanel({
   clipPath, modelUrl, clipBodyParts, clipsData, previewAction, previewGroupIndex = 0, onReady,
+  propId, propTransform, onPropTransformChange,
 }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
@@ -194,8 +201,37 @@ export function PreviewPanel({
     blink: true,
     idleLayer: true,
   });
+  const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
 
   const partsKey = clipBodyParts ? [...clipBodyParts].sort().join(',') : 'none';
+
+  // Prop gizmo — show prop when propId is set (Props tab)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !modelLoaded) return;
+
+    if (propId && propTransform) {
+      preview.onPropTransformChange = onPropTransformChange;
+      preview.showProp(propId, propTransform).catch(err => {
+        console.warn('[PreviewPanel] Failed to show prop:', err);
+      });
+    } else {
+      preview.removeProp();
+      preview.onPropTransformChange = undefined;
+    }
+  }, [propId, modelLoaded]);
+
+  // Sync prop transform from external changes (number inputs)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !propTransform || !propId) return;
+    preview.updatePropTransform(propTransform);
+  }, [propTransform]);
+
+  // Sync gizmo mode
+  useEffect(() => {
+    previewRef.current?.setGizmoMode(gizmoMode);
+  }, [gizmoMode]);
 
   // Initialize preview engine
   useEffect(() => {
@@ -452,6 +488,27 @@ export function PreviewPanel({
             </div>
           ))}
         </div>
+
+        {/* Prop Gizmo Controls */}
+        {propId && (
+          <div style={layerSectionStyle}>
+            <div style={layerTitleStyle}>Prop Gizmo</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['translate', 'rotate', 'scale'] as const).map(mode => (
+                <button
+                  key={mode}
+                  style={gizmoMode === mode ? activeBtnStyle : btnStyle}
+                  onClick={() => setGizmoMode(mode)}
+                >
+                  {mode === 'translate' ? '↔ Move' : mode === 'rotate' ? '↻ Rotate' : '⇔ Scale'}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-dim)', marginTop: 6 }}>
+              Drag the gizmo to position the prop. Changes save to clips.json.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

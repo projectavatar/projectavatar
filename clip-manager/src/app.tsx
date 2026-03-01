@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAppState } from './state.ts';
-import type { ClipsJson } from './types.ts';
+import type { ClipsJson, PropTransform, ClipPropBinding } from './types.ts';
 import { Header } from './components/header.tsx';
 import { StatusBar } from './components/status-bar.tsx';
 import { ClipLibrary } from './components/clip-library.tsx';
@@ -106,6 +106,29 @@ export function App() {
   // Preview action (Actions tab — blended action)
   const previewAction = state.activeTab === 'actions' ? state.previewAction : null;
   const previewGroupIndex = state.activeTab === 'actions' ? state.previewGroupIndex : 0;
+
+  // Props tab — preview the selected prop with the first bound clip's transform
+  const propPreviewId = state.activeTab === 'props' ? state.selectedProp : null;
+  const propPreviewTransform = useMemo(() => {
+    if (!propPreviewId) return null;
+    for (const clip of Object.values(state.data.clips)) {
+      if (clip.propBinding?.prop === propPreviewId) {
+        return clip.propBinding.transform;
+      }
+    }
+    return { position: [0, 0.7, 0.3] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale: [1, 1, 1] as [number, number, number] };
+  }, [propPreviewId, state.data.clips]);
+
+  const handlePropTransformChange = useCallback((transform: PropTransform) => {
+    if (!propPreviewId) return;
+    for (const [clipId, clip] of Object.entries(state.data.clips)) {
+      if (clip.propBinding?.prop === propPreviewId) {
+        const newBinding: ClipPropBinding = { ...clip.propBinding, transform };
+        dispatch({ type: 'UPDATE_CLIP', clipId, data: { propBinding: newBinding } });
+        return;
+      }
+    }
+  }, [propPreviewId, state.data.clips, dispatch]);
 
   const handleSave = useCallback(async () => {
     setSaveError(null);
@@ -234,6 +257,9 @@ export function App() {
             clipsData={state.data}
             previewAction={previewAction}
             previewGroupIndex={previewGroupIndex}
+            propId={propPreviewId}
+            propTransform={propPreviewTransform}
+            onPropTransformChange={handlePropTransformChange}
           />
         </div>
       </div>
