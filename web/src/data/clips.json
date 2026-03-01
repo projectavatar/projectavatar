@@ -598,9 +598,9 @@
       "layers": [],
       "vfx": [
         {
-          "type": "soft-glow",
-          "color": "#ffcc66",
-          "intensity": 0.8
+          "type": "hearts",
+          "color": "#ff6688",
+          "intensity": 1.0
         }
       ]
     },

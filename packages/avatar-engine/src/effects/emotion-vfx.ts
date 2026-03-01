@@ -12,7 +12,7 @@ import * as THREE from 'three';
 export type VfxType =
   | 'thought-bubbles'
   | 'sparkles'
-  | 'soft-glow'
+  | 'hearts'
   | 'rain'
   | 'embers'
   | 'confetti'
@@ -78,7 +78,7 @@ export function createVfx(type: VfxType, binding: VfxBinding): VfxInstance {
   switch (type) {
     case 'thought-bubbles': return createThoughtBubbles(binding);
     case 'sparkles':        return createSparkles(binding);
-    case 'soft-glow':       return createSoftGlow(binding);
+    case 'hearts':          return createHearts(binding);
     case 'rain':            return createRain(binding);
     case 'embers':          return createEmbers(binding);
     case 'confetti':        return createConfetti(binding);
@@ -251,37 +251,106 @@ function createSparkles(binding: VfxBinding): VfxInstance {
 
 // ─── Soft Glow ────────────────────────────────────────────────────────────────
 
-function createSoftGlow(binding: VfxBinding): VfxInstance {
-  const color = new THREE.Color(binding.color ?? '#ffcc66');
-  const intensity = binding.intensity ?? 1.0;
-  const offsetY = binding.offsetY ?? 0.4;
+// ─── Hearts ───────────────────────────────────────────────────────────────────
 
-  const geo = new THREE.SphereGeometry(0.6, 16, 16);
-  const mat = new THREE.MeshBasicMaterial({
-    color,
+/** Heart shape fragment shader — SDF-based heart rendered per point. */
+const heartFragment = /* glsl */ `
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  void main() {
+    vec2 uv = gl_PointCoord - vec2(0.5);
+    uv.y = -uv.y * 1.2;
+    uv.y -= 0.1;
+
+    float x = uv.x;
+    float y = uv.y;
+    float a = x * x + y * y - 0.12;
+    float heart = a * a * a - x * x * y * y * y;
+
+    if (heart > 0.0) discard;
+
+    float alpha = vAlpha * smoothstep(0.005, -0.01, heart);
+    gl_FragColor = vec4(vColor, alpha);
+  }
+`;
+
+function createHearts(binding: VfxBinding): VfxInstance {
+  const count = 15;
+  const color = new THREE.Color(binding.color ?? '#ff6688');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.0;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const startX = new Float32Array(count);
+  const startZ = new Float32Array(count);
+  const riseSpeed = new Float32Array(count);
+  const swaySpeed = new Float32Array(count);
+  const swayAmp = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random() * 4;
+    startX[i] = (Math.random() - 0.5) * 0.6;
+    startZ[i] = (Math.random() - 0.5) * 0.4;
+    riseSpeed[i] = 0.15 + Math.random() * 0.15;
+    swaySpeed[i] = 0.5 + Math.random() * 1.0;
+    swayAmp[i] = 0.05 + Math.random() * 0.1;
+    sizes[i] = (0.12 + Math.random() * 0.08) * intensity;
+    const warmth = 0.7 + Math.random() * 0.3;
+    colors[i * 3] = color.r * warmth;
+    colors[i * 3 + 1] = color.g * warmth;
+    colors[i * 3 + 2] = color.b * warmth;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: heartFragment,
     transparent: true,
-    opacity: 0,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    side: THREE.BackSide,
   });
 
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = offsetY;
-  mesh.scale.setScalar(intensity);
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
 
   return {
-    type: 'soft-glow',
-    object: mesh,
+    type: 'hearts',
+    object: points,
     opacity: 0,
     targetOpacity: 1,
-    setOpacity(o: number) {
-      this.opacity = o;
-      mat.opacity = o * 0.15; // very subtle
-    },
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
     update(time: number, _delta: number) {
-      const pulse = 1 + Math.sin(time * 1.5) * 0.05;
-      mesh.scale.setScalar(intensity * pulse);
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const life = ((time * riseSpeed[i]! + phases[i]!) % 4) / 4;
+        const sway = Math.sin(time * swaySpeed[i]! + phases[i]! * 3) * swayAmp[i]!;
+
+        pos.array[i * 3] = startX[i]! + sway;
+        pos.array[i * 3 + 1] = life * 1.5;
+        pos.array[i * 3 + 2] = startZ[i]!;
+
+        const fadeIn = Math.min(life * 4, 1);
+        const fadeOut = Math.max(1 - (life - 0.6) * 2.5, 0);
+        alpha.array[i] = currentOpacity * fadeIn * fadeOut * 0.8;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
     },
     dispose() { geo.dispose(); mat.dispose(); },
   };
