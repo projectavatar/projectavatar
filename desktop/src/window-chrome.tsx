@@ -157,9 +157,15 @@ export function WindowChrome() {
         dragStarted = true;
         dragOrigin = null;
         getCurrentWindow().startDragging().then(() => {
-          // Dispatch synthetic mouseup so OrbitControls resets its state.
-          // The OS steals the real mouseup during native window drag.
-          window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          // Dispatch synthetic pointer/mouse up events so Three.js
+          // OrbitControls (which listens to pointer events) resets.
+          // The OS steals all real events during native window drag.
+          const canvas = document.querySelector('canvas');
+          if (canvas) {
+            canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }));
+            canvas.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true }));
+          }
+          window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
         });
       }
     };
