@@ -51,7 +51,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDExRjJCMUMyNjI5QjRERjQKUldUMFRadGl3ckh5RVJtdk9iejFJODV5bW0yNmE0Tnp1UXc5RVRMMEZJbVhSTkZjNTlKaEVaTGkK",
       "endpoints": [
-        "https://github.com/linh-n/projectavatar/releases/latest/download/latest.json"
+        "https://github.com/projectavatar/projectavatar/releases/latest/download/latest.json"
       ]
     }
   }

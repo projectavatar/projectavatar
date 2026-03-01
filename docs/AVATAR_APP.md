@@ -1,496 +1,252 @@
 # Avatar App
 
-The avatar app is the visual side of Project Avatar — a 3D anime-style character that reacts in real-time to your AI agent's state.
+The avatar app renders a 3D anime-style character that reacts in real-time to your AI agent's state.
 
 **The browser app is the primary product.** Go to [app.projectavatar.io](https://app.projectavatar.io) — no install, works immediately, OBS Browser Source ready.
 
-The desktop app (Tauri) is optional and adds exactly two things: always-on-top window and system tray. If you don't need those, use the browser app.
+The desktop app (Tauri) is optional — adds always-on-top, borderless window, system tray, and autostart.
 
-It comes in two forms from the same codebase:
-
-- **Browser app** — primary, `app.projectavatar.io`, zero install, OBS-ready
-- **Desktop app** (Tauri) — optional, native window, always-on-top, system tray
-
-The rendering core (`packages/web/src/avatar/`) is pure TypeScript + Three.js — no Tauri or browser-specific dependencies — so it runs identically in both contexts.
+Both share the same rendering core (`packages/avatar-engine/`) — pure TypeScript + Three.js, no platform-specific dependencies.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Avatar App                         │
-│                                                      │
-│  ┌──────────────┐    ┌──────────────────────────┐   │
-│  │ WebSocket    │    │     Avatar Renderer        │   │
-│  │ Client       │───▶│                           │   │
-│  │              │    │  StateMachine             │   │
-│  │ reconnects   │    │    ├── ExpressionCtrl     │   │
-│  │ on drop      │    │    ├── AnimationCtrl      │   │
-│  └──────────────┘    │    └── PropManager        │   │
-│                      │                           │   │
-│  ┌──────────────┐    │  AvatarScene (Three.js)   │   │
-│  │ Settings     │    │    ├── VrmManager         │   │
-│  │ (Zustand)    │───▶│    ├── Camera / Lights    │   │
-│  │              │    │    └── Render loop        │   │
-│  └──────────────┘    └──────────────────────────┘   │
-│                                                      │
-│  Desktop only:       Browser only:                   │
-│  ├── Tauri tray      └── TokenSetup page            │
-│  ├── Always-on-top                                   │
-│  └── Native file picker                              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                   Avatar App                             │
+│                                                          │
+│  ┌──────────────┐    ┌────────────────────────────────┐ │
+│  │ WebSocket    │    │     Avatar Engine                │ │
+│  │ Client       │───▶│                                 │ │
+│  │              │    │  StateMachine                   │ │
+│  │ auto-        │    │    ├── AnimationController      │ │
+│  │ reconnect    │    │    ├── ExpressionController     │ │
+│  └──────────────┘    │    ├── BlinkController          │ │
+│                      │    ├── IdleLayer                │ │
+│  ┌──────────────┐    │    ├── PropManager              │ │
+│  │ Zustand      │    │    ├── EffectsManager           │ │
+│  │ Store        │───▶│    └── VfxManager               │ │
+│  │              │    │                                 │ │
+│  └──────────────┘    │  AvatarScene (Three.js)         │ │
+│                      │    ├── VrmManager               │ │
+│                      │    ├── Camera + Lights          │ │
+│                      │    └── Render loop              │ │
+│                      └────────────────────────────────┘ │
+│                                                          │
+│  Desktop only:           Browser only:                   │
+│  ├── WindowChrome        └── SetupWizard / TokenSetup   │
+│  ├── Always-on-top                                       │
+│  ├── Autostart                                           │
+│  └── Updater                                             │
+└─────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Tauri Setup
-
-### Window Configuration
-
-The desktop app renders as a transparent, frameless, always-on-top window:
-
-```json
-{
-  "app": {
-    "windows": [
-      {
-        "title": "Project Avatar",
-        "width": 400,
-        "height": 600,
-        "transparent": true,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "resizable": true,
-        "skipTaskbar": false,
-        "shadow": false
-      }
-    ]
-  }
-}
-```
-
-The transparent window means the canvas renders with `alpha: true` — the avatar floats directly on the desktop with no background. `decorations: false` removes the OS chrome; a custom draggable `<TitleBar />` component is rendered instead.
-
-### IPC Commands
-
-Tauri IPC bridges Rust ↔ React for native operations:
-
-```rust
-// src-tauri/src/commands.rs
-
-#[tauri::command]
-fn set_always_on_top(window: tauri::Window, value: bool) {
-    window.set_always_on_top(value).ok();
-}
-
-#[tauri::command]
-fn get_window_position(window: tauri::Window) -> (i32, i32) {
-    let pos = window.outer_position().unwrap_or_default();
-    (pos.x, pos.y)
-}
-
-#[tauri::command]
-async fn pick_vrm_file() -> Option<String> {
-    // Opens native file picker filtered to .vrm files
-    // Returns file path or None if cancelled
-    tauri::api::dialog::FileDialogBuilder::new()
-        .add_filter("VRM Model", &["vrm"])
-        .pick_file()
-        .map(|p| p.to_string_lossy().into_owned())
-}
-```
-
----
-
-## VRM Loading and Model Management
-
-### VRM Format
-
-VRM is a 3D avatar format built on top of glTF 2.0. It adds:
-- Standardized humanoid skeleton (VRMHumanoid)
-- Expression/blend shape system (VRMExpressionManager)
-- Spring bones for secondary motion (VRMSpringBoneManager)
-- Material and metadata specs
-
-All conforming VRM 1.0 models implement the same standard expressions and bone structure, which is why the avatar app's expression and animation systems work across any VRM without model-specific configuration.
-
-### Loading
-
-```typescript
-// avatar/VrmManager.ts
-
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { VRMLoaderPlugin, VRM } from '@pixiv/three-vrm';
-
-export class VrmManager {
-  private loader: GLTFLoader;
-  private currentVrm: VRM | null = null;
-  private scene: THREE.Scene;
-
-  constructor(scene: THREE.Scene) {
-    this.scene = scene;
-    this.loader = new GLTFLoader();
-    this.loader.register(parser => new VRMLoaderPlugin(parser));
-  }
-
-  async load(url: string, onProgress?: (pct: number) => void): Promise<VRM> {
-    // Remove previous model
-    if (this.currentVrm) {
-      this.scene.remove(this.currentVrm.scene);
-      this.currentVrm.dispose();
-    }
-
-    return new Promise((resolve, reject) => {
-      this.loader.load(
-        url,
-        (gltf) => {
-          const vrm = gltf.userData.vrm as VRM;
-          // VRM models face +Z; rotate to face -Z (toward camera)
-          vrm.scene.rotation.y = Math.PI;
-          this.scene.add(vrm.scene);
-          this.currentVrm = vrm;
-          resolve(vrm);
-        },
-        (evt) => onProgress?.(evt.loaded / evt.total),
-        reject
-      );
-    });
-  }
-
-  update(delta: number): void {
-    this.currentVrm?.update(delta);
-  }
-}
-```
-
-### Bundled Models
-
-3-5 models ship with the app, stored in `app/src/assets/models/`. Each model has:
-- `model.vrm` — the VRM file
-- `thumbnail.png` — shown in the model picker (256×256)
-- `meta.json` — name, author, license, VRM spec version
-
-Model selection is stored in settings and persists across sessions.
-
-### Custom VRM Import
-
-Users can load any VRM from VRoid Hub or custom creations:
-
-**Desktop:** Tauri file picker → file copied to app data directory → added to model list.
-
-**Browser:** HTML `<input type="file" accept=".vrm">` → `URL.createObjectURL()` → loaded directly. The model stays in memory for the session; it is not persisted.
 
 ---
 
 ## Expression System
 
-### VRM Standard Expressions
+Emotions map to VRM blend shape expressions via `ExpressionController`:
 
-VRM 1.0 defines standard expressions all conforming models must implement:
+| Emotion | VRM Blend Shapes |
+|---------|-----------------|
+| idle | neutral (1.0) |
+| thinking | neutral (0.4), lookUp (0.45) |
+| excited | happy (1.0), surprised (0.35) |
+| confused | surprised (0.65), neutral (0.2) |
+| happy | happy (1.0) |
+| angry | angry (1.0) |
+| sad | sad (1.0) |
+| surprised | surprised (1.0) |
+| bashful | happy (0.4), neutral (0.5) |
+| nervous | neutral (0.3), surprised (0.4) |
 
-```
-Emotion expressions: happy, angry, sad, relaxed, surprised, neutral
-Procedural expressions: blink, blinkLeft, blinkRight, lookUp, lookDown, lookLeft, lookRight
-```
-
-### Emotion → Expression Mapping
-
-Each avatar emotion maps to a blend of VRM expressions with weights:
-
-```typescript
-const EMOTION_MAP: Record<Emotion, Array<{ name: string; weight: number }>> = {
-  idle:      [{ name: 'neutral',   weight: 1.0 }],
-  thinking:  [{ name: 'neutral',   weight: 0.7 }, { name: 'lookUp',   weight: 0.3 }],
-  focused:   [{ name: 'neutral',   weight: 0.5 }, { name: 'relaxed',  weight: 0.3 }],
-  excited:   [{ name: 'happy',     weight: 0.8 }, { name: 'surprised',weight: 0.2 }],
-  confused:  [{ name: 'surprised', weight: 0.4 }, { name: 'neutral',  weight: 0.3 }],
-  satisfied: [{ name: 'happy',     weight: 0.6 }, { name: 'relaxed',  weight: 0.4 }],
-  concerned: [{ name: 'sad',       weight: 0.3 }, { name: 'neutral',  weight: 0.4 }],
-};
-```
-
-### Smooth Blending
-
-Transitions use frame-rate independent exponential decay:
-
-```typescript
-// In update(delta):
-const next = THREE.MathUtils.lerp(current, target, 1 - Math.exp(-blendSpeed * delta));
-vrm.expressionManager?.setValue(expressionName, next);
-```
-
-`blendSpeed = 3.0` gives a ~300ms transition to 90% of target weight — smooth but responsive.
-
-### Intensity Scaling
-
-`intensity: "high"` scales expression weights up (capped at 1.0); `"low"` scales them down:
-
-```typescript
-const scale = { low: 0.5, medium: 1.0, high: 1.2 }[intensity];
-targetWeight = Math.min(baseWeight * scale, 1.0);
-```
-
-### Idle Animations (Auto)
-
-Independent of agent events, the avatar runs continuous micro-animations:
-- **Blink:** random interval 3–7s, 150ms close + 150ms open, uses `blink` expression
-- **Breathing:** sinusoidal chest bone Y rotation (amplitude 0.01 rad, 3s period)
-- **Micro-glance:** occasional subtle eye direction shift (5–15% of the time on blink)
-
-These blend additively with the current expression state.
+Expressions interpolate smoothly (exponential lerp, speed 3.0). Intensity scales blend weights: low = 0.5x, medium = 1.0x, high = 1.2x (clamped to 1.0).
 
 ---
 
-## Animation System
+## Animation System (v3)
 
-### Pre-Authored Clips
+Weight-based multi-clip blending with body part scoping. All logic in `packages/avatar-engine/`.
 
-Actions map to pre-authored `.glb` animation clips:
+### clips.json v3 Schema
 
-```
-responding    → talking.glb         (head bobs, hand gestures)
-searching     → searching.glb       (eyes shift, hand raises)
-coding        → typing.glb          (arms forward, finger movement)
-reading       → reading.glb         (head tilts down, eyes track)
-waiting       → idle_breathe.glb    (subtle sway, breathing)
-error         → confused_scratch.glb (head tilt, hand to head)
-celebrating   → celebrate.glb       (arms raise, bounce)
-```
+Source of truth: `packages/web/src/data/clips.json`
 
-Animations are authored in Blender targeting VRM humanoid bone names directly — no retargeting needed.
+- **clips{}** — per-clip metadata (file, loop, fadeIn/Out, category, energy, bodyParts, tags)
+- **actions{}** — each with `groups[]` — animation groups with weighted random selection
+  - Each group has `rarity` (probability weight) + `clips[]` (layers with weight + bodyParts)
+  - On action trigger, one group is randomly selected based on rarity
+  - Looping actions re-roll group on each cycle
+- **emotions{}** — 10 emotions with `weightScale` + action `overrides` + extra `layers`
 
-### Crossfading
+### 12 Actions
+`idle`, `talking`, `typing`, `nodding`, `laughing`, `celebrating`, `dismissive`, `searching`, `nervous`, `sad`, `plotting`, `greeting`
 
-The `AnimationMixer` handles smooth transitions between clips:
+### Blending Model
+All clips play simultaneously on `THREE.AnimationMixer`. Each clip is split into per-body-part sub-clips (track filtering). Weights normalized per body-part group.
 
-```typescript
-// Fade out current, fade in new
-currentAction.fadeOut(0.5);  // 500ms fade out
-newAction.reset().fadeIn(0.5).play();
-```
+Body parts: `head`, `torso`, `arms` (includes fingers), `legs`, `feet`.
 
-### Intensity → Playback Speed
+### Crossfade
+Outgoing fadeOut duration matches incoming fadeIn for complementary curves (old + new = 1.0). Uses `crossFadeTo(action, duration, warp=true)`.
 
-```typescript
-const speedMap = { low: 0.7, medium: 1.0, high: 1.3 };
-newAction.timeScale = speedMap[intensity];
-```
+Fade values by category:
+- **Idle** (0.6/0.6) — slow, gentle
+- **Continuous** (0.4/0.4) — responsive
+- **Emotion** (0.5/0.5) — gradual mood shifts
+- **Gesture high-energy** (0.1 in / 0.35 out) — snap in, ease out
+- **Gesture medium** (0.15 in / 0.3 out)
 
-A `high` intensity agent response plays the talking animation 30% faster — more energetic. `low` plays it slower — more measured.
+### Idle Layer (Procedural)
+
+`IdleLayer` adds procedural animation on top of mixer clips:
+
+**Air mode** (default): hover bob (double sine wave), body tilt, backward lean, leg dangle with asymmetric tuck, leg swap every 20-25s, head tracking toward camera/cursor.
+
+**Ground mode**: breathing, torso sway, weight shift. Activates when camera is zoomed in.
+
+Modes crossfade via exponential lerp. Runs AFTER the mixer (additive).
+
+### Finger Animation
+30 Mixamo→VRM bone retargeting mappings. Clips with finger tracks use clip data; clips without get procedural finger curl from IdleLayer.
 
 ---
 
 ## Prop System
 
-Props are small 3D models (GLTF/GLB) that attach to the avatar's right hand bone.
-
-### Available Props
-
-```
-keyboard          → appears on coding action
-magnifying_glass  → appears on searching action
-coffee_cup        → appears on idle/waiting
-book              → appears on reading action
-phone             → general purpose
-scroll            → reading / thinking
-none              → no prop (default)
-```
-
-### Attaching Props
+Props are GLB models placed in **world space** (not bone-attached). Configured per-clip in `clips.json` via `ClipPropBinding`:
 
 ```typescript
-// Get the right hand bone from VRM humanoid
-const handBone = vrm.humanoid.getNormalizedBoneNode('rightHand');
-
-// Clone the prop model and attach
-const propModel = await loadGLTF(PROP_PATHS[prop]);
-applyPropTransform(propModel, prop); // Scale + offset per prop, tuned manually
-handBone.add(propModel);
+interface ClipPropBinding {
+  prop: string;           // GLB filename (without extension)
+  transform: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: [number, number, number];
+  };
+  material: 'solid' | 'holographic' | 'ghostly';
+}
 ```
 
-Props appear instantly when the event arrives. They disappear when `prop: "none"` is received or when a different prop is requested.
+**Material styles:**
+- **solid** — original GLB materials
+- **holographic** — scanline + fresnel shader, additive blending, cyan glow
+- **ghostly** — simple transparency with emissive fresnel
 
-**No IK in v1.** Props snap to the hand bone; the pre-authored animations already position the hand appropriately for each action/prop combination. IK-based dynamic reach is a v2 feature.
+Props fade in/out over 0.35s on action transitions. Only one prop active at a time.
+
+Prop models: `packages/web/public/props/` (keyboard.glb, tablet.glb).
+
+**Idle layer counter-movement:** When a prop is active, idle layer applies inverse bob offset to upperArm bones — body floats naturally while hands stay pinned to the prop.
+
+---
+
+## Visual Effects
+
+### Toggleable Effects (`EffectsManager`)
+Four toggleable effects, all off by default, persisted to localStorage:
+
+| Effect | Description |
+|--------|-------------|
+| ParticleAura | 80 orbiting particles with custom ShaderMaterial, additive blending |
+| EnergyTrails | Ribbon geometry following fingertip bones |
+| BloomEffect | UnrealBloomPass + SMAAPass (WebGL needs SMAA for postprocessing FBOs) |
+| Holographic | Overlay SkinnedMesh clones as siblings in VRM scene graph, scanline + fresnel shader |
+
+### Emotion VFX (`VfxManager`)
+Data-driven particle effects per emotion/action, configured in `clips.json`:
+
+Types: `thought-bubbles`, `sparkles`, `hearts`, `rain`, `embers`, `confetti`, `particle-aura`, `sweat-drops`, `warm-dust`
+
+Each binding has type, color, intensity, and vertical offset.
 
 ---
 
 ## WebSocket Client
 
-The avatar app connects to the relay via WebSocket and maintains the connection automatically.
+`packages/web/src/ws/web-socket-client.ts`
 
-### Connection
-
-```typescript
-const ws = new WebSocket(`wss://relay.projectavatar.io/stream/${token}`);
-```
-
-### Reconnection
-
-Exponential backoff with jitter:
-
-```typescript
-private scheduleReconnect(): void {
-  const delay = Math.min(
-    1000 * Math.pow(2, this.attempts) + Math.random() * 1000,
-    30_000  // Max 30s between attempts
-  );
-  this.attempts++;
-  setTimeout(() => this.connect(), delay);
-}
-```
-
-### Connection States
-
-The UI shows a status badge:
-- **Connected** (green) — receiving events
-- **Reconnecting** (yellow) — with attempt count and next retry time
-- **Disconnected** (red) — after many failures, shows manual retry button
-
-### Avatar State During Disconnect
-
-The avatar holds its last known state when disconnected. On reconnect, the relay replays the last event, snapping the avatar back to current state. If the agent has been idle for a while, the idle timeout fires and returns the avatar to the idle state regardless.
+- Connects to `wss://relay.projectavatar.io/stream/:token`
+- Auto-reconnects with backoff on disconnect
+- 60s dead-connection timer (reset by any message or keepalive ping)
+- Dispatches events to the StateMachine
 
 ---
 
-## Settings and Configuration
+## Desktop App (Tauri v2)
 
-Settings are persisted via Tauri's `Store` plugin (desktop) or `localStorage` (browser).
+`packages/desktop/` — wraps the web app in a native window.
 
-### Available Settings
+### Window Features
+- Transparent, borderless, always-on-top
+- `WindowChrome`: hover border (dashed, rounded), edge/corner resize handles
+- Left-drag anywhere to move window (skip buttons via `data-no-drag`)
+- Right-drag to rotate avatar (OrbitControls)
+- Close (✕) and always-on-top toggle (📌) buttons
+- Auto-hide UI after 5s idle (`useIdleHide` hook)
 
-| Setting | Type | Default | Persisted in | Description |
-|---------|------|---------|--------------|-------------|
-| `token` | string | — | URL + localStorage | Relay token (required) |
-| `modelId` | string | — | URL + localStorage | Selected VRM model ID |
-| `relayUrl` | string | `https://relay.projectavatar.io` | localStorage | Relay base URL |
-| `idleTimeoutMs` | number | `30000` | localStorage | Ms before returning to idle |
-| `theme` | `'dark'` \| `'transparent'` | `'dark'` | localStorage | Background mode |
-| `alwaysOnTop` | boolean | `true` | app settings | Desktop only |
-| `windowSize` | `{w, h}` | `{400, 600}` | app settings | Desktop only |
+### Desktop-Only Features
+- **Autostart** with OS (macOS LaunchAgent, Windows registry)
+- **Auto-updater** (checks GitHub releases, NSIS on Windows)
+- **Cursor head tracking** — avatar follows mouse cursor, returns to camera after 5s idle
 
-**URL persistence:** `token` and `modelId` are written to the URL via `history.replaceState` whenever they change. This makes the URL always shareable and correct — copy it from the address bar at any time.
-
-### Token Generation
-
-```typescript
-function generateToken(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
-  const bytes = crypto.getRandomValues(new Uint8Array(48));
-  return Array.from(bytes, b => chars[b % chars.length]).join('');
-}
-```
-
-Tokens are generated **silently on first visit**, before the user even sees the model picker. The token is stored in localStorage and written into the URL immediately — the user can see it in the address bar or copy it from the Setup Screen. If lost, generate a new one (update filter config to match).
+### Configuration
+- `packages/desktop/src-tauri/tauri.conf.json` — window config, CSP, updater
+- `packages/desktop/src-tauri/capabilities/default.json` — Tauri permissions
 
 ---
 
-## Browser App Specifics
-
-The browser app at `app.projectavatar.io` is the primary product. Differences from the desktop app:
+## Browser App
 
 ### Onboarding Flow
 
-New users go through a two-step wizard (`SetupWizard.tsx`):
+**New users** → `SetupWizard`:
+1. **Model Picker** — choose VRM model from grid, token auto-generated silently
+2. **Setup Screen** — avatar renders in background, floating overlay shows Avatar URL + Skill Install URL, auto-dismisses on first WebSocket event
 
-**Step 1 — Model Picker (`ModelPickerStep`)**
-- Token is auto-generated silently in the background (user never sees this)
-- User picks their VRM model from a grid of thumbnails
-- "I already have a token" link at the bottom for returning users who want to swap tokens
+**Returning users** (token + model in localStorage/URL) → straight to avatar.
 
-**Step 2 — Setup Screen (`SetupStep`)**
-- The chosen avatar renders immediately in the background, idling
-- A floating overlay shows:
-  - The full **Avatar URL** (with `?token=...&model=...`) — one-click copy
-  - The **Skill Install URL** for the relay — one-click copy
-  - Connection status badge ("Waiting for connection...")
-- When the first WebSocket event arrives (skill installed + filter running), the overlay auto-dismisses
-
-**Returning users** (token + model in localStorage or URL): skip the wizard entirely, go straight to the avatar.
-
-### URL-Based State
-
-Both token and model are persisted in the URL:
+### URL State
 
 ```
-https://app.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID
+https://app.projectavatar.io/?token=YOUR_TOKEN
 ```
 
-**Why URL params?**
-- OBS browser sources don't have localStorage — URL is the only reliable persistence
-- Shareable: paste the URL anywhere and it connects with the right model
-- `model=MODEL_ID` uses a short stable identifier (e.g. `maid-v1`), not a path — the manifest maps IDs to files
+URL params win over localStorage. `history.replaceState` keeps URL in sync.
 
-**Priority:** URL params always win over localStorage. localStorage is the fallback for users who just bookmark the base URL.
+### Loading
 
-The URL stays in sync — when the user picks a model or generates a token, `history.replaceState` updates the URL bar immediately. No reload.
+Remote assets loaded via `AssetResolver` — models and animations fetched from web CDN with loading progress bar overlay.
 
-**Skill install URL** also includes the model param:
+### OBS Browser Source
 
-```
-https://relay.projectavatar.io/skill/install?token=TOKEN&model=MODEL_ID
-```
-
-This bakes the full avatar URL (with model) into the skill doc. If the user loses their avatar URL, they can ask their AI agent to recall it from the installed skill.
-
-### OBS Browser Source Setup
-
-1. In OBS, add a Browser Source
-2. URL: `https://app.projectavatar.io/?token=YOUR_TOKEN&model=MODEL_ID`
-   (copy this directly from the Setup Screen — it's the Avatar URL shown there)
-3. Width: 400, Height: 600 (or your preferred size)
-4. Check "Shutdown source when not visible" to save resources
-5. The page renders with `background: transparent` — OBS composites the avatar over your stream
-
-### Background Tab Throttling
-
-Browsers reduce `requestAnimationFrame` to ~1fps in background tabs. Mitigation:
-
-```typescript
-// Use Page Visibility API to detect background state
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    // Switch to setInterval at 10fps for background rendering
-    startBackgroundRenderer();
-  } else {
-    // Return to requestAnimationFrame for full fps
-    stopBackgroundRenderer();
-    startForegroundRenderer();
-  }
-});
-```
-
-This keeps the avatar alive in background tabs at reduced framerate (enough for state changes to be visible). For OBS browser source, this is irrelevant — OBS renders browser sources continuously regardless of visibility.
+1. Add Browser Source in OBS
+2. URL: `https://app.projectavatar.io/?token=YOUR_TOKEN`
+3. Width: 400, Height: 600
+4. Transparent background — composites directly over your stream
 
 ---
 
-## Packaging and Distribution
+## Settings
 
-### Desktop (Tauri)
+Persisted to localStorage. Available in the Settings drawer:
 
-```bash
-npm run tauri build
-```
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Token | auto-generated | Relay channel identifier |
+| Relay URL | `https://relay.projectavatar.io` | Relay server base URL |
+| Model | — | Selected VRM model |
+| Render Scale | 1x | Pixel ratio (1x/2x/3x) |
+| Effects | all off | Particle aura, energy trails, bloom, holographic |
+| Layer toggles | all on | FBX clips, idle layer, expressions, blink |
 
-Produces platform-native packages:
+---
 
-| Platform | Output |
-|----------|--------|
-| macOS | `.dmg` (Universal or per-arch) |
-| Windows | `.msi` + `.exe` (NSIS installer) |
-| Linux | `.AppImage` + `.deb` |
-
-CI/CD via GitHub Actions — matrix build across all platforms on tag push.
-
-Bundle size target: **< 50MB** (Tauri shell + WebView + VRM assets).
+## Deployment
 
 ### Browser (Cloudflare Pages)
+Auto-deployed from `packages/web/` on push to `master`. Custom domain: `app.projectavatar.io`.
 
-```bash
-cd web && npm run build
-# dist/ → deploy to Cloudflare Pages
-```
-
-Auto-deployed from `packages/web/` directory on push to `master` via Cloudflare Pages GitHub integration.
-
-Custom domain: `app.projectavatar.io`
+### Desktop (Tauri)
+CI builds via GitHub Actions — matrix across macOS (arm64, x64), Windows (x64), Linux (x64). Produces `.dmg`, `.msi`/`.exe` (NSIS), `.AppImage`/`.deb`. Draft releases on tag push.
