@@ -243,6 +243,7 @@ export class PropManager {
               uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
               uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
               uNormalOffset: { value: HOLO_CONFIG.normalOffset },
+              uBrightness: { value: HOLO_CONFIG.brightness },
             },
             vertexShader: holoVertexStatic,
             fragmentShader: holoFragment,

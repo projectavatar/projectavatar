@@ -21,6 +21,7 @@ export const HOLO_CONFIG = {
   fresnelAlpha: 0.4,
   tint:         [0.5, 0.8, 1.0] as const,
   normalOffset: 0.002,
+  brightness:    1.2,
 };
 
 const FADE_SPEED = 2.0;
@@ -49,6 +50,7 @@ export class Holographic {
     uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
     uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
     uNormalOffset: { value: HOLO_CONFIG.normalOffset },
+    uBrightness:   { value: HOLO_CONFIG.brightness },
   };
 
   constructor(vrm: VRM) {
