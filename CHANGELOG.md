@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.1] — 2026-03-01
+
+### Added
+- **Cursor head tracking** — avatar head follows mouse cursor with 30% influence, smooth exponential lerp. Returns to camera after 5s idle.
+- **Cursor eye tracking** — VRM lookAt proxy blends between camera and cursor target (lerp speed 3). Snappy, natural eye movement.
+- **Zoom-aware idle modes** — auto-switches from air (floating/bobbing) to ground (breathing/sway) when zoomed in past distance 3. Smooth crossfade via `modeBlend` weight blending.
+- **Desktop autostart** — app launches on OS startup via `tauri-plugin-autostart`. Toggle in Settings → General.
+- **Desktop auto-hide UI** — gear button, status pills fade after 1s idle, reappear on mouse move.
+- **Desktop window controls** — close (✕) and always-on-top (📌) floating buttons. Left-click drag to move window.
+- **Desktop devtools** — enabled via Cargo `devtools` feature.
+
+### Fixed
+- Head/eye tracking deadzones removed — root cause (raycast plane position) fixed instead.
+- Bloom effect preserves alpha transparency on desktop.
+- Updater error toast silenced (console.warn only).
+
+### Changed
+- Raycast plane positioned at 10% from origin for optimal cursor spread.
+- Idle mode transition is blended (both modes run simultaneously with weighted effects) instead of hard switch.
+
+
 ## [0.2.1] — 2026-03-01
 
 ### Fixed
