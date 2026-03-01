@@ -194,8 +194,22 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // Smooth eye tracking — lerp proxy position toward target each frame
     const eyeGoal = new THREE.Vector3();
+    const ZOOM_GROUND_THRESHOLD = 2; // switch to ground mode when zoomed in closer than this
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
+
+      // Switch idle mode based on zoom distance
+      if (ctrl) {
+        const dist = avatarScene.camera.position.length();
+        const wantGround = dist < ZOOM_GROUND_THRESHOLD;
+        const currentMode = ctrl.getIdleMode();
+        if (wantGround && currentMode === 'air') {
+          ctrl.setIdleMode('ground');
+        } else if (!wantGround && currentMode === 'ground') {
+          ctrl.setIdleMode('air');
+        }
+      }
+
       // Respect bypass flag — some clips disable head/eye tracking
       if (ctrl?.isHeadTrackingBypassed) {
         lookAtProxy.position.lerp(avatarScene.camera.position, 1 - Math.exp(-2.0 * dt));
