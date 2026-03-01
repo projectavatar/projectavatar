@@ -76,9 +76,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Detect Tauri desktop — window.__TAURI__ is Tauri's official IPC bridge
-    const isTauri = '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
-    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV, desktop: isTauri });
+    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 
