@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
@@ -155,7 +156,11 @@ export function WindowChrome() {
       if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
         dragStarted = true;
         dragOrigin = null;
-        getCurrentWindow().startDragging();
+        getCurrentWindow().startDragging().then(() => {
+          // Dispatch synthetic mouseup so OrbitControls resets its state.
+          // The OS steals the real mouseup during native window drag.
+          window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        });
       }
     };
 
@@ -203,6 +208,49 @@ export function WindowChrome() {
     return () => {
       observer.disconnect();
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+    };
+  }, []);
+
+  // ── Persist window position & size ──────────────────────────────
+  // Save to localStorage on move/resize, restore on mount.
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    const STORAGE_KEY = 'window-bounds';
+
+    // Restore saved position
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const { x, y, width, height } = JSON.parse(saved);
+        win.setPosition(new PhysicalPosition(x, y)).catch(() => {});
+        win.setSize(new PhysicalSize(width, height)).catch(() => {});
+      }
+    } catch { /* ignore parse errors */ }
+
+    // Save on move/resize
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    const save = async () => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        try {
+          const pos = await win.outerPosition();
+          const size = await win.outerSize();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            x: pos.x, y: pos.y,
+            width: size.width, height: size.height,
+          }));
+        } catch { /* ignore */ }
+      }, 200);
+    };
+
+    const unlistenMove = win.onMoved(save);
+    const unlistenResize = win.onResized(save);
+
+    return () => {
+      unlistenMove.then((fn) => fn());
+      unlistenResize.then((fn) => fn());
+      if (saveTimer) clearTimeout(saveTimer);
     };
   }, []);
 
