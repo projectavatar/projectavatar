@@ -192,8 +192,11 @@ export class EnergyTrails {
 
     const h = vrm.humanoid;
     if (h) {
-      this.leftHand  = h.getNormalizedBoneNode('leftHand');
-      this.rightHand = h.getNormalizedBoneNode('rightHand');
+      // Attach to index fingertips — fall back to hand if finger bones missing
+      this.leftHand  = h.getNormalizedBoneNode('leftIndexDistal' as any)
+                    ?? h.getNormalizedBoneNode('leftHand');
+      this.rightHand = h.getNormalizedBoneNode('rightIndexDistal' as any)
+                    ?? h.getNormalizedBoneNode('rightHand');
       this.initialized = !!(this.leftHand || this.rightHand);
     }
   }
