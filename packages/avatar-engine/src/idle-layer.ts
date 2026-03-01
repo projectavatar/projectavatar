@@ -61,9 +61,9 @@ interface GesturePreset {
 
 const GESTURE_PRESETS: Record<HandGesture, GesturePreset> = {
   none:     { index: 0,   middle: 0,   ring: 0,   little: 0,   thumb: 0   },
-  relaxed:  { index: 0.6, middle: 0.8, ring: 1.0, little: 1.2, thumb: 1.0 },
-  fist:     { index: 2.8, middle: 2.8, ring: 2.8, little: 2.8, thumb: 2.0 },
-  pointing: { index: 0.0, middle: 2.8, ring: 2.8, little: 2.8, thumb: 1.5 },
+  relaxed:  { index: 0.6, middle: 1, ring: 1.4, little: 1.8, thumb: 1.0 },
+  fist:     { index: 4, middle: 4.2, ring: 4.7, little: 5, thumb: 1.5 },
+  pointing: { index: 0.4, middle: 4.2, ring: 4.7, little: 5, thumb: 1.5 },
 };
 
 // Per-finger curl multipliers (index=lightest → pinky=most curled)

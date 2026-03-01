@@ -497,6 +497,12 @@ export class AnimationController {
       if (duration !== null) {
         this.durationTimer = setTimeout(() => {
           this.durationTimer = null;
+          // Stop all current sub-actions immediately to avoid
+          // crossfading from a finished/clamped clip (causes spin)
+          for (const sub of this.activeSubActions) {
+            sub.action.stop();
+          }
+          this.activeSubActions.length = 0;
           this.onActionFinished?.();
         }, duration * 1000);
       }
