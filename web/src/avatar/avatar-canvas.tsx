@@ -260,6 +260,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       if (raycaster.ray.intersectPlane(targetPlane, cursorTarget)) {
         ctrl.setCursorTarget(cursorTarget);
         debugSphere.position.copy(cursorTarget);
+        lastCursorMove = performance.now();
       }
     };
     window.addEventListener('mousemove', onMouseMove);
