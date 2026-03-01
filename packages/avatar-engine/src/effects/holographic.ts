@@ -205,7 +205,7 @@ export class Holographic {
       overlay.renderOrder = source.renderOrder + 1;
       overlay.position.copy(source.position);
       overlay.rotation.copy(source.rotation);
-      overlay.scale.copy(source.scale).multiplyScalar(1.25);
+      overlay.scale.copy(source.scale);
       overlay.visible = true;
 
       parent.add(overlay);
