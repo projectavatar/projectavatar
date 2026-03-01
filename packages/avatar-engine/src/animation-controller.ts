@@ -149,6 +149,8 @@ export class AnimationController {
 
   /** Callback when the active prop binding changes (driven by clip selection). */
   onPropChange?: (binding: ClipPropBinding | undefined) => void;
+  /** Callback fired after each individual clip is loaded (for progress tracking). */
+  onClipLoaded?: () => void;
 
   constructor(vrm: VRM, registry: ClipRegistry, assetResolver?: AssetResolver) {
     this.vrm = vrm;
@@ -178,6 +180,7 @@ export class AnimationController {
             : await loadMixamoAnimation(url, this.vrm);
           clip.name = file;
           this.clipCache.set(file, clip);
+          this.onClipLoaded?.();
         } catch (err) {
           console.warn(`[AnimationController] Failed to load ${file}:`, err);
         }

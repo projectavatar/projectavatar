@@ -18,6 +18,8 @@ import {
 
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
 import type { ClipsJsonData } from '@project-avatar/avatar-engine';
+import { LoadingOverlay } from '../components/loading-overlay.tsx';
+import type { LoadingState } from '../components/loading-overlay.tsx';
 
 // Import clips data for the registry
 import clipsData from '../data/clips.json';
@@ -57,6 +59,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
+  const [loadingState, setLoadingState] = useState<LoadingState>({ label: 'loading model', progress: null, done: false });
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const animControllerRef = useRef<AnimationController | null>(null);
@@ -99,9 +102,23 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm, clipRegistry, assetResolver);
       animControllerRef.current = animationController;
+      // Track animation loading progress
+      const totalClips = clipRegistry.getAllClipFiles().length;
+      let loadedClips = 0;
+      animationController.onClipLoaded = () => {
+        loadedClips++;
+        setLoadingState({
+          label: 'loading animations',
+          progress: 0.5 + (loadedClips / totalClips) * 0.5,
+          done: false,
+        });
+      };
+
+      setLoadingState({ label: 'loading animations', progress: 0.5, done: false });
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
+          setLoadingState({ label: '', progress: 1, done: true });
           // Reveal after the first mixer tick + 500ms for the T-pose→idle crossfade to settle
           animationController.onFirstFrame(() => {
             // 500ms: wait for T-pose→idle crossfade to settle, then reveal model
@@ -121,6 +138,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           console.warn('[AvatarCanvas] Animation load failed:', err);
           document.title = `ANIM ERROR: ${err}`;
           setAnimationsLoaded(true);
+          setLoadingState({ label: '', progress: 1, done: true });
           vrmManager.show(); // show anyway on failure
         });
       const stateMachine = new StateMachine(
@@ -174,8 +192,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const initModel = async () => {
       if (modelUrl) {
         try {
+          setLoadingState({ label: 'loading model', progress: 0, done: false });
           const resolvedModelUrl = assetResolver ? await assetResolver.resolve(modelUrl) : modelUrl;
-          const vrm = await vrmManager.load(resolvedModelUrl);
+          const vrm = await vrmManager.load(resolvedModelUrl, (pct) => {
+            setLoadingState({ label: 'loading model', progress: pct * 0.5, done: false });
+          });
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
           // Dynamic framing: zoomed out → body center, zoomed in → face
@@ -414,14 +435,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas ref={canvasRef} style={baseCanvasStyle} />
-      {!animationsLoaded && (
-        <div style={{
-          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-          color: 'var(--color-text-muted)', fontSize: 11, opacity: 0.6, pointerEvents: 'none',
-        }}>
-          loading animations…
-        </div>
-      )}
+      {!animationsLoaded && <LoadingOverlay state={loadingState} />}
     </div>
   );
 }
