@@ -201,7 +201,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
       // Compute goal: cursor target (with 2x overshoot) or camera
       if (cursorActive) {
-        eyeGoal.copy(cursorTarget).sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
+        eyeGoal.copy(cursorTarget);
       } else {
         eyeGoal.copy(avatarScene.camera.position);
       }
