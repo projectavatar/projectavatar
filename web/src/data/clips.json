@@ -505,7 +505,8 @@
           ]
         }
       ],
-      "durationOverride": null
+      "durationOverride": null,
+      "bypassHeadTracking": true
     },
     "nervous": {
       "groups": [
