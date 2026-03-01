@@ -475,7 +475,7 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
           <input
             type="checkbox"
             checked={action.bypassHeadTracking ?? false}
-            onChange={(e) => updateAction(selectedAction, { bypassHeadTracking: e.target.checked || undefined })}
+            onChange={(e) => updateAction(selectedAction, { bypassHeadTracking: e.target.checked ? true : undefined })}
             style={{ accentColor: 'var(--color-accent)' }}
           />
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-muted)' }}>

@@ -254,6 +254,10 @@ export class IdleLayer {
     if (this.vrm.scene) {
       this.vrm.scene.position.y = this.baseY;
     }
+    // Reset cursor tracking state
+    this.cursorTarget = null;
+    this.cursorBlend = 0;
+    this.cursorLastMoveTime = 0;
   }
 
   // ─── Private: bone setup ──────────────────────────────────────────────
@@ -519,6 +523,8 @@ export class IdleLayer {
   /** Reusable vectors for head tracking math. */
   private _headTargetDir = new THREE.Vector3();
   private _headWorldPos = new THREE.Vector3();
+  private _headCursorDir = new THREE.Vector3();
+  private _parentInverse = new THREE.Matrix4();
   private _headCurrentYaw = 0;
   private _headCurrentPitch = 0;
 
@@ -543,7 +549,7 @@ export class IdleLayer {
 
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
       // Compute cursor direction
-      const cursorDir = new THREE.Vector3().copy(this.cursorTarget).sub(this._headWorldPos).normalize();
+      const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
       // Blend between camera and cursor direction
       this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
       this._headTargetDir.normalize();
@@ -560,7 +566,7 @@ export class IdleLayer {
     if (!parent) return;
 
     parent.updateWorldMatrix(true, false);
-    const parentInverse = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+    const parentInverse = this._parentInverse.copy(parent.matrixWorld).invert();
     this._headTargetDir.transformDirection(parentInverse);
 
     // Extract yaw (Y) and pitch (X) from the direction

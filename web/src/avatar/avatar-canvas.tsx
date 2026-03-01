@@ -56,7 +56,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
-  const theme            = useStore((s) => s.theme);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const animControllerRef = useRef<AnimationController | null>(null);
@@ -207,6 +206,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
       // Compute goal: cursor target (with 2x overshoot) or camera
       if (cursorActive) {
+        // 1.5x overshoot so eye movement is visible independent of head turn
         eyeGoal.copy(cursorTarget).sub(avatarScene.camera.position).multiplyScalar(1.5).add(avatarScene.camera.position);
       } else {
         eyeGoal.copy(avatarScene.camera.position);
@@ -221,44 +221,41 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     avatarScene.start();
 
     // ── Cursor → head + eye tracking ─────────────────────────────────
-    const raycaster = new THREE.Raycaster();
-    const mouseNDC = new THREE.Vector2();
-    // Dynamic plane — always halfway between camera and origin,
-    // facing the camera. Scales with zoom level.
-    const targetPlane = new THREE.Plane();
+    // Pre-allocated objects for cursor→world projection (avoids GC pressure)
+    const _raycaster = new THREE.Raycaster();
+    const _ndcVec = new THREE.Vector2();
+    const _camDir = new THREE.Vector3();
+    const _planePos = new THREE.Vector3();
+    const _plane = new THREE.Plane();
 
-
-    const onMouseMove = (e: MouseEvent) => {
+    /** Project screen NDC to 3D world point and update cursor target. */
+    const projectCursor = (ndcX: number, ndcY: number) => {
       const ctrl = animControllerRef.current;
       if (!ctrl) return;
-      const rect = canvas.getBoundingClientRect();
-      mouseNDC.set(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1,
-      );
-
-      // Place plane parallel to screen, passing through camera position.
-      // This maps cursor movement to screen-space directions.
       const cam = avatarScene.camera;
-      const camDir = new THREE.Vector3();
-      cam.getWorldDirection(camDir);
-      // Plane slightly in front of camera (10% toward origin), facing camera direction
-      const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.5);
-      targetPlane.setFromNormalAndCoplanarPoint(camDir, planePos);
-
-
-      raycaster.setFromCamera(mouseNDC, cam);
-      if (raycaster.ray.intersectPlane(targetPlane, cursorTarget)) {
+      cam.getWorldDirection(_camDir);
+      // Plane 50% between camera and origin, facing camera direction
+      _planePos.copy(cam.position).lerp(_planePos.set(0, 0, 0), 0.5);
+      _plane.setFromNormalAndCoplanarPoint(_camDir, _planePos);
+      _ndcVec.set(ndcX, ndcY);
+      _raycaster.setFromCamera(_ndcVec, cam);
+      if (_raycaster.ray.intersectPlane(_plane, cursorTarget)) {
         ctrl.setCursorTarget(cursorTarget);
         lastCursorMove = performance.now();
       }
     };
-    // Desktop (Tauri): poll global cursor position via Rust plugin
-    // Web: use mousemove event (cursor only tracked inside window)
+
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      projectCursor(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+    };
+
     let cursorPollId: ReturnType<typeof setInterval> | null = null;
 
     const onMouseLeave = () => {
-      // Cursor left the window — clear target so head/eyes return to camera
       lastCursorMove = 0;
       animControllerRef.current?.setCursorTarget(null);
     };
@@ -267,57 +264,35 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseleave', onMouseLeave);
 
-    // Try to enable Tauri global cursor tracking (replaces mousemove)
-    // Test with an actual invoke to confirm we're really in Tauri runtime
+    // Try Tauri global cursor — probe with real invoke before committing
     import('@tauri-apps/api/core').then(async ({ invoke }) => {
       try {
-        // Probe — if this fails, we're not in a real Tauri context
         await invoke<[number, number]>('get_cursor_position');
       } catch {
-        console.log('[CursorTrack] Tauri API available but no runtime — staying on mousemove');
-        return;
+        return; // Not in Tauri runtime
       }
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      console.log('[CursorTrack] Tauri detected — switching to global cursor polling');
-      // Remove web listeners — Tauri handles everything
       window.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseleave', onMouseLeave);
 
       const win = getCurrentWindow();
       const poll = async () => {
-          try {
-            const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
-            const pos = await win.outerPosition();
-            const size = await win.outerSize();
-            const scale = await win.scaleFactor();
-
-            const relX = (screenX - pos.x) / scale;
-            const relY = (screenY - pos.y) / scale;
-            const w = size.width / scale;
-            const h = size.height / scale;
-
-            const ndcX = Math.max(-2, Math.min(2, (relX / w) * 2 - 1));
-            const ndcY = Math.max(-2, Math.min(2, -(relY / h) * 2 + 1));
-
-            const cam = avatarScene.camera;
-            const camDir = new THREE.Vector3();
-            cam.getWorldDirection(camDir);
-            const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.5);
-            const plane = new THREE.Plane();
-            plane.setFromNormalAndCoplanarPoint(camDir, planePos);
-
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam);
-            if (raycaster.ray.intersectPlane(plane, cursorTarget)) {
-              animControllerRef.current?.setCursorTarget(cursorTarget);
-              lastCursorMove = performance.now();
-            }
-          } catch (err) { console.error('[CursorPoll]', err); }
-        };
-        cursorPollId = setInterval(poll, 50);
-    }).catch(() => {
-      // Not in Tauri — web mousemove stays active
-    });
+        try {
+          const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
+          if (screenX === -1 && screenY === -1) return; // cursor query failed
+          const pos = await win.outerPosition();
+          const size = await win.outerSize();
+          const scale = await win.scaleFactor();
+          const w = size.width / scale;
+          const h = size.height / scale;
+          projectCursor(
+            Math.max(-2, Math.min(2, ((screenX - pos.x) / scale / w) * 2 - 1)),
+            Math.max(-2, Math.min(2, -(((screenY - pos.y) / scale / h) * 2 - 1))),
+          );
+        } catch { /* poll error — skip frame */ }
+      };
+      cursorPollId = setInterval(poll, 50);
+    }).catch(() => {});
 
     return () => {
       if (cursorPollId) clearInterval(cursorPollId);
