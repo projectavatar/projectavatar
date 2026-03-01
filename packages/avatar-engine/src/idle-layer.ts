@@ -32,7 +32,7 @@ const BACKWARD_LEAN     = 0.15;    // radians (~8.6°) — static backward lean 
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
-const HEAD_TRACK_INFLUENCE = 0.22;  // 0–1 — how much head biases toward camera
+const HEAD_TRACK_INFLUENCE = 0.35;  // 0–1 — how much head biases toward camera
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
@@ -547,14 +547,9 @@ export class IdleLayer {
     // Compute camera direction
     const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
 
-    // DEBUG: check why cursor tracking might not activate
-    if (Math.random() < 0.005) console.log('[HeadTrack-pre]', { hasCursorTarget: !!this.cursorTarget, cursorActive, cursorBlend: this.cursorBlend.toFixed(4), timeSinceMove: this.cursorTarget ? (now - this.cursorLastMoveTime).toFixed(0) : 'n/a' });
-
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
       // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
       const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
-      // DEBUG
-      if (Math.random() < 0.01) console.log('[HeadTrack]', { cursorBlend: this.cursorBlend.toFixed(3), distToHead: distToHead.toFixed(2), cursorTarget: this.cursorTarget.toArray().map(n=>n.toFixed(1)) });
       if (distToHead > 0.3) {
         const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
         this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
