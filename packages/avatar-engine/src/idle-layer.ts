@@ -124,11 +124,6 @@ export class IdleLayer {
     return this.bypassHeadTracking;
   }
 
-  /** Whether cursor is actively being tracked (not idle, not in dead zone). */
-  get isCursorActive(): boolean {
-    return this.cursorBlend > 0.01;
-  }
-
   // Cursor tracking — head follows a target point instead of camera
   private cursorTarget: THREE.Vector3 | null = null;
   private cursorLastMoveTime = 0;
@@ -555,7 +550,7 @@ export class IdleLayer {
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
       // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
       const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
-      if (distToHead > 0.5) {
+      if (distToHead > 0.3) {
         const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
         this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
         this._headTargetDir.normalize();
