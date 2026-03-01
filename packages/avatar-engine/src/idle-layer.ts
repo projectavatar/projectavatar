@@ -404,16 +404,12 @@ export class IdleLayer {
                        + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
       this.vrm.scene.position.y = this.baseY + bobOffset;
 
-      // Counter-move arms when a prop is active — keeps hands world-space stable
-      // while the body bobs. The arms compensate for the scene Y offset.
+      // Counter-move hands when a prop is active — keeps hands world-space stable
+      // while the body bobs. We offset the upperArm bones in world Y by the
+      // negative bob, then convert back to local space.
       if (this._propActive) {
-        const counterY = -bobOffset;
-        if (this.leftUpperArm) this.leftUpperArm.position.y += counterY;
-        if (this.rightUpperArm) this.rightUpperArm.position.y += counterY;
-        // Debug: log every ~2s (assuming 60fps)
-        if (Math.floor(t * 0.5) !== Math.floor((t - 0.016) * 0.5)) {
-          console.log('[IdleLayer] prop counter-move | bobOffset:', bobOffset.toFixed(4), '| counterY:', counterY.toFixed(4));
-        }
+        this._counterMoveArm(this.leftUpperArm, -bobOffset);
+        this._counterMoveArm(this.rightUpperArm, -bobOffset);
       }
     }
 
@@ -563,6 +559,27 @@ export class IdleLayer {
       const wave = Math.sin(t * FINGER_WAVE_FREQ * Math.PI * 2 + phase) * FINGER_WAVE_AMOUNT;
       bone.rotation[axis] = restVal + (curl * gestureMultiplier + wave) * sign * this.legBendSign;
     }
+  }
+
+  // ─── Private: arm counter-move for props ──────────────────────────────
+
+
+  /**
+   * Shift a bone so that its world-space Y moves by `deltaY`.
+   * We convert the world-Y offset into the bone's local space
+   * (accounting for parent transforms / scale / rotation).
+   */
+  private _counterMoveArm(bone: THREE.Object3D | null, deltaY: number): void {
+    if (!bone || !bone.parent) return;
+
+    // Get the parent's world matrix inverse to convert world offset → local offset
+    const parentInverse = new THREE.Matrix4().copy(bone.parent.matrixWorld).invert();
+    // World-space offset vector (pure Y)
+    const worldOffset = new THREE.Vector3(0, deltaY, 0);
+    // Transform to local space (direction only — ignore translation)
+    const localOffset = worldOffset.transformDirection(parentInverse);
+
+    bone.position.add(localOffset);
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
