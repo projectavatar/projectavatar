@@ -201,7 +201,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const targetBlend = cursorActive ? 1 : 0;
       const speed = cursorActive ? 6.0 : 2.0;
       eyeBlend += (targetBlend - eyeBlend) * (1 - Math.exp(-speed * 0.016));
-      lookAtProxy.position.lerpVectors(avatarScene.camera.position, cursorTarget, eyeBlend);
+      // Overshoot: eyes look 2x further than cursor target relative to camera
+      // This makes eye movement visible even when head is already turning
+      const eyeTarget = cursorTarget.clone().sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
+      lookAtProxy.position.lerpVectors(avatarScene.camera.position, eyeTarget, eyeBlend);
     });
 
     avatarScene.start();
