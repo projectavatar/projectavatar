@@ -497,6 +497,10 @@ export class AnimationController {
       if (duration !== null) {
         this.durationTimer = setTimeout(() => {
           this.durationTimer = null;
+          // Crossfade finished sub-actions to idle clip per body part.
+          // This gives quaternion slerp a valid target instead of
+          // interpolating from a clamped/finished pose to nothing.
+          this._crossfadeToIdle();
           this.onActionFinished?.();
         }, duration * 1000);
       }
@@ -561,6 +565,33 @@ export class AnimationController {
    * Get the first idle clip entry with ALL body parts — used as fallback
    * for unclaimed body parts during transitions.
    */
+  /**
+   * Crossfade all active sub-actions to idle clip counterparts.
+   * Used when a non-looping action finishes — provides a valid
+   * target pose for every body part to prevent quaternion spin.
+   */
+  private _crossfadeToIdle(): void {
+    const idleEntry = this._getIdleFallbackClip();
+    if (!idleEntry) return;
+
+    const fadeDuration = idleEntry.fadeIn ?? 0.3;
+    for (const sub of this.activeSubActions) {
+      const idleSub = this._createSubAction(idleEntry, sub.bodyPartGroup, 1.0, false);
+      if (idleSub) {
+        sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
+        idleSub.action.play();
+      }
+    }
+    // Clean up old subs after crossfade
+    const oldSubs = [...this.activeSubActions];
+    this.activeSubActions.length = 0;
+    setTimeout(() => {
+      for (const sub of oldSubs) {
+        sub.action.stop();
+      }
+    }, (fadeDuration + 0.5) * 1000);
+  }
+
   private _getIdleFallbackClip(): import('./clip-registry.ts').ClipEntry | null {
     const clipData = this.registry.getClipData('idle');
     if (!clipData) return null;
