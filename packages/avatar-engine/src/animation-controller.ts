@@ -379,6 +379,9 @@ export class AnimationController {
     // Track max clip duration for loop cycling
     let maxClipDuration = 0;
 
+    // Track body parts claimed by new action
+    const claimedGroups = new Set<BodyPart>();
+
     // For each body part group, collect claiming clips and normalize weights
     for (const group of BODY_PARTS) {
       const claiming: { entry: ClipEntry; weight: number }[] = [];
@@ -390,6 +393,7 @@ export class AnimationController {
 
       if (claiming.length === 0) continue;
 
+      claimedGroups.add(group);
       const totalWeight = claiming.reduce((sum, c) => sum + c.weight, 0);
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
@@ -417,8 +421,29 @@ export class AnimationController {
       }
     }
 
-    // Fade out any unmatched outgoing actions (body parts no longer claimed by new action)
-    for (const [, subs] of outgoingByGroup) {
+    // For unclaimed body parts, crossfade outgoing actions to idle clip
+    // instead of fading to nothing (which causes quaternion spin).
+    const idleGroupIndex = this.registry.selectGroup('idle');
+    const { clips: idleFallbackClips } = this.registry.resolveClips('idle', emotion, intensity, idleGroupIndex);
+    for (const [group, subs] of outgoingByGroup) {
+      if (subs.length === 0) continue;
+      // Find an idle clip that covers this body part
+      const idleEntry = idleFallbackClips.find(c => c.bodyParts.includes(group));
+      if (idleEntry) {
+        const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
+        if (idleSub) {
+          let fadeDuration = crossfadeDuration;
+          if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
+          else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
+          for (const sub of subs) {
+            sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
+          }
+          idleSub.action.play();
+          this.activeSubActions.push(idleSub);
+          continue;
+        }
+      }
+      // No idle clip for this part — just fade out
       for (const sub of subs) {
         sub.action.fadeOut(crossfadeDuration);
       }
