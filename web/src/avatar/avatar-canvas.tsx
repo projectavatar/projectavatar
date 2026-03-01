@@ -85,7 +85,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager 
         .then(() => {
           setAnimationsLoaded(true);
           // Wait 1s after load for first animation frame to settle, then reveal
-          setTimeout(() => vrmManager.show(), 1000);
+          setTimeout(() => {
+            vrmManager.show();
+            // Signal effects can start (trails were visible before model)
+            if (effectsManagerRef.current) {
+              effectsManagerRef.current.setModelReady(true);
+            }
+          }, 1000);
         })
         .catch((err) => {
           console.warn('[AvatarCanvas] Animation load failed:', err);

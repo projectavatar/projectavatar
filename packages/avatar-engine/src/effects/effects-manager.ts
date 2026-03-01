@@ -59,6 +59,7 @@ export class EffectsManager {
 
   private scene: THREE.Scene;
   private state: EffectsState = { ...DEFAULT_EFFECTS_STATE };
+  private modelReady = false;
 
   constructor(
     vrm: VRM,
@@ -101,6 +102,11 @@ export class EffectsManager {
   /** Whether bloom is active (needs composer.render instead of renderer.render). */
   get isBloomActive(): boolean {
     return this.bloomEffect.isActive;
+  }
+
+  /** Signal that the model is visible and effects can render. */
+  setModelReady(ready: boolean): void {
+    this.modelReady = ready;
   }
 
   /** Set the body center for particle orbit. */
@@ -148,6 +154,8 @@ export class EffectsManager {
 
   /** Update all effects. Call every frame. */
   update(delta: number): void {
+    // Don't update visual effects until model is visible
+    if (!this.modelReady) return;
     this.particleAura.update(delta);
     this.energyTrails.update(delta);
     this.bloomEffect.update(delta);
