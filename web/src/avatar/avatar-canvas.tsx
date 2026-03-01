@@ -13,6 +13,7 @@ import {
   VfxManager,
   ClipRegistry,
   EffectsManager,
+  AssetResolver,
 } from '@project-avatar/avatar-engine';
 
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
@@ -66,6 +67,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   const token                = useStore((s) => s.token);
   const relayUrl             = useStore((s) => s.relayUrl);
   const modelUrl             = useStore((s) => s.modelUrl);
+  const assetBaseUrl         = useStore((s) => s.assetBaseUrl);
   const setConnectionState   = useStore((s) => s.setConnectionState);
   const setReconnectAttempt  = useStore((s) => s.setReconnectAttempt);
   const setAvatarState       = useStore((s) => s.setAvatarState);
@@ -89,8 +91,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const vrmManager  = new VrmManager(avatarScene.scene);
 
+    // Asset resolver — desktop sets assetBaseUrl to fetch from web CDN
+    const assetResolver = assetBaseUrl
+      ? new AssetResolver({ baseUrl: assetBaseUrl })
+      : undefined;
+
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
-      const animationController = new AnimationController(vrm, clipRegistry);
+      const animationController = new AnimationController(vrm, clipRegistry, assetResolver);
       animControllerRef.current = animationController;
       animationController.loadAnimations()
         .then(() => {
@@ -120,7 +127,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(avatarScene.scene),
+        new PropManager(avatarScene.scene, assetResolver),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,
@@ -167,7 +174,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const initModel = async () => {
       if (modelUrl) {
         try {
-          const vrm = await vrmManager.load(modelUrl);
+          const resolvedModelUrl = assetResolver ? await assetResolver.resolve(modelUrl) : modelUrl;
+          const vrm = await vrmManager.load(resolvedModelUrl);
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
           // Dynamic framing: zoomed out → body center, zoomed in → face
@@ -338,7 +346,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       vrmManager.dispose();
       sceneRef.current = null;
     };
-  }, [modelUrl, setAvatarState]);
+  }, [modelUrl, assetBaseUrl, setAvatarState]);
 
   // Sync render scale (pixel ratio)
   useEffect(() => {

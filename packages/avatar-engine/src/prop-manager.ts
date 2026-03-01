@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { ClipPropBinding } from './clip-registry.ts';
 import { HOLO_CONFIG } from './effects/holographic.ts';
+import type { AssetResolver } from './asset-resolver.ts';
 import { holoVertexStatic, holoFragment } from './effects/holo-shaders.ts';
 
 /**
@@ -79,6 +80,7 @@ export class PropManager {
   private scene: THREE.Scene;
   private loader = new GLTFLoader();
   private modelCache = new Map<string, THREE.Object3D>();
+  private assetResolver: AssetResolver | null = null;
   private activeProp: ActiveProp | null = null;
   /** Props currently fading out (being removed). */
   private fadingOut: ActiveProp[] = [];
@@ -89,8 +91,9 @@ export class PropManager {
     uTime: { value: 0 },
   };
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, assetResolver?: AssetResolver) {
     this.scene = scene;
+    this.assetResolver = assetResolver ?? null;
   }
 
   /**
@@ -116,7 +119,8 @@ export class PropManager {
       let model = this.modelCache.get(binding.prop);
 
       if (!model) {
-        const url = PROP_BASE_PATH + binding.prop + '.glb';
+        const rawPath = PROP_BASE_PATH + binding.prop + '.glb';
+        const url = this.assetResolver ? await this.assetResolver.resolve(rawPath) : rawPath;
         const gltf = await this.loader.loadAsync(url);
         model = gltf.scene;
         this.modelCache.set(binding.prop, model);

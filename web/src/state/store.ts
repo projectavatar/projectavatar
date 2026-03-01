@@ -37,6 +37,8 @@ export interface AppState {
   settingsOpen: boolean;
   devPanelOpen: boolean;
   theme: 'dark' | 'transparent';
+  /** Base URL for remote asset loading (desktop). Empty = same-origin (web). */
+  assetBaseUrl: string;
   setupComplete: boolean;
   setToken: (token: string | null) => void;
   setRelayUrl: (url: string) => void;
@@ -50,6 +52,7 @@ export interface AppState {
   setSettingsOpen: (open: boolean) => void;
   setDevPanelOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'transparent') => void;
+  setAssetBaseUrl: (url: string) => void;
   setSetupComplete: (complete: boolean) => void;
   generateAndSetToken: () => string;
   /**
@@ -141,6 +144,7 @@ export const useStore = create<AppState>((set, get) => ({
   settingsOpen:  false,
   devPanelOpen:  false,
   theme:         persisted.theme ?? 'dark',
+  assetBaseUrl:  '',
   setupComplete: false,
 
   setToken: (token) => { set({ token }); persistState(get()); updateUrlParams({ token }); },
@@ -177,6 +181,7 @@ export const useStore = create<AppState>((set, get) => ({
   setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),
 
   setTheme: (theme) => { set({ theme }); persistState(get()); },
+  setAssetBaseUrl: (assetBaseUrl) => set({ assetBaseUrl }),
 
   setSetupComplete: (complete) => set({ setupComplete: complete }),
 
