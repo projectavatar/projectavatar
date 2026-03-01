@@ -117,9 +117,9 @@ export class AvatarScene {
       };
       // Lock vertical rotation in production — no peeking allowed
       if (!options?.dev) {
-        // Clamp polar angle to a narrow horizontal band (~±15° from equator)
-        this.controls.minPolarAngle = Math.PI / 2 - 0.38;  // ~68°
-        this.controls.maxPolarAngle = Math.PI / 2 + 0.38;  // ~112°
+        // Clamp polar angle to ±22° from equator
+        this.controls.minPolarAngle = Math.PI / 2 - 0.38;  // ~68° (±22°)
+        this.controls.maxPolarAngle = Math.PI / 2 + 0.38;  // ~112° (±22°)
       }
 
       this.controls.update();
@@ -194,7 +194,7 @@ export class AvatarScene {
   private _updateFramingTarget(): void {
     if (!this.framingEnabled || !this.controls) return;
 
-    const dist = this.camera.position.distanceTo(this.controls.target);
+    const dist = this.camera.position.distanceTo(this.bodyCenter);
 
     // Compute t: 0 = far (body), 1 = close (face)
     const t = THREE.MathUtils.clamp(

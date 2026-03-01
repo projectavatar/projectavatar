@@ -93,6 +93,7 @@ export class ClipPreview {
     }
 
     this.avatarScene = new AvatarScene(this.canvas, { grid: true, orbit: true, dev: true });
+    // No setFramingPoints() — clip-manager uses its own fixed camera for full-body preview
     this.avatarScene.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.avatarScene.renderer.toneMappingExposure = 1.0;
 
