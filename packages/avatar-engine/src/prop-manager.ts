@@ -24,12 +24,15 @@ const PROP_BASE_PATH = '/props/';
 // ─── Holographic shader (simplified from effects/holographic.ts) ──────────────
 
 const holoVertexShader = /* glsl */ `
+  uniform float uNormalOffset;
+
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
   varying vec3 vViewDir;
 
   void main() {
-    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vec3 pos = position + normal * uNormalOffset;
+    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
     vWorldPosition = worldPos.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
     vViewDir = normalize(cameraPosition - worldPos.xyz);
@@ -285,6 +288,7 @@ export class PropManager {
               uLineWidth: { value: HOLO_CONFIG.lineWidth },
               uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
               uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
+              uNormalOffset: { value: HOLO_CONFIG.normalOffset },
             },
             vertexShader: holoVertexShader,
             fragmentShader: holoFragmentShader,

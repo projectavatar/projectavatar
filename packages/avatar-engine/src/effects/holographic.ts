@@ -19,6 +19,7 @@ export const HOLO_CONFIG = {
   fresnelPower: 2.0,
   fresnelAlpha: 0.5,
   tint:         [0.5, 0.8, 1.0] as const,
+  normalOffset: 0.003,
 };
 
 const FADE_SPEED = 2.0;
@@ -29,6 +30,8 @@ const DEFAULT_TINT = new THREE.Color(...HOLO_CONFIG.tint);
 const vertexShader = /* glsl */ `
   #include <common>
   #include <skinning_pars_vertex>
+
+  uniform float uNormalOffset;
 
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
@@ -41,9 +44,13 @@ const vertexShader = /* glsl */ `
     #include <begin_vertex>
     #include <skinning_vertex>
 
+    // Push vertices outward along skinned normal for outline effect
+    vec3 skinNormal = normalize(mat3(modelMatrix) * objectNormal);
+    transformed += skinNormal * uNormalOffset;
+
     vec4 worldPos = modelMatrix * vec4(transformed, 1.0);
     vWorldPosition = worldPos.xyz;
-    vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
+    vWorldNormal = skinNormal;
     vViewDir = normalize(cameraPosition - worldPos.xyz);
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
@@ -103,6 +110,7 @@ export class Holographic {
     uLineWidth:    { value: HOLO_CONFIG.lineWidth },
     uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
     uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
+    uNormalOffset: { value: HOLO_CONFIG.normalOffset },
   };
 
   constructor(vrm: VRM) {
@@ -197,7 +205,7 @@ export class Holographic {
       overlay.renderOrder = source.renderOrder + 1;
       overlay.position.copy(source.position);
       overlay.rotation.copy(source.rotation);
-      overlay.scale.copy(source.scale).multiplyScalar(1.05);
+      overlay.scale.copy(source.scale).multiplyScalar(1.25);
       overlay.visible = true;
 
       parent.add(overlay);
