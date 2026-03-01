@@ -66,6 +66,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   const wsRef           = useRef<WebSocketClient | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
   const effectsManagerRef = useRef<EffectsManager | null>(null);
+  const assetResolverRef = useRef<AssetResolver | null>(null);
 
   const token                = useStore((s) => s.token);
   const relayUrl             = useStore((s) => s.relayUrl);
@@ -95,12 +96,15 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     // Asset resolver — desktop sets assetBaseUrl to fetch from web CDN
+    // Stored in ref so blob URLs survive the full scene lifecycle
+    assetResolverRef.current?.dispose();
     const assetResolver = assetBaseUrl
       ? new AssetResolver({ baseUrl: assetBaseUrl })
-      : undefined;
+      : null;
+    assetResolverRef.current = assetResolver;
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
-      const animationController = new AnimationController(vrm, clipRegistry, assetResolver);
+      const animationController = new AnimationController(vrm, clipRegistry, assetResolver ?? undefined);
       animControllerRef.current = animationController;
       // Track animation loading progress
       const totalClips = clipRegistry.getAllClipFiles().length;
@@ -109,12 +113,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         loadedClips++;
         setLoadingState({
           label: 'loading animations',
-          progress: 0.5 + (loadedClips / totalClips) * 0.5,
+          progress: 0.65 + (loadedClips / totalClips) * 0.35,
           done: false,
         });
       };
 
-      setLoadingState({ label: 'loading animations', progress: 0.5, done: false });
+      setLoadingState({ label: 'loading animations', progress: 0.65, done: false });
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
@@ -145,7 +149,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(avatarScene.scene, assetResolver),
+        new PropManager(avatarScene.scene, assetResolver ?? undefined),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,
@@ -193,9 +197,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       if (modelUrl) {
         try {
           setLoadingState({ label: 'loading model', progress: 0, done: false });
-          const resolvedModelUrl = assetResolver ? await assetResolver.resolve(modelUrl) : modelUrl;
+          const resolvedModelUrl = assetResolver
+            ? await assetResolver.resolve(modelUrl)
+            : modelUrl;
           const vrm = await vrmManager.load(resolvedModelUrl, (pct) => {
-            setLoadingState({ label: 'loading model', progress: pct * 0.5, done: false });
+            setLoadingState({ label: 'loading model', progress: pct * 0.65, done: false });
           });
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
@@ -365,6 +371,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       effectsManagerRef.current = null;
       avatarScene.dispose();
       vrmManager.dispose();
+      assetResolverRef.current?.dispose();
+      assetResolverRef.current = null;
       sceneRef.current = null;
     };
   }, [modelUrl, assetBaseUrl, setAvatarState]);

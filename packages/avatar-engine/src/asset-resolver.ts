@@ -17,8 +17,6 @@
 
 /** Pluggable cache backend for storing fetched assets as binary data. */
 export interface AssetCache {
-  /** Check if an asset exists in cache. */
-  has(key: string): Promise<boolean>;
   /** Read cached asset as ArrayBuffer. Returns null if not cached. */
   get(key: string): Promise<ArrayBuffer | null>;
   /** Store an asset in cache. */
@@ -44,6 +42,12 @@ export interface AssetResolverOptions {
    * cached locally and served from cache on subsequent loads.
    */
   cache?: AssetCache;
+
+  /** Fetch timeout in milliseconds. Default: 30000 (30s). */
+  timeoutMs?: number;
+
+  /** Number of retry attempts on fetch failure. Default: 2. */
+  retries?: number;
 }
 
 // ─── Resolver ─────────────────────────────────────────────────────────────────
@@ -51,6 +55,8 @@ export interface AssetResolverOptions {
 export class AssetResolver {
   private baseUrl: string;
   private cache: AssetCache | null;
+  private timeoutMs: number;
+  private retries: number;
 
   /** In-flight fetches keyed by asset path — prevents duplicate requests. */
   private inflight = new Map<string, Promise<string>>();
@@ -62,11 +68,14 @@ export class AssetResolver {
     // Normalize: strip trailing slash
     this.baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
     this.cache = options.cache ?? null;
+    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.retries = options.retries ?? 2;
   }
 
   /** Whether this resolver fetches from a remote base URL. */
   get isRemote(): boolean {
-    return this.baseUrl.length > 0;
+    return this.baseUrl.startsWith('http://')
+      || this.baseUrl.startsWith('https://');
   }
 
   /**
@@ -92,18 +101,16 @@ export class AssetResolver {
     }
 
     // Remote + cache: check cache, fetch if missing
-    // Deduplicate in-flight requests for the same path
+    // Deduplicate in-flight requests — all callers share the same promise
     const existing = this.inflight.get(path);
     if (existing) return existing;
 
-    const promise = this._resolveWithCache(path, fullUrl);
-    this.inflight.set(path, promise);
-
-    try {
-      return await promise;
-    } finally {
+    const promise = this._resolveWithCache(path, fullUrl).finally(() => {
+      // Clean up after ALL awaiters have resolved (microtask after .finally)
       this.inflight.delete(path);
-    }
+    });
+    this.inflight.set(path, promise);
+    return promise;
   }
 
   /**
@@ -128,33 +135,66 @@ export class AssetResolver {
 
   private async _resolveWithCache(path: string, fullUrl: string): Promise<string> {
     const cache = this.cache!;
+    const mime = this._guessMime(path);
 
     // Try cache first
     const cached = await cache.get(path);
     if (cached) {
-      const blob = new Blob([cached]);
+      const blob = new Blob([cached], mime ? { type: mime } : undefined);
       const blobUrl = URL.createObjectURL(blob);
       this.blobUrls.add(blobUrl);
       return blobUrl;
     }
 
-    // Fetch from remote
-    const response = await fetch(fullUrl);
-    if (!response.ok) {
-      throw new Error(`[AssetResolver] Failed to fetch ${fullUrl}: ${response.status} ${response.statusText}`);
-    }
+    // Fetch from remote with timeout + retry
+    const data = await this._fetchWithRetry(fullUrl);
 
-    const data = await response.arrayBuffer();
-
-    // Store in cache (don't await — fire-and-forget is fine here)
+    // Store in cache (don't block on write — log quota errors)
     cache.set(path, data).catch((err) => {
-      console.warn(`[AssetResolver] Cache write failed for ${path}:`, err);
+      console.warn(`[AssetResolver] Cache write failed for ${path} (quota exceeded?):`, err);
     });
 
     // Return as blob URL
-    const blob = new Blob([data]);
+    const blob = new Blob([data], mime ? { type: mime } : undefined);
     const blobUrl = URL.createObjectURL(blob);
     this.blobUrls.add(blobUrl);
     return blobUrl;
+  }
+
+  /** Guess MIME type from file extension for blob URLs. */
+  private _guessMime(path: string): string | undefined {
+    const ext = path.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'vrm': case 'glb': case 'gltf': return 'model/gltf-binary';
+      case 'fbx': return 'application/octet-stream';
+      case 'png': return 'image/png';
+      case 'jpg': case 'jpeg': return 'image/jpeg';
+      case 'webp': return 'image/webp';
+      default: return undefined;
+    }
+  }
+
+  private async _fetchWithRetry(url: string): Promise<ArrayBuffer> {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt <= this.retries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timer);
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+        return await response.arrayBuffer();
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < this.retries) {
+          // Exponential backoff: 500ms, 1500ms
+          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        }
+      }
+    }
+    throw new Error(`[AssetResolver] Failed to fetch ${url} after ${this.retries + 1} attempts: ${lastError?.message}`);
   }
 }

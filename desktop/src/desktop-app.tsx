@@ -23,7 +23,7 @@ export function DesktopApp() {
   // Set remote asset base URL — desktop fetches assets from web CDN
   useEffect(() => {
     setTheme('transparent');
-    setAssetBaseUrl('https://app.projectavatar.io');
+    setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
   // Suppress right-click context menu (right-click = rotate model)
