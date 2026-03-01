@@ -84,7 +84,7 @@ export function App() {
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
   // Auto-hide UI overlays after 5s of mouse inactivity
-  const uiVisible = useIdleHide(5000);
+  const uiVisible = useIdleHide(1000);
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.
