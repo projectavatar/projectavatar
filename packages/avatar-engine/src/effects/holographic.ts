@@ -26,7 +26,6 @@ const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
 const vertexShader = /* glsl */ `
   #include <common>
   #include <skinning_pars_vertex>
-  #include <normal_pars_vertex>
 
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
@@ -35,7 +34,7 @@ const vertexShader = /* glsl */ `
   void main() {
     #include <skinbase_vertex>
     #include <beginnormal_vertex>
-    #include <skinning_normal_vertex>
+    #include <skinnormal_vertex>
     #include <begin_vertex>
     #include <skinning_vertex>
 
