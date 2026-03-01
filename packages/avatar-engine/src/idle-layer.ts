@@ -35,6 +35,14 @@ const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward cam
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
+// Relaxed finger curl — natural resting hand pose
+const FINGER_CURL_PROXIMAL    = 0.25;  // radians — first knuckle
+const FINGER_CURL_INTERMEDIATE = 0.35; // radians — second knuckle (curls more)
+const FINGER_CURL_DISTAL      = 0.20;  // radians — fingertip
+const THUMB_CURL_META         = 0.15;  // radians — thumb base
+const THUMB_CURL_PROXIMAL     = 0.20;  // radians — thumb middle
+const THUMB_CURL_DISTAL       = 0.10;  // radians — thumb tip
+
 // Air mode — leg sway (sine variation on dangle)
 const LEG_SWAY_FREQ_1   = 0.08;   // Hz — primary slow cycle
 const LEG_SWAY_FREQ_2   = 0.13;   // Hz — secondary, incommensurate
@@ -74,6 +82,9 @@ export class IdleLayer {
   private head: THREE.Object3D | null = null;
 
   private initialized = false;
+
+  // Finger bones
+  private fingerBones: { bone: THREE.Object3D; curl: number }[] = [];
   private bypassHeadTracking = false;
 
 
@@ -190,6 +201,46 @@ export class IdleLayer {
 
     // Capture rest pose for all bones we modify
     this._captureRestPose();
+
+    // Resolve finger bones for relaxed curl
+    const fingerNames: [string, number][] = [
+      // Left hand
+      ['leftIndexProximal', FINGER_CURL_PROXIMAL],
+      ['leftIndexIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['leftIndexDistal', FINGER_CURL_DISTAL],
+      ['leftMiddleProximal', FINGER_CURL_PROXIMAL],
+      ['leftMiddleIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['leftMiddleDistal', FINGER_CURL_DISTAL],
+      ['leftRingProximal', FINGER_CURL_PROXIMAL],
+      ['leftRingIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['leftRingDistal', FINGER_CURL_DISTAL],
+      ['leftLittleProximal', FINGER_CURL_PROXIMAL],
+      ['leftLittleIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['leftLittleDistal', FINGER_CURL_DISTAL],
+      ['leftThumbMetacarpal', THUMB_CURL_META],
+      ['leftThumbProximal', THUMB_CURL_PROXIMAL],
+      ['leftThumbDistal', THUMB_CURL_DISTAL],
+      // Right hand
+      ['rightIndexProximal', FINGER_CURL_PROXIMAL],
+      ['rightIndexIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['rightIndexDistal', FINGER_CURL_DISTAL],
+      ['rightMiddleProximal', FINGER_CURL_PROXIMAL],
+      ['rightMiddleIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['rightMiddleDistal', FINGER_CURL_DISTAL],
+      ['rightRingProximal', FINGER_CURL_PROXIMAL],
+      ['rightRingIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['rightRingDistal', FINGER_CURL_DISTAL],
+      ['rightLittleProximal', FINGER_CURL_PROXIMAL],
+      ['rightLittleIntermediate', FINGER_CURL_INTERMEDIATE],
+      ['rightLittleDistal', FINGER_CURL_DISTAL],
+      ['rightThumbMetacarpal', THUMB_CURL_META],
+      ['rightThumbProximal', THUMB_CURL_PROXIMAL],
+      ['rightThumbDistal', THUMB_CURL_DISTAL],
+    ];
+    for (const [name, curl] of fingerNames) {
+      const bone = h.getNormalizedBoneNode(name as any);
+      if (bone) this.fingerBones.push({ bone, curl });
+    }
 
     // Detect leg bend direction from bone chain geometry.
     // Compare upper leg and lower leg world Y positions — if the lower leg
@@ -311,7 +362,10 @@ export class IdleLayer {
     // 5. Leg dangle — relaxed hanging pose
     this._applyLegDangle(t);
 
-    // 6. Subtle head tracking toward camera
+    // 6. Relaxed finger curl
+    this._applyFingerCurl();
+
+    // 7. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
       this._applyHeadTracking(delta);
     }
@@ -343,13 +397,16 @@ export class IdleLayer {
       this.hips.position.x += shift;
     }
 
-    // 4. Subtle head tracking toward camera
+    // 4. Relaxed finger curl
+    this._applyFingerCurl();
+
+    // 5. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
       this._applyHeadTracking(delta);
     }
   }
 
-  // ─── Private: leg dangle (air mode) ───────────────────────────────────
+    // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
   // ─── Private: head tracking ──────────────────────────────────────────
 
@@ -400,6 +457,15 @@ export class IdleLayer {
     this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
   }
 
+
+  // ─── Private: finger curl ──────────────────────────────────────────
+
+  /** Apply a relaxed finger curl — natural resting hand pose. */
+  private _applyFingerCurl(): void {
+    for (const { bone, curl } of this.fingerBones) {
+      bone.rotation.z += curl * this.legBendSign;
+    }
+  }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
