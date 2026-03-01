@@ -86,6 +86,7 @@ export function WindowChrome() {
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(true); // alwaysOnTop default
   const lastEscapeRef = useRef(0);
+  const resizingRef = useRef(false);
 
   // ── Edge resize + left-click drag ───────────────────────────────────
 
@@ -137,7 +138,10 @@ export function WindowChrome() {
       if (dir) {
         e.preventDefault();
         e.stopPropagation();
-        getCurrentWindow().startResizeDragging(dir);
+        resizingRef.current = true;
+        getCurrentWindow().startResizeDragging(dir).finally(() => {
+          resizingRef.current = false;
+        });
         return;
       }
 
@@ -179,7 +183,7 @@ export function WindowChrome() {
 
   useEffect(() => {
     const enter = () => setHovered(true);
-    const leave = () => setHovered(false);
+    const leave = () => { if (!resizingRef.current) setHovered(false); };
     document.documentElement.addEventListener('mouseenter', enter);
     document.documentElement.addEventListener('mouseleave', leave);
     return () => {
