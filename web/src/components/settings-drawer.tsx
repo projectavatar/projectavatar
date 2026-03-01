@@ -26,7 +26,7 @@ const drawerStyle: React.CSSProperties = {
   height: '100%',
   background: 'var(--color-surface)',
   borderRight: '1px solid var(--color-border)',
-  paddingTop: 'calc(1.5rem + var(--titlebar-inset, 0px))',
+  paddingTop: '1.5rem',
   paddingRight: '1.5rem',
   paddingBottom: '1.5rem',
   paddingLeft: '1.5rem',

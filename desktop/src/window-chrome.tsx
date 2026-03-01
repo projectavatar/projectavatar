@@ -18,7 +18,6 @@ import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
 const BORDER_RADIUS = 12;
-const TITLEBAR_HEIGHT = 32;
 
 type ResizeDir = 'North' | 'South' | 'East' | 'West'
   | 'NorthWest' | 'NorthEast' | 'SouthWest' | 'SouthEast';
@@ -73,12 +72,10 @@ export function WindowChrome() {
   // ── Set --titlebar-inset CSS variable ───────────────────────────────
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--titlebar-inset', `${TITLEBAR_HEIGHT}px`);
     // Round the window corners and clip content
     root.style.borderRadius = `${BORDER_RADIUS}px`;
     root.style.overflow = 'hidden';
     return () => {
-      root.style.removeProperty('--titlebar-inset');
       root.style.borderRadius = '';
       root.style.overflow = '';
     };
@@ -157,15 +154,10 @@ export function WindowChrome() {
         dragStarted = true;
         dragOrigin = null;
         getCurrentWindow().startDragging().then(() => {
-          // Dispatch synthetic pointer/mouse up events so Three.js
-          // OrbitControls (which listens to pointer events) resets.
-          // The OS steals all real events during native window drag.
-          const canvas = document.querySelector('canvas');
-          if (canvas) {
-            canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }));
-            canvas.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true }));
-          }
-          window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+          // After OS drag, pointer state is stale. Blur + refocus
+          // the document to force a clean slate for pointer events.
+          window.blur();
+          requestAnimationFrame(() => window.focus());
         });
       }
     };
@@ -311,27 +303,18 @@ export function WindowChrome() {
         }}
       />
 
-      {/* Titlebar — visible on hover */}
+      {/* Window controls — top right, visible on hover */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: TITLEBAR_HEIGHT,
+          top: 6,
+          right: 6,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          padding: '0 8px',
           gap: 4,
-          borderRadius: `${BORDER_RADIUS}px ${BORDER_RADIUS}px 0 0`,
-          background: 'rgba(10, 10, 15, 0.6)',
-          backdropFilter: 'blur(8px)',
           opacity: (hovered || resizing) ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: (hovered || resizing) ? 'auto' : 'none',
           userSelect: 'none',
-          WebkitUserSelect: 'none',
         }}
       >
         {/* Pin / always-on-top toggle */}
