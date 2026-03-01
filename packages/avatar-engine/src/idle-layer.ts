@@ -36,8 +36,14 @@ const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
 // Relaxed finger curl — natural resting hand pose
-const FINGER_CURL_PROXIMAL    = 0.25;  // radians — first knuckle
-const FINGER_CURL_INTERMEDIATE = 0.35; // radians — second knuckle (curls more)
+// Per-finger curl multipliers (index=lightest → pinky=most curled)
+const CURL_INDEX  = 0.6;
+const CURL_MIDDLE = 0.8;
+const CURL_RING   = 1.0;
+const CURL_LITTLE = 1.2;
+
+const FINGER_CURL_PROXIMAL    = 0.25;  // radians — base curl (first knuckle)
+const FINGER_CURL_INTERMEDIATE = 0.35; // radians — second knuckle
 const FINGER_CURL_DISTAL      = 0.20;  // radians — fingertip
 const THUMB_CURL_META         = 0.30;  // radians — thumb base
 const THUMB_CURL_PROXIMAL     = 0.35;  // radians — thumb middle
@@ -205,34 +211,34 @@ export class IdleLayer {
     // Resolve finger bones for relaxed curl
     const fingerNames: [string, number][] = [
       // Left hand
-      ['leftIndexProximal', FINGER_CURL_PROXIMAL],
-      ['leftIndexIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['leftIndexDistal', FINGER_CURL_DISTAL],
-      ['leftMiddleProximal', FINGER_CURL_PROXIMAL],
-      ['leftMiddleIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['leftMiddleDistal', FINGER_CURL_DISTAL],
-      ['leftRingProximal', FINGER_CURL_PROXIMAL],
-      ['leftRingIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['leftRingDistal', FINGER_CURL_DISTAL],
-      ['leftLittleProximal', FINGER_CURL_PROXIMAL],
-      ['leftLittleIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['leftLittleDistal', FINGER_CURL_DISTAL],
+      ['leftIndexProximal', FINGER_CURL_PROXIMAL * CURL_INDEX],
+      ['leftIndexIntermediate', FINGER_CURL_INTERMEDIATE * CURL_INDEX],
+      ['leftIndexDistal', FINGER_CURL_DISTAL * CURL_INDEX],
+      ['leftMiddleProximal', FINGER_CURL_PROXIMAL * CURL_MIDDLE],
+      ['leftMiddleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_MIDDLE],
+      ['leftMiddleDistal', FINGER_CURL_DISTAL * CURL_MIDDLE],
+      ['leftRingProximal', FINGER_CURL_PROXIMAL * CURL_RING],
+      ['leftRingIntermediate', FINGER_CURL_INTERMEDIATE * CURL_RING],
+      ['leftRingDistal', FINGER_CURL_DISTAL * CURL_RING],
+      ['leftLittleProximal', FINGER_CURL_PROXIMAL * CURL_LITTLE],
+      ['leftLittleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_LITTLE],
+      ['leftLittleDistal', FINGER_CURL_DISTAL * CURL_LITTLE],
       ['leftThumbMetacarpal', THUMB_CURL_META],
       ['leftThumbProximal', THUMB_CURL_PROXIMAL],
       ['leftThumbDistal', THUMB_CURL_DISTAL],
       // Right hand
-      ['rightIndexProximal', FINGER_CURL_PROXIMAL],
-      ['rightIndexIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['rightIndexDistal', FINGER_CURL_DISTAL],
-      ['rightMiddleProximal', FINGER_CURL_PROXIMAL],
-      ['rightMiddleIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['rightMiddleDistal', FINGER_CURL_DISTAL],
-      ['rightRingProximal', FINGER_CURL_PROXIMAL],
-      ['rightRingIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['rightRingDistal', FINGER_CURL_DISTAL],
-      ['rightLittleProximal', FINGER_CURL_PROXIMAL],
-      ['rightLittleIntermediate', FINGER_CURL_INTERMEDIATE],
-      ['rightLittleDistal', FINGER_CURL_DISTAL],
+      ['rightIndexProximal', FINGER_CURL_PROXIMAL * CURL_INDEX],
+      ['rightIndexIntermediate', FINGER_CURL_INTERMEDIATE * CURL_INDEX],
+      ['rightIndexDistal', FINGER_CURL_DISTAL * CURL_INDEX],
+      ['rightMiddleProximal', FINGER_CURL_PROXIMAL * CURL_MIDDLE],
+      ['rightMiddleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_MIDDLE],
+      ['rightMiddleDistal', FINGER_CURL_DISTAL * CURL_MIDDLE],
+      ['rightRingProximal', FINGER_CURL_PROXIMAL * CURL_RING],
+      ['rightRingIntermediate', FINGER_CURL_INTERMEDIATE * CURL_RING],
+      ['rightRingDistal', FINGER_CURL_DISTAL * CURL_RING],
+      ['rightLittleProximal', FINGER_CURL_PROXIMAL * CURL_LITTLE],
+      ['rightLittleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_LITTLE],
+      ['rightLittleDistal', FINGER_CURL_DISTAL * CURL_LITTLE],
       ['rightThumbMetacarpal', THUMB_CURL_META],
       ['rightThumbProximal', THUMB_CURL_PROXIMAL],
       ['rightThumbDistal', THUMB_CURL_DISTAL],
