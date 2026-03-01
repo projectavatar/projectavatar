@@ -11,12 +11,12 @@ import type { VRM } from '@pixiv/three-vrm';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const SCAN_LINE_DENSITY  = 100;
+const SCAN_LINE_DENSITY  = 30;
 const SCAN_LINE_SPEED    = 0.35;
-const SCAN_LINE_ALPHA    = 0.18;
-const SCAN_LINE_WIDTH    = 0.5;
+const SCAN_LINE_ALPHA    = 0.35;
+const SCAN_LINE_WIDTH    = 0.45;
 const FRESNEL_POWER      = 2.0;
-const FRESNEL_ALPHA      = 0.35;
+const FRESNEL_ALPHA      = 0.5;
 const FADE_SPEED         = 2.0;
 
 const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
