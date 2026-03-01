@@ -120,10 +120,14 @@ export class EyeGlow {
     const eyeKeywords = [
       'eye', 'iris', 'pupil', 'cornea',
       'Eye', 'Iris', 'Pupil',
-      'F00_000_00_EyeIris',     // VRoid standard
-      'F00_000_00_Eye',         // VRoid standard
+      'F00_000_00_EyeIris',     // VRoid v1 standard
+      'F00_000_00_Eye',         // VRoid v1 standard
       'F00_000_EyeIris',
       'F00_000_Eye',
+      'N00_000_00_EyeIris',     // VRoid v2 standard
+      'N00_000_00_Eye',         // VRoid v2 standard
+      'EyeIris',
+      'EYE',
     ];
 
     // Also try VRM-specific eye material detection via mesh morphs
@@ -149,19 +153,24 @@ export class EyeGlow {
 
       const materials = Array.isArray(child.material) ? child.material : [child.material];
       for (const mat of materials) {
-        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+        // Support both MeshStandardMaterial and MToonMaterial (VRM)
+        // MToon materials also expose emissive/emissiveIntensity
+        if (!('emissive' in mat) || !('emissiveIntensity' in mat)) continue;
+        const emissiveMat = mat as THREE.MeshStandardMaterial;
         if (this.originals.has(mat)) continue;
 
         // Filter out materials that are likely eye whites (high lightness, low saturation)
         // We only want iris/pupil materials for the glow
         const matName = (mat.name || '').toLowerCase();
-        if (matName.includes('white') || matName.includes('highlight')) continue;
+        if (matName.includes('white') || matName.includes('highlight')
+            || matName.includes('eyeline') || matName.includes('eyelash')
+            || matName.includes('brow')) continue;
 
-        this.originals.set(mat, {
-          emissive: mat.emissive.clone(),
-          emissiveIntensity: mat.emissiveIntensity,
+        this.originals.set(emissiveMat, {
+          emissive: emissiveMat.emissive.clone(),
+          emissiveIntensity: emissiveMat.emissiveIntensity,
         });
-        this.eyeMaterials.push(mat);
+        this.eyeMaterials.push(emissiveMat);
       }
     });
 
