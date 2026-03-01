@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { DEFAULTS, generateToken } from '@project-avatar/shared';
 import type { Emotion, Action, Prop, Intensity, ChannelState, AvatarEvent } from '@project-avatar/shared';
+import { DEFAULT_EFFECTS_STATE } from '@project-avatar/avatar-engine';
+import type { EffectsState } from '@project-avatar/avatar-engine';
 import manifest from '../assets/models/manifest.json';
 import type { ModelEntry } from '../types.ts';
 
@@ -31,6 +33,7 @@ export interface AppState {
    */
   channelStateReceived: boolean;
   avatar: AvatarState;
+  effects: EffectsState;
   settingsOpen: boolean;
   devPanelOpen: boolean;
   theme: 'dark' | 'transparent';
@@ -42,6 +45,7 @@ export interface AppState {
   setConnectionState: (state: ConnectionState) => void;
   setReconnectAttempt: (attempt: number) => void;
   setAvatarState: (state: Partial<AvatarState>) => void;
+  setEffect: (effect: keyof EffectsState, enabled: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setDevPanelOpen: (open: boolean) => void;
   setTheme: (theme: 'dark' | 'transparent') => void;
@@ -79,7 +83,7 @@ function updateUrlParams(params: Record<string, string | null>) {
   } catch { /* SSR / restricted */ }
 }
 
-function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>> {
+function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects'>> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
@@ -90,15 +94,17 @@ function loadPersistedState(): Partial<Pick<AppState, 'token' | 'relayUrl' | 'mo
       modelId:  typeof parsed['modelId']  === 'string' ? parsed['modelId']  : undefined,
       modelUrl: typeof parsed['modelUrl'] === 'string' ? parsed['modelUrl'] : undefined,
       theme:    parsed['theme'] === 'transparent' ? 'transparent' : undefined,
+      effects:  parsed['effects'] && typeof parsed['effects'] === 'object' ? parsed['effects'] as EffectsState : undefined,
     };
   } catch { return {}; }
 }
 
-function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme'>) {
+function persistState(state: Pick<AppState, 'token' | 'relayUrl' | 'modelId' | 'modelUrl' | 'theme' | 'effects'>) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       token: state.token, relayUrl: state.relayUrl,
       modelId: state.modelId, modelUrl: state.modelUrl, theme: state.theme,
+      effects: state.effects,
     }));
   } catch { /* localStorage unavailable */ }
 }
@@ -126,6 +132,7 @@ export const useStore = create<AppState>((set, get) => ({
   reconnectAttempt:     0,
 
   avatar: { emotion: 'idle', action: 'idle', prop: 'none', intensity: 'medium' },
+  effects: persisted.effects ?? { ...DEFAULT_EFFECTS_STATE },
 
   settingsOpen:  false,
   devPanelOpen:  false,
@@ -149,6 +156,13 @@ export const useStore = create<AppState>((set, get) => ({
   setReconnectAttempt: (reconnectAttempt) => set({ reconnectAttempt }),
 
   setAvatarState: (partial) => set((state) => ({ avatar: { ...state.avatar, ...partial } })),
+
+  setEffect: (effect, enabled) => {
+    set((state) => ({
+      effects: { ...state.effects, [effect]: enabled },
+    }));
+    persistState(get());
+  },
 
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),

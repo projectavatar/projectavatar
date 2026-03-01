@@ -46,6 +46,12 @@ export class AvatarScene {
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
 
+  /**
+   * Optional custom render function — replaces renderer.render() in tick().
+   * Used by BloomEffect to render through the EffectComposer instead.
+   */
+  private customRender: (() => void) | null = null;
+
   /** Dynamic framing points — set via setFramingPoints() after model load. */
   private bodyCenter = new THREE.Vector3(0, 0, 0);
   private faceCenter = new THREE.Vector3(0, 0.5, 0);
@@ -159,6 +165,14 @@ export class AvatarScene {
     if (idx !== -1) this.updateCallbacks.splice(idx, 1);
   }
 
+  /**
+   * Set a custom render function that replaces renderer.render().
+   * Pass null to restore default rendering.
+   */
+  setCustomRender(fn: (() => void) | null): void {
+    this.customRender = fn;
+  }
+
   /** Start the render loop. */
   start(): void {
     if (this.animationFrameId !== null) return;
@@ -223,7 +237,19 @@ export class AvatarScene {
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
-    this.renderer.render(this.scene, this.camera);
+    if (this.customRender) {
+      this.customRender();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  /** Optional resize callback — notifies external systems (e.g. bloom). */
+  private onResizeCallback: ((width: number, height: number) => void) | null = null;
+
+  /** Set a resize callback for external compositors. */
+  onResize(fn: ((width: number, height: number) => void) | null): void {
+    this.onResizeCallback = fn;
   }
 
   private handleResize(): void {
@@ -234,6 +260,7 @@ export class AvatarScene {
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      this.onResizeCallback?.(width, height);
     }
   }
 

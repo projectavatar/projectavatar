@@ -10,7 +10,9 @@ import {
   PropManager,
   StateMachine,
   ClipRegistry,
+  EffectsManager,
 } from '@project-avatar/avatar-engine';
+
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
 import type { ClipsJsonData } from '@project-avatar/avatar-engine';
 
@@ -45,15 +47,17 @@ const clipRegistry = new ClipRegistry(clipsData as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
   onStateMachine?: (sm: StateMachine | null) => void;
+  onEffectsManager?: (em: EffectsManager | null) => void;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
+  const effectsManagerRef = useRef<EffectsManager | null>(null);
 
   const token                = useStore((s) => s.token);
   const relayUrl             = useStore((s) => s.relayUrl);
@@ -98,7 +102,30 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
       stateMachine.setCamera(avatarScene.camera);
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
-      avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });
+
+      // ─── Effects ──────────────────────────────────────────────
+      const effectsManager = new EffectsManager(
+        vrm, avatarScene.scene, avatarScene.renderer, avatarScene.camera,
+      );
+      effectsManager.setCenter(vrmManager.bodyCenter);
+      effectsManagerRef.current = effectsManager;
+      onEffectsManager?.(effectsManager);
+
+      // Integrate bloom: custom render through composer when active
+      avatarScene.setCustomRender(() => {
+        if (!effectsManager.renderBloom()) {
+          avatarScene.renderer.render(avatarScene.scene, avatarScene.camera);
+        }
+      });
+
+      // Resize bloom composer with renderer
+      avatarScene.onResize((w, h) => effectsManager.setSize(w, h));
+
+      avatarScene.onUpdate((delta) => {
+        stateMachine.update(delta);
+        effectsManager.update(delta);
+        vrmManager.update(delta);
+      });
     };
 
     let cancelled = false;
@@ -130,8 +157,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     return () => {
       cancelled = true;
       onStateMachine?.(null);
+      onEffectsManager?.(null);
       stateMachineRef.current?.dispose();
       stateMachineRef.current = null;
+      effectsManagerRef.current?.dispose();
+      effectsManagerRef.current = null;
       avatarScene.dispose();
       vrmManager.dispose();
       sceneRef.current = null;

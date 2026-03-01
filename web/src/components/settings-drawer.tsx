@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { useStore } from '../state/store.ts';
 import { useWsClient } from '../avatar/avatar-canvas.tsx';
 import { isValidToken } from '@project-avatar/shared';
+import { EFFECT_LABELS, EFFECT_DESCRIPTIONS } from '@project-avatar/avatar-engine';
+import type { EffectsState } from '@project-avatar/avatar-engine';
 import manifest from '../assets/models/manifest.json';
 import type { ModelEntry } from '../types.ts';
 
@@ -102,6 +104,55 @@ const hintStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
+const tabBarStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '0.25rem',
+  borderBottom: '1px solid var(--color-border)',
+  paddingBottom: 0,
+};
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '8px 16px',
+  fontSize: '0.8rem',
+  fontWeight: active ? 600 : 400,
+  color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+  cursor: 'pointer',
+  transition: 'all 0.15s',
+});
+
+const effectToggleStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '10px 0',
+  borderBottom: '1px solid rgba(42, 42, 58, 0.5)',
+};
+
+const effectToggleSwitchStyle = (on: boolean): React.CSSProperties => ({
+  width: 36,
+  height: 18,
+  borderRadius: 9,
+  background: on ? 'var(--color-accent)' : 'var(--color-border)',
+  cursor: 'pointer',
+  position: 'relative' as const,
+  transition: 'background 0.15s',
+  flexShrink: 0,
+});
+
+const effectToggleKnobStyle = (on: boolean): React.CSSProperties => ({
+  width: 14,
+  height: 14,
+  borderRadius: 7,
+  background: '#fff',
+  position: 'absolute' as const,
+  top: 2,
+  left: on ? 20 : 2,
+  transition: 'left 0.15s',
+});
+
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function CopyButton({ value }: { value: string }) {
@@ -165,14 +216,18 @@ export function SettingsDrawer() {
     modelId,
     relayUrl,
     theme,
+    effects,
     settingsOpen,
     connectionState,
     setToken,
     setRelayUrl,
     setTheme,
+    setEffect,
     setSettingsOpen,
     generateAndSetToken,
   } = useStore();
+
+  const [activeTab, setActiveTab] = useState<'general' | 'effects'>('general');
 
   const { sendSetModel } = useWsClient();
 
@@ -227,6 +282,50 @@ export function SettingsDrawer() {
           <button style={closeBtnStyle} onClick={() => setSettingsOpen(false)}>×</button>
         </div>
 
+        {/* Tab bar */}
+        <div style={tabBarStyle}>
+          <button style={tabStyle(activeTab === 'general')} onClick={() => setActiveTab('general')}>
+            General
+          </button>
+          <button style={tabStyle(activeTab === 'effects')} onClick={() => setActiveTab('effects')}>
+            ✨ Effects
+          </button>
+        </div>
+
+        {activeTab === 'effects' && (
+          <>
+            <div style={sectionStyle}>
+              <div style={{ ...labelStyle, marginBottom: '0.25rem' }}>VISUAL EFFECTS</div>
+              <div style={hintStyle}>
+                Toggle visual effects on the avatar. Some effects work best together (e.g. Eye Glow + Bloom).
+              </div>
+            </div>
+            {(Object.keys(EFFECT_LABELS) as (keyof EffectsState)[]).map((effect) => (
+              <div key={effect} style={effectToggleStyle}>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}>
+                    {EFFECT_LABELS[effect]}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    {EFFECT_DESCRIPTIONS[effect]}
+                  </div>
+                </div>
+                <div
+                  style={effectToggleSwitchStyle(effects[effect])}
+                  onClick={() => setEffect(effect, !effects[effect])}
+                  role="switch"
+                  aria-checked={effects[effect]}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setEffect(effect, !effects[effect]); }}
+                >
+                  <div style={effectToggleKnobStyle(effects[effect])} />
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'general' && <>
         {/* Share links */}
         {skillUrl && (
           <UrlField
@@ -338,6 +437,8 @@ export function SettingsDrawer() {
             <option value="transparent">Transparent (OBS)</option>
           </select>
         </div>
+
+        </>}
 
         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
