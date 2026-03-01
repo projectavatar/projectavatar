@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { ClipPropBinding } from './clip-registry.ts';
+import { HOLO_CONFIG } from './effects/holographic.ts';
 
 /**
  * PropManager — world-space prop spawning with fade and material styles.
@@ -40,21 +41,25 @@ const holoFragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uOpacity;
   uniform vec3  uTint;
+  uniform float uDensity;
+  uniform float uSpeed;
+  uniform float uLineAlpha;
+  uniform float uLineWidth;
+  uniform float uFresnelPower;
+  uniform float uFresnelAlpha;
 
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
   varying vec3 vViewDir;
 
   void main() {
-    // Scan lines
-    float scanY = vWorldPosition.y * 30.0 + uTime * 0.35 * 30.0;
-    float scanLine = smoothstep(0.4, 0.5, fract(scanY));
-    float scanAlpha = scanLine * 0.25;
+    float scanY = vWorldPosition.y * uDensity + uTime * uSpeed * uDensity;
+    float scanLine = smoothstep(uLineWidth - 0.1, uLineWidth, fract(scanY));
+    float scanAlpha = scanLine * uLineAlpha;
 
-    // Fresnel edge glow
     float fresnel = 1.0 - abs(dot(normalize(vViewDir), normalize(vWorldNormal)));
-    fresnel = pow(fresnel, 2.0);
-    float fresnelAlpha = fresnel * 0.5;
+    fresnel = pow(fresnel, uFresnelPower);
+    float fresnelAlpha = fresnel * uFresnelAlpha;
 
     float totalAlpha = max(scanAlpha, fresnelAlpha) * uOpacity;
     vec3 color = mix(uTint * 0.3, uTint, fresnel);
@@ -273,7 +278,13 @@ export class PropManager {
             uniforms: {
               uTime: this.holoUniforms.uTime,
               uOpacity: { value: 0 },
-              uTint: { value: new THREE.Color(0.5, 0.8, 1.0) },
+              uTint: { value: new THREE.Color(...HOLO_CONFIG.tint) },
+              uDensity: { value: HOLO_CONFIG.density },
+              uSpeed: { value: HOLO_CONFIG.speed },
+              uLineAlpha: { value: HOLO_CONFIG.lineAlpha },
+              uLineWidth: { value: HOLO_CONFIG.lineWidth },
+              uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
+              uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
             },
             vertexShader: holoVertexShader,
             fragmentShader: holoFragmentShader,

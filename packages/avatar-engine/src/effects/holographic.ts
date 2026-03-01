@@ -11,15 +11,18 @@ import type { VRM } from '@pixiv/three-vrm';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const SCAN_LINE_DENSITY  = 30;
-const SCAN_LINE_SPEED    = 0.05;
-const SCAN_LINE_ALPHA    = 0.35;
-const SCAN_LINE_WIDTH    = 0.45;
-const FRESNEL_POWER      = 2.0;
-const FRESNEL_ALPHA      = 0.5;
-const FADE_SPEED         = 2.0;
+export const HOLO_CONFIG = {
+  density:      30,
+  speed:        0.05,
+  lineAlpha:    0.35,
+  lineWidth:    0.45,
+  fresnelPower: 2.0,
+  fresnelAlpha: 0.5,
+  tint:         [0.5, 0.8, 1.0] as const,
+};
 
-const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
+const FADE_SPEED = 2.0;
+const DEFAULT_TINT = new THREE.Color(...HOLO_CONFIG.tint);
 
 // ─── Shaders ──────────────────────────────────────────────────────────────────
 
@@ -94,12 +97,12 @@ export class Holographic {
     uTime:         { value: 0 },
     uStrength:     { value: 0 },
     uTint:         { value: DEFAULT_TINT.clone() },
-    uLineDensity:  { value: SCAN_LINE_DENSITY },
-    uLineSpeed:    { value: SCAN_LINE_SPEED },
-    uLineAlpha:    { value: SCAN_LINE_ALPHA },
-    uLineWidth:    { value: SCAN_LINE_WIDTH },
-    uFresnelPower: { value: FRESNEL_POWER },
-    uFresnelAlpha: { value: FRESNEL_ALPHA },
+    uLineDensity:  { value: HOLO_CONFIG.density },
+    uLineSpeed:    { value: HOLO_CONFIG.speed },
+    uLineAlpha:    { value: HOLO_CONFIG.lineAlpha },
+    uLineWidth:    { value: HOLO_CONFIG.lineWidth },
+    uFresnelPower: { value: HOLO_CONFIG.fresnelPower },
+    uFresnelAlpha: { value: HOLO_CONFIG.fresnelAlpha },
   };
 
   constructor(vrm: VRM) {
@@ -194,7 +197,7 @@ export class Holographic {
       overlay.renderOrder = source.renderOrder + 1;
       overlay.position.copy(source.position);
       overlay.rotation.copy(source.rotation);
-      overlay.scale.copy(source.scale).multiplyScalar(1.02);
+      overlay.scale.copy(source.scale).multiplyScalar(1.05);
       overlay.visible = true;
 
       parent.add(overlay);
