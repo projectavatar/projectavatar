@@ -314,13 +314,20 @@ export class IdleLayer {
       this.legSwapTimer = Math.random() * (LEG_SWAP_MAX - LEG_SWAP_MIN) * -1; // negative offset for randomness
       this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
     }
-    // Exponential ease — fast start, slow finish (natural deceleration)
-    const leadSpeed = 3.0 / LEG_SWAP_DURATION;
+    // Ease in-out via linear t → smoothstep
+    const leadSpeed = 1.0 / LEG_SWAP_DURATION;
     const trailSpeed = leadSpeed * 0.4;
-    const leadLerp = 1 - Math.exp(-leadSpeed * delta);
-    const trailLerp = 1 - Math.exp(-trailSpeed * delta);
-    this.legSwapBlend += (this.legSwapTarget - this.legSwapBlend) * leadLerp;
-    this.legSwapBlendTrail += (this.legSwapBlend - this.legSwapBlendTrail) * trailLerp;
+    // Move raw blend linearly
+    if (this.legSwapBlend < this.legSwapTarget) {
+      this.legSwapBlend = Math.min(this.legSwapBlend + leadSpeed * delta, 1);
+    } else if (this.legSwapBlend > this.legSwapTarget) {
+      this.legSwapBlend = Math.max(this.legSwapBlend - leadSpeed * delta, 0);
+    }
+    if (this.legSwapBlendTrail < this.legSwapBlend) {
+      this.legSwapBlendTrail = Math.min(this.legSwapBlendTrail + trailSpeed * delta, this.legSwapBlend);
+    } else if (this.legSwapBlendTrail > this.legSwapBlend) {
+      this.legSwapBlendTrail = Math.max(this.legSwapBlendTrail - trailSpeed * delta, this.legSwapBlend);
+    }
 
     // 6. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
@@ -418,8 +425,9 @@ export class IdleLayer {
    * Slight asymmetry between left/right for natural look.
    */
   private _applyLegDangle(): void {
-    const bLead = this.legSwapBlend;
-    const bTrail = this.legSwapBlendTrail;
+    // Smoothstep ease in-out: 3t² - 2t³
+    const bLead = this.legSwapBlend * this.legSwapBlend * (3 - 2 * this.legSwapBlend);
+    const bTrail = this.legSwapBlendTrail * this.legSwapBlendTrail * (3 - 2 * this.legSwapBlendTrail);
     const s = this.legBendSign;
 
     // Lerp between two poses:
