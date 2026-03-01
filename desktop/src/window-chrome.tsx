@@ -85,9 +85,8 @@ export function WindowChrome() {
 
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(true); // alwaysOnTop default
-  const [resizing, setResizing] = useState(false);
+  const [mouseDown, setMouseDown] = useState(false);
   const lastEscapeRef = useRef(0);
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Edge resize + left-click drag ───────────────────────────────────
 
@@ -162,16 +161,21 @@ export function WindowChrome() {
     const onMouseUp = () => {
       dragOrigin = null;
       dragStarted = false;
+      setMouseDown(false);
     };
+
+    const onGlobalMouseDown = () => setMouseDown(true);
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mousemove', onMouseMoveForDrag);
     window.addEventListener('mousedown', onMouseDown, { capture: true });
+    window.addEventListener('mousedown', onGlobalMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mousemove', onMouseMoveForDrag);
       window.removeEventListener('mousedown', onMouseDown, { capture: true });
+      window.removeEventListener('mousedown', onGlobalMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = '';
     };
@@ -187,22 +191,6 @@ export function WindowChrome() {
     return () => {
       document.documentElement.removeEventListener('mouseenter', enter);
       document.documentElement.removeEventListener('mouseleave', leave);
-    };
-  }, []);
-
-  // ── Detect resize via ResizeObserver ─────────────────────────────
-  // While resizing, keep chrome visible even if mouse leaves.
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => {
-      setResizing(true);
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
-      resizeTimerRef.current = setTimeout(() => setResizing(false), 300);
-    });
-    observer.observe(document.documentElement);
-    return () => {
-      observer.disconnect();
-      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
     };
   }, []);
 
@@ -251,7 +239,7 @@ export function WindowChrome() {
           inset: 2,
           borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
-          opacity: (hovered || resizing) ? 1 : 0,
+          opacity: (hovered || mouseDown) ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: 'none',
         }}
@@ -273,9 +261,9 @@ export function WindowChrome() {
           borderRadius: `${BORDER_RADIUS}px ${BORDER_RADIUS}px 0 0`,
           background: 'rgba(10, 10, 15, 0.6)',
           backdropFilter: 'blur(8px)',
-          opacity: (hovered || resizing) ? 1 : 0,
+          opacity: (hovered || mouseDown) ? 1 : 0,
           transition: 'opacity 0.2s ease',
-          pointerEvents: (hovered || resizing) ? 'auto' : 'none',
+          pointerEvents: (hovered || mouseDown) ? 'auto' : 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
         }}
