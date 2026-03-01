@@ -41,7 +41,7 @@ export class AvatarScene {
       0.1,
       20,
     );
-    this.camera.position.set(2.24, 0.8, 5.03);
+    this.camera.position.set(2.58, 0.8, 4.86);
     this.camera.lookAt(0, 0.7, 0);
 
     // Renderer: transparent background for OBS/overlay use
