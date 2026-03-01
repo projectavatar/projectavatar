@@ -47,7 +47,7 @@ const holoFragmentShader = /* glsl */ `
 
   void main() {
     // Scan lines
-    float scanY = vWorldPosition.y * 80.0 + uTime * 0.35 * 80.0;
+    float scanY = vWorldPosition.y * 30.0 + uTime * 0.35 * 30.0;
     float scanLine = smoothstep(0.4, 0.5, fract(scanY));
     float scanAlpha = scanLine * 0.25;
 
@@ -273,7 +273,7 @@ export class PropManager {
             uniforms: {
               uTime: this.holoUniforms.uTime,
               uOpacity: { value: 0 },
-              uTint: { value: new THREE.Color(0.0, 1.0, 0.8) },
+              uTint: { value: new THREE.Color(0.5, 0.8, 1.0) },
             },
             vertexShader: holoVertexShader,
             fragmentShader: holoFragmentShader,

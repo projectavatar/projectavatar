@@ -12,7 +12,7 @@ import type { VRM } from '@pixiv/three-vrm';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const SCAN_LINE_DENSITY  = 30;
-const SCAN_LINE_SPEED    = 0.35;
+const SCAN_LINE_SPEED    = 0.05;
 const SCAN_LINE_ALPHA    = 0.35;
 const SCAN_LINE_WIDTH    = 0.45;
 const FRESNEL_POWER      = 2.0;
@@ -194,7 +194,7 @@ export class Holographic {
       overlay.renderOrder = source.renderOrder + 1;
       overlay.position.copy(source.position);
       overlay.rotation.copy(source.rotation);
-      overlay.scale.copy(source.scale);
+      overlay.scale.copy(source.scale).multiplyScalar(1.02);
       overlay.visible = true;
 
       parent.add(overlay);
