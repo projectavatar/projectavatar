@@ -16,7 +16,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const DEFAULT_BLOOM_STRENGTH  = 0.8;
+const DEFAULT_BLOOM_STRENGTH  = 0.4;
 const DEFAULT_BLOOM_RADIUS    = 0.4;
 const DEFAULT_BLOOM_THRESHOLD = 0.7;
 const FADE_SPEED = 2.0;
