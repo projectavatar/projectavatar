@@ -224,7 +224,7 @@ export function SettingsDrawer() {
   };
 
   return (
-    <div style={overlayStyle} onClick={() => setSettingsOpen(false)}>
+    <div data-no-drag style={overlayStyle} onClick={() => setSettingsOpen(false)}>
       <div style={drawerStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <span style={titleStyle}>Settings</span>
@@ -291,6 +291,7 @@ export function SettingsDrawer() {
                   </div>
                 </div>
                 <div
+                  data-no-drag
                   style={effectToggleSwitchStyle(effects[effect])}
                   onClick={() => setEffect(effect, !effects[effect])}
                   role="switch"

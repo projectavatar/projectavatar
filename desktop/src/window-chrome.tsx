@@ -108,9 +108,22 @@ export function WindowChrome() {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
 
-      // Skip UI elements
+      // Skip UI elements — anything clickable/interactive should not trigger drag.
+      // Check the target and its ancestors for interactive elements.
       const target = e.target as HTMLElement;
-      if (target.closest('[data-no-drag]') || target.closest('button') || target.closest('input') || target.closest('select')) {
+      if (
+        target.closest('[data-no-drag]') ||
+        target.closest('button') ||
+        target.closest('input') ||
+        target.closest('select') ||
+        target.closest('[role="switch"]') ||
+        target.closest('[role="button"]') ||
+        target.closest('[data-clickable]') ||
+        // Any element with an onClick handler or pointer cursor is interactive
+        window.getComputedStyle(target).cursor === 'pointer' ||
+        target.closest('[style*="cursor: pointer"]') ||
+        target.closest('[style*="cursor:pointer"]')
+      ) {
         return;
       }
 
