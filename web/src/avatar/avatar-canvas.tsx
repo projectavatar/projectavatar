@@ -286,7 +286,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           if (screenX === prevScreenX && screenY === prevScreenY) return;
           prevScreenX = screenX;
           prevScreenY = screenY;
-          console.log('[CursorPoll] screen:', screenX, screenY, 'winPos:', (await win.outerPosition()).x, (await win.outerPosition()).y, 'size:', (await win.outerSize()).width, (await win.outerSize()).height, 'scale:', await win.scaleFactor());
           const pos = await win.outerPosition();
           const size = await win.outerSize();
           const scale = await win.scaleFactor();
@@ -298,7 +297,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           );
         } catch { /* poll error — skip frame */ }
       };
-      cursorPollId = setInterval(poll, 50);
+      cursorPollId = setInterval(poll, 32); // ~30Hz
     }).catch(() => {});
 
     return () => {
