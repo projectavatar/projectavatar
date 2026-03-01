@@ -74,6 +74,7 @@ export class IdleLayer {
   private head: THREE.Object3D | null = null;
 
   private initialized = false;
+  private bypassHeadTracking = false;
 
 
   /** Rest pose rotations — captured once so we can reset before applying. */
@@ -119,6 +120,11 @@ export class IdleLayer {
 
   get isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
+  setBypassHeadTracking(bypass: boolean): void {
+    this.bypassHeadTracking = bypass;
   }
 
   /** Set camera reference for subtle head tracking. */
@@ -306,7 +312,9 @@ export class IdleLayer {
     this._applyLegDangle(t);
 
     // 6. Subtle head tracking toward camera
-    this._applyHeadTracking(delta);
+    if (!this.bypassHeadTracking) {
+      this._applyHeadTracking(delta);
+    }
   }
 
   // ─── Private: ground mode ─────────────────────────────────────────────
@@ -336,7 +344,9 @@ export class IdleLayer {
     }
 
     // 4. Subtle head tracking toward camera
-    this._applyHeadTracking(delta);
+    if (!this.bypassHeadTracking) {
+      this._applyHeadTracking(delta);
+    }
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────

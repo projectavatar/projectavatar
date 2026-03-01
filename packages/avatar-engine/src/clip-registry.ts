@@ -67,6 +67,7 @@ export interface AnimationGroupJson {
 interface ActionJson {
   groups: AnimationGroupJson[];
   durationOverride: number | null;
+  bypassHeadTracking?: boolean;
 }
 
 /** Clip reference (for emotion overrides/layers). */
@@ -297,6 +298,12 @@ export class ClipRegistry {
   /**
    * Last resort fallback: find any usable clip in the registry.
    */
+  /** Check if an action bypasses head tracking. */
+  shouldBypassHeadTracking(action: Action): boolean {
+    const actionData = this.data.actions[action as string];
+    return actionData?.bypassHeadTracking === true;
+  }
+
   /** Get raw clip data by clip name (for fallback lookups). */
   getClipData(clipName: string): ClipJson | undefined {
     return this.data.clips[clipName];

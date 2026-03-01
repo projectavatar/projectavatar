@@ -332,7 +332,8 @@
           ]
         }
       ],
-      "durationOverride": null
+      "durationOverride": null,
+      "bypassHeadTracking": true
     },
     "nodding": {
       "groups": [

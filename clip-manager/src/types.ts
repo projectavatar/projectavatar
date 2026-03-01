@@ -40,6 +40,7 @@ export interface ActionData {
   /** Animation groups — weighted random selection picks one per trigger. */
   groups: AnimationGroup[];
   durationOverride: number | null;
+  bypassHeadTracking?: boolean;
 }
 
 export interface EmotionData {
