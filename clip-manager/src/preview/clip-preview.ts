@@ -137,6 +137,9 @@ export class ClipPreview {
         this.vrm.update(delta);
       }
 
+      // VFX — always update regardless of engine state
+      this.vfxManager?.update(delta);
+
       const info = this.getClipInfo();
       if (info) this.onFrame?.(info);
     });
@@ -326,6 +329,7 @@ export class ClipPreview {
 
   /** Initialize VFX manager and load bindings from clip data. */
   initVfx(clipsData: ClipsJsonData): void {
+    console.log('[ClipPreview] initVfx');
     this.vfxManager?.clear();
     this.vfxManager = new VfxManager(this.avatarScene.scene);
     const registry = new ClipRegistry(clipsData);
@@ -335,6 +339,7 @@ export class ClipPreview {
 
   /** Set the preview emotion — spawns/despawns VFX. */
   setPreviewEmotion(emotion: string | null): void {
+    console.log('[ClipPreview] setPreviewEmotion', emotion, '| vfxManager:', !!this.vfxManager);
     this.vfxManager?.setState(emotion, null);
   }
 
