@@ -114,9 +114,6 @@ export function Header({
       <button style={tabStyle(activeTab === 'clips')} onClick={() => onTabChange('clips')}>
         Clips
       </button>
-      <button style={tabStyle(activeTab === 'props')} onClick={() => onTabChange('props')}>
-        Props
-      </button>
 
       <div style={spacerStyle} />
 

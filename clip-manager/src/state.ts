@@ -12,7 +12,7 @@ export interface AppState {
   /** Currently selected clip id in the library panel */
   selectedClip: string | null;
   /** Currently active tab in header */
-  activeTab: 'clips' | 'actions' | 'emotions' | 'props';
+  activeTab: 'clips' | 'actions' | 'emotions';
   /** Currently expanded action (in actions tab) */
   expandedAction: string | null;
   /** Currently expanded emotion (in emotions tab) */
@@ -29,8 +29,6 @@ export interface AppState {
   categoryFilter: string | null;
   /** Active energy filter */
   energyFilter: string | null;
-  /** Selected prop id for preview in Props tab */
-  selectedProp: string | null;
   /** Whether data has unsaved changes */
   dirty: boolean;
   /** Last save timestamp */
@@ -57,7 +55,6 @@ export type Action =
   | { type: 'UPDATE_ACTION'; action: string; data: Partial<ActionData> }
   | { type: 'UPDATE_EMOTION'; emotion: string; data: Partial<EmotionData> }
   | { type: 'CREATE_EMOTION'; emotion: string }
-  | { type: 'SELECT_PROP'; propId: string | null }
   | { type: 'MARK_SAVED' };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -153,9 +150,6 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, data: { ...state.data, emotions }, dirty: true };
     }
 
-    case 'SELECT_PROP':
-      return { ...state, selectedProp: action.propId };
-
     case 'MARK_SAVED':
       return { ...state, dirty: false, lastSaved: Date.now() };
 
@@ -224,7 +218,6 @@ export function useAppState(initialData?: ClipsJson) {
     previewClip: null,
     previewAction: null,
     previewGroupIndex: 0,
-    selectedProp: null,
     searchQuery: '',
     categoryFilter: null,
     energyFilter: null,
