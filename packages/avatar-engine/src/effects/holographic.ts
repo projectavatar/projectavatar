@@ -24,7 +24,9 @@ const DEFAULT_TINT = new THREE.Color(0.5, 0.8, 1.0);
 // ─── Shaders ──────────────────────────────────────────────────────────────────
 
 const vertexShader = /* glsl */ `
+  #include <common>
   #include <skinning_pars_vertex>
+  #include <normal_pars_vertex>
 
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
@@ -32,23 +34,13 @@ const vertexShader = /* glsl */ `
 
   void main() {
     #include <skinbase_vertex>
+    #include <beginnormal_vertex>
+    #include <skinning_normal_vertex>
     #include <begin_vertex>
     #include <skinning_vertex>
 
     vec4 worldPos = modelMatrix * vec4(transformed, 1.0);
     vWorldPosition = worldPos.xyz;
-
-    vec3 objectNormal = normal;
-    #ifdef USE_SKINNING
-      mat4 skinMatrix = bindMatrix * (
-        skinWeight.x * boneMatrices[int(skinIndex.x)] +
-        skinWeight.y * boneMatrices[int(skinIndex.y)] +
-        skinWeight.z * boneMatrices[int(skinIndex.z)] +
-        skinWeight.w * boneMatrices[int(skinIndex.w)]
-      ) * bindMatrixInverse;
-      objectNormal = (skinMatrix * vec4(objectNormal, 0.0)).xyz;
-    #endif
-
     vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
     vViewDir = normalize(cameraPosition - worldPos.xyz);
 
@@ -95,37 +87,28 @@ export class Holographic {
   private targetStrength = 0;
   private currentStrength = 0;
   private elapsed = 0;
-  private material: THREE.ShaderMaterial;
   private overlayMeshes: THREE.Mesh[] = [];
   private built = false;
 
+  /** Shared uniforms — all overlay materials reference the same uniform objects. */
+  private uniforms = {
+    uTime:         { value: 0 },
+    uStrength:     { value: 0 },
+    uTint:         { value: DEFAULT_TINT.clone() },
+    uLineDensity:  { value: SCAN_LINE_DENSITY },
+    uLineSpeed:    { value: SCAN_LINE_SPEED },
+    uLineAlpha:    { value: SCAN_LINE_ALPHA },
+    uLineWidth:    { value: SCAN_LINE_WIDTH },
+    uFresnelPower: { value: FRESNEL_POWER },
+    uFresnelAlpha: { value: FRESNEL_ALPHA },
+  };
+
   constructor(vrm: VRM) {
     this.vrm = vrm;
-
-    this.material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime:         { value: 0 },
-        uStrength:     { value: 0 },
-        uTint:         { value: DEFAULT_TINT.clone() },
-        uLineDensity:  { value: SCAN_LINE_DENSITY },
-        uLineSpeed:    { value: SCAN_LINE_SPEED },
-        uLineAlpha:    { value: SCAN_LINE_ALPHA },
-        uLineWidth:    { value: SCAN_LINE_WIDTH },
-        uFresnelPower: { value: FRESNEL_POWER },
-        uFresnelAlpha: { value: FRESNEL_ALPHA },
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      side: THREE.FrontSide,
-      blending: THREE.AdditiveBlending,
-    });
   }
 
   setTint(color: THREE.Color): void {
-    (this.material.uniforms['uTint'] as { value: THREE.Color }).value.copy(color);
+    this.uniforms.uTint.value.copy(color);
   }
 
   set enabled(value: boolean) {
@@ -144,13 +127,13 @@ export class Holographic {
     if (!this.overlayMeshes[0]!.visible && this.targetStrength === 0) return;
 
     this.elapsed += delta;
-    this.material.uniforms['uTime']!.value = this.elapsed;
+    this.uniforms.uTime.value = this.elapsed;
 
     this.currentStrength = THREE.MathUtils.lerp(
       this.currentStrength, this.targetStrength,
       1 - Math.exp(-FADE_SPEED * delta),
     );
-    this.material.uniforms['uStrength']!.value = this.currentStrength;
+    this.uniforms.uStrength.value = this.currentStrength;
 
     if (this.currentStrength < 0.001 && this.targetStrength === 0) {
       for (const m of this.overlayMeshes) m.visible = false;
@@ -160,12 +143,33 @@ export class Holographic {
   dispose(): void {
     for (const mesh of this.overlayMeshes) {
       mesh.parent?.remove(mesh);
+      if (mesh.material instanceof THREE.ShaderMaterial) {
+        mesh.material.dispose();
+      }
     }
-    this.material.dispose();
     this.overlayMeshes = [];
   }
 
   // ─── Private ──────────────────────────────────────────────────────────
+
+  /**
+   * Create a ShaderMaterial for the holographic overlay.
+   * Each mesh needs its own material instance because skinning flag
+   * differs between SkinnedMesh and regular Mesh.
+   */
+  private _createMaterial(isSkinned: boolean): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { ...this.uniforms },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.FrontSide,
+      blending: THREE.AdditiveBlending,
+      skinning: isSkinned,
+    } as THREE.ShaderMaterialParameters & { skinning?: boolean });
+  }
 
   /**
    * Build overlay meshes as siblings of original VRM meshes.
@@ -183,24 +187,21 @@ export class Holographic {
     });
 
     for (const { source, parent } of meshesToClone) {
+      const isSkinned = source instanceof THREE.SkinnedMesh;
+      const material = this._createMaterial(isSkinned);
       let overlay: THREE.Mesh;
 
       if (source instanceof THREE.SkinnedMesh) {
-        const skinned = new THREE.SkinnedMesh(source.geometry, this.material);
-        skinned.skeleton = source.skeleton;
-        skinned.bindMatrix.copy(source.bindMatrix);
-        skinned.bindMatrixInverse.copy(source.bindMatrixInverse);
-        // Bind must be called to set up the uniform properly
+        const skinned = new THREE.SkinnedMesh(source.geometry, material);
         skinned.bind(source.skeleton, source.bindMatrix);
         overlay = skinned;
       } else {
-        overlay = new THREE.Mesh(source.geometry, this.material);
+        overlay = new THREE.Mesh(source.geometry, material);
       }
 
       overlay.name = source.name + '_holo';
       overlay.frustumCulled = false;
       overlay.renderOrder = source.renderOrder + 1;
-      // Copy local transform so overlay sits exactly on top
       overlay.position.copy(source.position);
       overlay.rotation.copy(source.rotation);
       overlay.scale.copy(source.scale);

@@ -16,7 +16,7 @@ const SAMPLE_RATE    = 1 / 30; // sample bone position every ~33ms
 const FADE_SPEED     = 2.0;
 const MIN_MOVE_DIST  = 0.001;  // minimum movement to record a sample
 
-const DEFAULT_COLOR = new THREE.Color(0.4, 0.7, 1.0);
+const DEFAULT_COLOR = new THREE.Color(1.0, 1.0, 1.0);
 
 // ─── Trail vertex/fragment shaders ────────────────────────────────────────────
 
