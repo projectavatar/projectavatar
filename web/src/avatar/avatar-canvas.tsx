@@ -85,14 +85,14 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
-          // Reveal after the first mixer tick + 800ms for the T-pose→idle crossfade to settle
+          // Reveal after the first mixer tick + 500ms for the T-pose→idle crossfade to settle
           animationController.onFirstFrame(() => {
             setTimeout(() => {
               vrmManager.show();
               if (effectsManagerRef.current) {
                 effectsManagerRef.current.setModelReady(true);
               }
-            }, 800);
+            }, 500);
           });
         })
         .catch((err) => {
