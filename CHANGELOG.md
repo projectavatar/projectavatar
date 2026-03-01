@@ -1,6 +1,17 @@
 # Changelog
 
 
+## [0.5.0] — 2026-03-01
+
+### Added
+- **Remote asset loading** — desktop no longer bundles 88MB of models, animations, and props. Assets are fetched from the web CDN (`app.projectavatar.io`) on first load. Pluggable cache backend ready for local storage.
+- **Loading progress bar** — smooth progress bar at bottom of canvas showing model download (0–50%) and animation loading (50–100%). Monospace label with percentage, fades out on completion.
+- **AssetResolver** — new engine module for configurable asset URL resolution with deduplication, blob URL management, and optional caching.
+
+### Fixed
+- **CSP policy** — added `https://app.projectavatar.io` to `connect-src` for remote asset fetching.
+
+
 ## [0.4.0] — 2026-03-01
 
 ### Fixed
