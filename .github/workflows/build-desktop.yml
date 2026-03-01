@@ -64,6 +64,7 @@ jobs:
 
       - name: Extract release notes
         id: changelog
+        shell: bash
         run: |
           # Extract the latest version block from desktop/CHANGELOG.md
           notes=$(awk '/^## \[/{if(found) exit; found=1; next} found' desktop/CHANGELOG.md)
