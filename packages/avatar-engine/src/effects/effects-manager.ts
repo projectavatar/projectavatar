@@ -7,12 +7,10 @@
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
-import type { Emotion } from '@project-avatar/shared';
 import { ParticleAura } from './particle-aura.ts';
 import { EnergyTrails } from './energy-trails.ts';
 import { BloomEffect } from './bloom-effect.ts';
 import { Holographic } from './holographic.ts';
-import { EyeGlow } from './eye-glow.ts';
 
 // ─── Effect state ─────────────────────────────────────────────────────────────
 
@@ -21,7 +19,6 @@ export interface EffectsState {
   energyTrails: boolean;
   bloom: boolean;
   holographic: boolean;
-  eyeGlow: boolean;
 }
 
 export const DEFAULT_EFFECTS_STATE: EffectsState = {
@@ -29,7 +26,6 @@ export const DEFAULT_EFFECTS_STATE: EffectsState = {
   energyTrails: false,
   bloom: false,
   holographic: false,
-  eyeGlow: false,
 };
 
 export const EFFECT_LABELS: Record<keyof EffectsState, string> = {
@@ -37,7 +33,6 @@ export const EFFECT_LABELS: Record<keyof EffectsState, string> = {
   energyTrails: 'Energy Trails',
   bloom: 'Bloom',
   holographic: 'Holographic',
-  eyeGlow: 'Eye Glow',
 };
 
 export const EFFECT_DESCRIPTIONS: Record<keyof EffectsState, string> = {
@@ -45,7 +40,6 @@ export const EFFECT_DESCRIPTIONS: Record<keyof EffectsState, string> = {
   energyTrails: 'Energy ribbons trailing from hands',
   bloom: 'Post-processing glow on emissive surfaces',
   holographic: 'Scan lines and edge glow on the model',
-  eyeGlow: 'Emissive glow on eye materials',
 };
 
 // ─── EffectsManager ───────────────────────────────────────────────────────────
@@ -55,7 +49,6 @@ export class EffectsManager {
   private energyTrails: EnergyTrails;
   private bloomEffect: BloomEffect;
   private holographic: Holographic;
-  private eyeGlow: EyeGlow;
 
   private scene: THREE.Scene;
   private state: EffectsState = { ...DEFAULT_EFFECTS_STATE };
@@ -74,7 +67,6 @@ export class EffectsManager {
     this.energyTrails = new EnergyTrails(vrm);
     this.bloomEffect  = new BloomEffect(renderer, scene, camera);
     this.holographic  = new Holographic(vrm);
-    this.eyeGlow      = new EyeGlow(vrm);
 
     // Add particle aura to scene
     scene.add(this.particleAura.object3D);
@@ -132,9 +124,6 @@ export class EffectsManager {
       case 'holographic':
         this.holographic.enabled = enabled;
         break;
-      case 'eyeGlow':
-        this.eyeGlow.enabled = enabled;
-        break;
     }
   }
 
@@ -147,11 +136,6 @@ export class EffectsManager {
     }
   }
 
-  /** React to emotion changes — forward to eye glow. */
-  setEmotion(emotion: Emotion): void {
-    this.eyeGlow.setEmotion(emotion);
-  }
-
   /** Update all effects. Call every frame. */
   update(delta: number): void {
     // Don't update visual effects until model is visible
@@ -160,7 +144,6 @@ export class EffectsManager {
     this.energyTrails.update(delta);
     this.bloomEffect.update(delta);
     this.holographic.update(delta);
-    this.eyeGlow.update(delta);
   }
 
   /** Render through bloom composer if active, otherwise return false. */
@@ -193,6 +176,5 @@ export class EffectsManager {
     this.energyTrails.dispose();
     this.bloomEffect.dispose();
     this.holographic.dispose();
-    this.eyeGlow.dispose();
   }
 }

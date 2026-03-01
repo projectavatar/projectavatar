@@ -9,19 +9,19 @@ import * as THREE from 'three';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const PARTICLE_COUNT     = 60;
-const ORBIT_RADIUS       = 0.5;
-const ORBIT_RADIUS_VAR   = 0.25;
+const PARTICLE_COUNT     = 120;
+const ORBIT_RADIUS       = 0.55;
+const ORBIT_RADIUS_VAR   = 0.3;
 const ORBIT_SPEED        = 0.3;
 const ORBIT_SPEED_VAR    = 0.15;
 const VERTICAL_RANGE     = 0.8;
 const VERTICAL_BOB       = 0.04;
 const VERTICAL_BOB_FREQ  = 0.5;
-const PARTICLE_SIZE      = 0.03;
-const PARTICLE_SIZE_VAR  = 0.015;
+const PARTICLE_SIZE      = 0.04;
+const PARTICLE_SIZE_VAR  = 0.02;
 const FADE_SPEED         = 2.0;
 const PULSE_FREQ         = 0.8;
-const PULSE_AMOUNT       = 0.2;
+const PULSE_AMOUNT       = 0.3;
 
 const DEFAULT_COLOR = new THREE.Color(0.3, 0.6, 1.0);
 
