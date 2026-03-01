@@ -35,9 +35,9 @@ const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward cam
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
-const LEG_SWAP_MIN       = 5.0;   // seconds — min time before swap
-const LEG_SWAP_MAX       = 6.0;   // seconds — max time before swap
-const LEG_SWAP_DURATION  = 0.5;    // seconds — slow, natural crossfade
+// Air mode — leg sway (sine variation on dangle)
+const LEG_SWAY_FREQUENCY = 0.08;   // Hz — very slow cycle
+const LEG_SWAY_AMOUNT    = 0.4;    // 0–1 — how much the tuck varies
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
@@ -73,12 +73,6 @@ export class IdleLayer {
 
   private initialized = false;
 
-  /** Leg swap blend: 0 = left straight/right tucked, 1 = swapped */
-  private legSwapBlend = 0;
-  /** Trailing leg blend — follows legSwapBlend with delay */
-  private legSwapBlendTrail = 0;
-  private legSwapTarget = 0;
-  private legSwapTimer = 0;
 
   /** Rest pose rotations — captured once so we can reset before applying. */
   private restRotations = new Map<THREE.Object3D, THREE.Euler>();
@@ -306,33 +300,10 @@ export class IdleLayer {
       this.hips.rotation.z += driftZ;
     }
 
-    // 5. Leg swap — periodically switch which leg is tucked
-    this.legSwapTimer += delta;
-    // Random interval between swaps so it feels natural
-    const swapInterval = LEG_SWAP_MIN + (LEG_SWAP_MAX - LEG_SWAP_MIN) * 0.5;
-    if (this.legSwapTimer >= swapInterval) {
-      this.legSwapTimer = Math.random() * (LEG_SWAP_MAX - LEG_SWAP_MIN) * -1; // negative offset for randomness
-      this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
-    }
-    // Ease in-out via linear t → smoothstep
-    const leadSpeed = 1.0 / LEG_SWAP_DURATION;
-    const trailSpeed = leadSpeed * 0.4;
-    // Move raw blend linearly
-    if (this.legSwapBlend < this.legSwapTarget) {
-      this.legSwapBlend = Math.min(this.legSwapBlend + leadSpeed * delta, 1);
-    } else if (this.legSwapBlend > this.legSwapTarget) {
-      this.legSwapBlend = Math.max(this.legSwapBlend - leadSpeed * delta, 0);
-    }
-    if (this.legSwapBlendTrail < this.legSwapBlend) {
-      this.legSwapBlendTrail = Math.min(this.legSwapBlendTrail + trailSpeed * delta, this.legSwapBlend);
-    } else if (this.legSwapBlendTrail > this.legSwapBlend) {
-      this.legSwapBlendTrail = Math.max(this.legSwapBlendTrail - trailSpeed * delta, this.legSwapBlend);
-    }
+    // 5. Leg dangle — relaxed hanging pose
+    this._applyLegDangle(t);
 
-    // 6. Leg dangle — relaxed hanging pose
-    this._applyLegDangle();
-
-    // 7. Subtle head tracking toward camera
+    // 6. Subtle head tracking toward camera
     this._applyHeadTracking(delta);
   }
 
@@ -417,54 +388,41 @@ export class IdleLayer {
     this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
   }
 
+
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
   /**
-   * Apply a relaxed dangle pose to legs — slight knee bend + toe droop.
-   * Additive on top of whatever the mixer wrote.
-   * Slight asymmetry between left/right for natural look.
+   * Sine-driven leg dangle — tuck/droop varies continuously.
+   * Each leg on a different phase for natural asymmetry.
    */
-  private _applyLegDangle(): void {
-    // Smoothstep ease in-out: 3t² - 2t³
-    const bLead = this.legSwapBlend * this.legSwapBlend * (3 - 2 * this.legSwapBlend);
-    const bTrail = this.legSwapBlendTrail * this.legSwapBlendTrail * (3 - 2 * this.legSwapBlendTrail);
+  private _applyLegDangle(t: number): void {
     const s = this.legBendSign;
 
-    // Lerp between two poses:
-    // b=0: left straight (1.1), right tucked (2.0)
-    // b=1: left tucked (2.0), right straight (1.1)
+    // Sine-driven variation — each leg on a different phase
+    const leftSway  = Math.sin(t * LEG_SWAY_FREQUENCY * Math.PI * 2) * LEG_SWAY_AMOUNT;
+    const rightSway = Math.sin(t * LEG_SWAY_FREQUENCY * Math.PI * 2 + Math.PI * 0.7) * LEG_SWAY_AMOUNT;
 
-    // Upper legs
-    const straightUpper = 1.1, tuckedUpper = 2.0;
+    // Base multipliers: left = straighter (1.1), right = more tucked (2.0)
+    // Sway adds/subtracts from these
     if (this.leftUpperLeg) {
-      const m = straightUpper + (tuckedUpper - straightUpper) * bLead;
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * (1.1 + leftSway) * s;
     }
     if (this.rightUpperLeg) {
-      const m = tuckedUpper + (straightUpper - tuckedUpper) * bTrail;
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * (2.0 + rightSway) * s;
     }
 
-    // Lower legs
-    const straightLower = 1.2, tuckedLower = 1.5;
     if (this.leftLowerLeg) {
-      const m = straightLower + (tuckedLower - straightLower) * bLead;
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.2 + leftSway * 0.8) * s;
     }
     if (this.rightLowerLeg) {
-      const m = tuckedLower + (straightLower - tuckedLower) * bTrail;
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * m * s;
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.5 + rightSway * 0.8) * s;
     }
 
-    // Toe droop — more on the tucked leg
-    const straightToe = 1.5, tuckedToe = 2.5;
     if (this.leftFoot) {
-      const m = straightToe + (tuckedToe - straightToe) * bLead;
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * (2.5 + leftSway * 0.5) * s;
     }
     if (this.rightFoot) {
-      const m = tuckedToe + (straightToe - tuckedToe) * bTrail;
-      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * m * s;
+      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * (1.5 + rightSway * 0.5) * s;
     }
   }
 }
