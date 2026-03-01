@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useStore } from '../state/store.ts';
 import { useWsClient } from '../avatar/avatar-canvas.tsx';
 import { isValidToken } from '@project-avatar/shared';
@@ -31,6 +31,8 @@ const drawerStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '1.25rem',
+  scrollbarWidth: 'thin',
+  scrollbarColor: 'rgba(136, 136, 152, 0.3) transparent',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -153,61 +155,6 @@ const effectToggleKnobStyle = (on: boolean): React.CSSProperties => ({
   transition: 'left 0.15s',
 });
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [value]);
-  return (
-    <button
-      onClick={handleCopy}
-      style={{
-        ...btnStyle,
-        background: copied ? 'rgba(34,197,94,0.15)' : 'transparent',
-        border: '1px solid var(--color-border)',
-        color: copied ? 'var(--color-success)' : 'var(--color-text-muted)',
-        fontSize: '0.75rem',
-        padding: '6px 10px',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? 'Copied!' : 'Copy'}
-    </button>
-  );
-}
-
-function UrlField({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={sectionStyle}>
-      <label style={labelStyle}>{label}</label>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <div style={{
-          flex: 1,
-          padding: '7px 10px',
-          fontSize: 12,
-          fontFamily: 'var(--font-mono)',
-          background: 'var(--color-bg)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 6,
-          color: 'var(--color-text-muted)',
-          wordBreak: 'break-all',
-          lineHeight: 1.4,
-          userSelect: 'all',
-        }}>
-          {value}
-        </div>
-        <CopyButton value={value} />
-      </div>
-      {hint && <div style={hintStyle}>{hint}</div>}
-    </div>
-  );
-}
-
 // ─── Main Drawer ───────────────────────────────────────────────────────────────
 
 export function SettingsDrawer() {
@@ -235,9 +182,6 @@ export function SettingsDrawer() {
   const [relayInput, setRelayInput] = useState(relayUrl);
   const [tokenError, setTokenError] = useState('');
 
-  // Share link: token only — model is owned by the DO, not the URL
-  const avatarUrl  = token ? `${window.location.origin}/?token=${token}` : null;
-  const skillUrl   = token ? `${relayUrl}/skill/install?token=${token}` : null;
   const isConnected = connectionState === 'connected';
 
   if (!settingsOpen) return null;
@@ -326,24 +270,6 @@ export function SettingsDrawer() {
         )}
 
         {activeTab === 'general' && <>
-        {/* Share links */}
-        {skillUrl && (
-          <UrlField
-            label="Skill Install URL"
-            value={skillUrl}
-            hint="Give this URL to your AI agent to connect it to your avatar."
-          />
-        )}
-        {avatarUrl && (
-          <UrlField
-            label="Avatar URL"
-            value={avatarUrl}
-            hint="Open this on any screen or add to OBS as a browser source."
-          />
-        )}
-
-        <div style={{ borderTop: '1px solid var(--color-border)' }} />
-
         {/* Model picker */}
         <div style={sectionStyle}>
           <label style={labelStyle}>Avatar Model</label>
