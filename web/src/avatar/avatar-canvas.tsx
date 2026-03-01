@@ -263,13 +263,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // Try to enable Tauri global cursor tracking (replaces mousemove)
     import('@tauri-apps/api/core').then(({ invoke }) => {
-      import('@tauri-apps/api/window').then(({ currentWindow }) => {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
         console.log('[CursorTrack] Tauri detected — switching to global cursor polling');
         // Remove web listeners — Tauri handles everything
         window.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseleave', onMouseLeave);
 
-        const win = currentWindow();
+        const win = getCurrentWindow();
         const poll = async () => {
           try {
             const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
