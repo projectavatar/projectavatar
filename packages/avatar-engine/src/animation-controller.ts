@@ -423,11 +423,13 @@ export class AnimationController {
     const { clips: idleFallbackClips } = this.registry.resolveClips('idle', emotion, intensity, idleGroupIndex);
     for (const [group, subs] of outgoingByGroup) {
       if (subs.length === 0) continue;
+      console.log(`[AnimCtrl] Unclaimed body part: ${group}, ${subs.length} outgoing subs`);
       // Find an idle clip that covers this body part
       const idleEntry = idleFallbackClips.find(c => c.bodyParts.includes(group));
       if (idleEntry) {
         const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
         if (idleSub) {
+          console.log(`[AnimCtrl] Crossfading ${group} to idle clip`);
           const fadeDuration = crossfadeDuration;
           for (const sub of subs) {
             sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
@@ -438,6 +440,7 @@ export class AnimationController {
         }
       }
       // No idle clip for this part — just fade out
+      console.warn(`[AnimCtrl] No idle clip for ${group} — fading to nothing (may spin)`);
       for (const sub of subs) {
         sub.action.fadeOut(crossfadeDuration);
       }
