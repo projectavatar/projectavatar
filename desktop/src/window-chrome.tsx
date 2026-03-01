@@ -25,39 +25,42 @@ const CORNER_SIZE = 14;
 const BORDER_RADIUS = 12;
 const TITLEBAR_HEIGHT = 32;
 
-type ResizeDirection =
-  | 'Top' | 'Bottom' | 'Left' | 'Right'
-  | 'TopLeft' | 'TopRight' | 'BottomLeft' | 'BottomRight';
+/**
+ * Tauri's ResizeDirection uses cardinal directions:
+ * North, South, East, West, NorthEast, NorthWest, SouthEast, SouthWest
+ */
+type ResizeDir = 'North' | 'South' | 'East' | 'West'
+  | 'NorthWest' | 'NorthEast' | 'SouthWest' | 'SouthEast';
 
 function getResizeDirection(
   x: number, y: number, w: number, h: number,
-): ResizeDirection | null {
+): ResizeDir | null {
   const top = y < EDGE_SIZE;
   const bottom = y > h - EDGE_SIZE;
   const left = x < EDGE_SIZE;
   const right = x > w - EDGE_SIZE;
 
   // Corners (larger hit area for easier grab)
-  if (x < CORNER_SIZE && y < CORNER_SIZE) return 'TopLeft';
-  if (x > w - CORNER_SIZE && y < CORNER_SIZE) return 'TopRight';
-  if (x < CORNER_SIZE && y > h - CORNER_SIZE) return 'BottomLeft';
-  if (x > w - CORNER_SIZE && y > h - CORNER_SIZE) return 'BottomRight';
+  if (x < CORNER_SIZE && y < CORNER_SIZE) return 'NorthWest';
+  if (x > w - CORNER_SIZE && y < CORNER_SIZE) return 'NorthEast';
+  if (x < CORNER_SIZE && y > h - CORNER_SIZE) return 'SouthWest';
+  if (x > w - CORNER_SIZE && y > h - CORNER_SIZE) return 'SouthEast';
 
   // Edges
-  if (top) return 'Top';
-  if (bottom) return 'Bottom';
-  if (left) return 'Left';
-  if (right) return 'Right';
+  if (top) return 'North';
+  if (bottom) return 'South';
+  if (left) return 'West';
+  if (right) return 'East';
 
   return null;
 }
 
-function getCursorForDirection(dir: ResizeDirection | null): string {
+function getCursorForDirection(dir: ResizeDir | null): string {
   switch (dir) {
-    case 'Top': case 'Bottom': return 'ns-resize';
-    case 'Left': case 'Right': return 'ew-resize';
-    case 'TopLeft': case 'BottomRight': return 'nwse-resize';
-    case 'TopRight': case 'BottomLeft': return 'nesw-resize';
+    case 'North': case 'South': return 'ns-resize';
+    case 'West': case 'East': return 'ew-resize';
+    case 'NorthWest': case 'SouthEast': return 'nwse-resize';
+    case 'NorthEast': case 'SouthWest': return 'nesw-resize';
     default: return 'default';
   }
 }
@@ -69,7 +72,7 @@ export function WindowChrome() {
   // ── Edge resize via invisible strips ────────────────────────────────
 
   useEffect(() => {
-    let currentDir: ResizeDirection | null = null;
+    let currentDir: ResizeDir | null = null;
 
     const onMouseMove = (e: MouseEvent) => {
       const dir = getResizeDirection(
