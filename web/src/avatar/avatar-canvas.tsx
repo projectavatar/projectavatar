@@ -196,13 +196,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // Blend eye lookAt between camera and cursor
     let eyeDebugTimer = 0;
-    avatarScene.onUpdate((delta) => {
-      eyeDebugTimer += delta;
+    avatarScene.onUpdate((dt) => {
+      eyeDebugTimer += dt;
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
       const targetBlend = cursorActive ? 1 : 0;
-      const speed = cursorActive ? 6.0 : 2.0;
-      eyeBlend += (targetBlend - eyeBlend) * (1 - Math.exp(-speed * 0.016));
+      const speed = cursorActive ? 3.0 : 1.5;
+      eyeBlend += (targetBlend - eyeBlend) * (1 - Math.exp(-speed * dt));
       // Overshoot: eyes look 2x further than cursor target relative to camera
       // This makes eye movement visible even when head is already turning
       const eyeTarget = cursorTarget.clone().sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
