@@ -4,7 +4,7 @@
   "description": "Real-time 3D avatar driven by OpenClaw agent lifecycle hooks. Your agent gets a face.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/linh-n/projectavatar.git",
+    "url": "https://github.com/projectavatar/projectavatar.git",
     "directory": "packages/openclaw-avatar"
   },
   "type": "module",
