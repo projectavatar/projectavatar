@@ -26,6 +26,7 @@ const FADE_SPEED = 2.0;
 
 export class BloomEffect {
   private composer: EffectComposer | null = null;
+  private renderTarget: THREE.WebGLRenderTarget | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private _enabled = false;
   private targetStrength = 0;
@@ -72,6 +73,7 @@ export class BloomEffect {
       },
     );
 
+    this.renderTarget = renderTarget;
     this.composer = new EffectComposer(this.renderer, renderTarget);
 
     const renderPass = new RenderPass(this.scene, this.camera);
@@ -98,8 +100,7 @@ export class BloomEffect {
     // Patch bloom blend material: use custom blending to preserve alpha.
     // Default AdditiveBlending adds to ALL channels including alpha,
     // making transparent areas opaque. Custom blending adds RGB only.
-    // Patch blend material for alpha preservation.
-    // blendMaterial is an internal of UnrealBloomPass — if three.js
+    // blendMaterial is internal to UnrealBloomPass — if three.js
     // removes it, bloom will still work but with opaque backgrounds.
     const blendMat = (this.bloomPass as any).blendMaterial as THREE.ShaderMaterial | undefined;
     if (blendMat) {
@@ -155,6 +156,8 @@ export class BloomEffect {
 
   /** Update composer size on window resize. */
   setSize(width: number, height: number): void {
+    const pixelRatio = this.renderer.getPixelRatio();
+    this.renderTarget?.setSize(width * pixelRatio, height * pixelRatio);
     this.composer?.setSize(width, height);
   }
 

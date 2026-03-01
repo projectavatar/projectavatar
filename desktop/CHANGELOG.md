@@ -1,5 +1,14 @@
 # Desktop Changelog
 
+## 0.3.1
+
+### Polish
+- **Deadzones removed** — head and eye tracking deadzones removed after fixing the underlying raycast plane positioning bug.
+- **Smooth idle mode blending** — zooming in/out crossfades between air mode (floating) and ground mode (breathing) instead of hard-switching. Both modes run simultaneously during transition with effects scaled by weight.
+- **Zoom-aware idle mode** — auto-switches to ground mode when camera distance < 3, preventing dizzy bobbing on close-ups.
+- **Tuned tracking values** — head influence 30%, eye lerp speed 3, raycast plane at 10% from origin.
+
+
 ## 0.3.0
 
 ### New Features

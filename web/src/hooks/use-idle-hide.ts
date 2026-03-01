@@ -7,12 +7,19 @@ import { useEffect, useState, useRef } from 'react';
 export function useIdleHide(timeoutMs = 5000): boolean {
   const [visible, setVisible] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visibleRef = useRef(true);
 
   useEffect(() => {
     const reset = () => {
-      setVisible(true);
+      if (!visibleRef.current) {
+        visibleRef.current = true;
+        setVisible(true);
+      }
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setVisible(false), timeoutMs);
+      timerRef.current = setTimeout(() => {
+        visibleRef.current = false;
+        setVisible(false);
+      }, timeoutMs);
     };
 
     // Start the timer immediately

@@ -188,34 +188,52 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     void initModel();
 
+    // Cursor tracking constants
+    const EYE_IDLE_TIMEOUT = 5000;  // ms before eyes return to camera
+    const EYE_LERP_SPEED = 3;      // eye follow responsiveness
+    const EYE_BYPASS_SPEED = 2.0;  // speed when head tracking bypassed
+    const NDC_CLAMP = 2;           // clamp NDC range for offscreen cursor
+    const CURSOR_POLL_MS = 32;     // ~30Hz desktop cursor polling
+
     const cursorTarget = new THREE.Vector3();
     let lastCursorMove = 0;
-    const EYE_IDLE_TIMEOUT = 5000;
 
-    // Smooth eye tracking — lerp proxy position toward target each frame
+    // Smooth eye tracking + zoom-aware idle mode — runs every frame.
+    // Cleaned up via avatarScene.dispose() which clears all update callbacks.
     const eyeGoal = new THREE.Vector3();
+    const ZOOM_GROUND_THRESHOLD = 3; // switch to ground mode when zoomed in closer than this
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
+
+      // Switch idle mode based on zoom distance
+      if (ctrl) {
+        const dist = avatarScene.camera.position.length();
+        const wantGround = dist < ZOOM_GROUND_THRESHOLD;
+        const currentMode = ctrl.getIdleMode();
+        if (wantGround && currentMode === 'air') {
+          ctrl.setIdleMode('ground');
+        } else if (!wantGround && currentMode === 'ground') {
+          ctrl.setIdleMode('air');
+        }
+      }
+
       // Respect bypass flag — some clips disable head/eye tracking
       if (ctrl?.isHeadTrackingBypassed) {
-        lookAtProxy.position.lerp(avatarScene.camera.position, 1 - Math.exp(-2.0 * dt));
+        lookAtProxy.position.lerp(avatarScene.camera.position, 1 - Math.exp(-EYE_BYPASS_SPEED * dt));
         return;
       }
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
 
       // Compute goal: cursor target or camera
-      // Dead zone: if cursor target is close to camera-to-origin line, look at camera
-      // (prevents jitter when cursor crosses directly over the model)
-      if (cursorActive && cursorTarget.distanceTo(avatarScene.camera.position) > 0.3) {
+      if (cursorActive) {
         eyeGoal.copy(cursorTarget);
       } else {
         eyeGoal.copy(avatarScene.camera.position);
       }
 
       // Smooth lerp toward goal — eyes follow at a natural pace
-      const speed = 1.5;
-      const t = 1 - Math.exp(-speed * dt);
+      const t = 1 - Math.exp(-EYE_LERP_SPEED * dt);
       lookAtProxy.position.lerp(eyeGoal, t);
     });
 
@@ -235,8 +253,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       if (!ctrl) return;
       const cam = avatarScene.camera;
       cam.getWorldDirection(_camDir);
-      // Plane 50% between camera and origin, facing camera direction
-      _planePos.copy(cam.position).multiplyScalar(0.5);
+      // Plane 10% from camera toward origin
+      _planePos.copy(cam.position).multiplyScalar(0.1);
       _plane.setFromNormalAndCoplanarPoint(_camDir, _planePos);
       _ndcVec.set(ndcX, ndcY);
       _raycaster.setFromCamera(_ndcVec, cam);
@@ -267,11 +285,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // Try Tauri global cursor — probe with real invoke before committing
     import('@tauri-apps/api/core').then(async ({ invoke }) => {
+      if (cancelled) return;
       try {
-        await invoke<[number, number]>('get_cursor_position');
+        await invoke<[number, number] | null>('get_cursor_position');
       } catch {
         return; // Not in Tauri runtime
       }
+      if (cancelled) return;
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       window.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseleave', onMouseLeave);
@@ -281,8 +301,9 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       let prevScreenY = -1;
       const poll = async () => {
         try {
-          const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
-          if (screenX === -1 && screenY === -1) return;
+          const pos2 = await invoke<[number, number] | null>('get_cursor_position');
+          if (!pos2) return;
+          const [screenX, screenY] = pos2;
           // Only update if cursor actually moved
           if (screenX === prevScreenX && screenY === prevScreenY) return;
           prevScreenX = screenX;
@@ -293,12 +314,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           const w = size.width / scale;
           const h = size.height / scale;
           projectCursor(
-            Math.max(-2, Math.min(2, ((screenX - pos.x) / scale / w) * 2 - 1)),
-            Math.max(-2, Math.min(2, -(((screenY - pos.y) / scale / h) * 2 - 1))),
+            Math.max(-NDC_CLAMP, Math.min(NDC_CLAMP, ((screenX - pos.x) / scale / w) * 2 - 1)),
+            Math.max(-NDC_CLAMP, Math.min(NDC_CLAMP, -(((screenY - pos.y) / scale / h) * 2 - 1))),
           );
         } catch { /* poll error — skip frame */ }
       };
-      cursorPollId = setInterval(poll, 32); // ~30Hz
+      cursorPollId = setInterval(poll, CURSOR_POLL_MS);
     }).catch(() => {});
 
     return () => {
@@ -384,10 +405,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas ref={canvasRef} style={{
-        ...baseCanvasStyle,
-        
-      }} />
+      <canvas ref={canvasRef} style={baseCanvasStyle} />
       {!animationsLoaded && (
         <div style={{
           position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',

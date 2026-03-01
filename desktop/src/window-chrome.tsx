@@ -61,7 +61,7 @@ function isValidBounds(b: unknown): b is { x: number; y: number; width: number; 
     typeof width === 'number' && typeof height === 'number' &&
     Number.isFinite(x) && Number.isFinite(y) &&
     width >= MIN_WINDOW_SIZE && height >= MIN_WINDOW_SIZE &&
-    Math.abs(x) < 10000 && Math.abs(y) < 10000
+    Math.abs(x) < 32000 && Math.abs(y) < 32000 // supports multi-monitor setups
   );
 }
 
@@ -303,6 +303,7 @@ export function WindowChrome() {
           <button
             onClick={handleTogglePin}
             title={pinned ? 'Unpin from top' : 'Pin to top'}
+            aria-label={pinned ? 'Unpin from top' : 'Pin to top'}
             style={{
               ...chromeBtnStyle,
               color: pinned ? 'var(--color-accent, #6c5ce7)' : 'rgba(232, 232, 240, 0.5)',
@@ -314,6 +315,7 @@ export function WindowChrome() {
           <button
             onClick={handleClose}
             title="Close"
+            aria-label="Close window"
             style={chromeBtnStyle}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(231, 76, 60, 0.6)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = chromeBtnStyle.background as string; }}
