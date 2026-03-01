@@ -117,6 +117,7 @@ export class IdleLayer {
   // Finger + wrist bones
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
+  private clipHasFingers = false;
   private currentGesture: HandGesture = 'relaxed';
 
 
@@ -173,6 +174,11 @@ export class IdleLayer {
   /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
   setBypassHeadTracking(bypass: boolean): void {
     this.bypassHeadTracking = bypass;
+  }
+
+  /** Tell idle layer whether active clips have finger tracks. */
+  setClipHasFingers(hasFingers: boolean): void {
+    this.clipHasFingers = hasFingers;
   }
 
   /** Set camera reference for subtle head tracking. */
@@ -413,8 +419,10 @@ export class IdleLayer {
     // 5. Leg dangle — relaxed hanging pose
     this._applyLegDangle(t);
 
-    // 6. Relaxed finger curl + wave
-    this._applyFingerCurl(t);
+    // 6. Relaxed finger curl + wave (skip if clip has its own finger animation)
+    if (!this.clipHasFingers) {
+      this._applyFingerCurl(t);
+    }
 
     // 7. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
@@ -448,8 +456,10 @@ export class IdleLayer {
       this.hips.position.x += shift;
     }
 
-    // 4. Relaxed finger curl + wave
-    this._applyFingerCurl(t);
+    // 4. Relaxed finger curl + wave (skip if clip has its own finger animation)
+    if (!this.clipHasFingers) {
+      this._applyFingerCurl(t);
+    }
 
     // 5. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
