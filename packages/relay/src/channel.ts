@@ -1,5 +1,5 @@
-import { validateAvatarEvent, isValidModelId } from '../../packages/shared/src/schema.js';
-import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS, KEEPALIVE } from '../../packages/shared/src/constants.js';
+import { validateAvatarEvent, isValidModelId } from '../../shared/src/schema.js';
+import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS, KEEPALIVE } from '../../shared/src/constants.js';
 import type {
   AvatarEvent,
   ChannelState,
@@ -7,7 +7,7 @@ import type {
   ModelChangedMessage,
   AvatarEventMessage,
   WebSocketClientMessage,
-} from '../../packages/shared/src/schema.js';
+} from '../../shared/src/schema.js';
 import type { Env } from './types.js';
 
 const LAST_EVENT_KEY          = 'lastEvent';

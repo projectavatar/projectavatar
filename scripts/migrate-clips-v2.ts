@@ -13,8 +13,8 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const INPUT = resolve(__dirname, '../web/src/data/clips.json');
-const OUTPUT = resolve(__dirname, '../web/src/data/clips.json');
+const INPUT = resolve(__dirname, '../packages/web/src/data/clips.json');
+const OUTPUT = resolve(__dirname, '../packages/web/src/data/clips.json');
 
 interface ClipRefV1 {
   clip: string;

@@ -3,14 +3,14 @@
  * Writes GLB binary directly (no Three.js exporter needed).
  *
  * Usage: node scripts/generate-props.mjs
- * Output: web/public/props/keyboard.glb, web/public/props/tablet.glb
+ * Output: packages/web/public/props/keyboard.glb, web/public/props/tablet.glb
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUTPUT_DIR = resolve(__dirname, '../web/public/props');
+const OUTPUT_DIR = resolve(__dirname, '../packages/web/public/props');
 await mkdir(OUTPUT_DIR, { recursive: true });
 
 function buildGLB(meshes) {

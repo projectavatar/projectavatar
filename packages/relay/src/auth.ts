@@ -1,4 +1,4 @@
-import { isValidToken } from '../../packages/shared/src/constants.js';
+import { isValidToken } from '../../shared/src/constants.js';
 
 export { isValidToken };
 

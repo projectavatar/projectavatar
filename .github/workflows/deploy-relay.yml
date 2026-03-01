@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'relay/**'
+      - 'packages/relay/**'
       - 'packages/shared/**'
       - '.github/workflows/deploy-relay.yml'
 
@@ -24,10 +24,10 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: cd relay && npm run type-check
+        run: cd packages/relay && npm run type-check
 
       - name: Run tests
-        run: cd relay && npm run test
+        run: cd packages/relay && npm run test
 
   deploy:
     name: Deploy to Cloudflare Workers
@@ -46,7 +46,7 @@ jobs:
         run: npm ci
 
       - name: Deploy
-        run: cd relay && npm run deploy
+        run: cd packages/relay && npm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

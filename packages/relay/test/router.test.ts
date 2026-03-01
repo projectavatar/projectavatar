@@ -22,7 +22,7 @@ describe('/health endpoint', () => {
 
 // ─── Token format validation (used by push + stream routes) ──────────────────
 
-import { isValidToken } from '../../packages/shared/src/constants.js';
+import { isValidToken } from '../../shared/src/constants.js';
 
 describe('router token validation', () => {
   it('allows valid 48-char token through', () => {
@@ -47,7 +47,7 @@ describe('router token validation', () => {
 
 // ─── generateToken bias check ─────────────────────────────────────────────────
 
-import { generateToken } from '../../packages/shared/src/constants.js';
+import { generateToken } from '../../shared/src/constants.js';
 
 describe('generateToken', () => {
   it('generates tokens of correct length', () => {

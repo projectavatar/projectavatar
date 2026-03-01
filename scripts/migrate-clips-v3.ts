@@ -12,7 +12,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const clipsPath = resolve(__dirname, '../web/src/data/clips.json');
+const clipsPath = resolve(__dirname, '../packages/web/src/data/clips.json');
 
 const raw = JSON.parse(readFileSync(clipsPath, 'utf-8'));
 

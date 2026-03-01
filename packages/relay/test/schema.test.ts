@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateAvatarEvent } from '../../packages/shared/src/schema.js';
+import { validateAvatarEvent } from '../../shared/src/schema.js';
 
 describe('validateAvatarEvent', () => {
   const valid = { emotion: 'thinking', action: 'typing' };
