@@ -17,11 +17,14 @@ import { Updater } from './updater.tsx';
 
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
+  const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
 
   // Force transparent theme — desktop window has no background
+  // Set remote asset base URL — desktop fetches assets from web CDN
   useEffect(() => {
     setTheme('transparent');
-  }, [setTheme]);
+    setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
+  }, [setTheme, setAssetBaseUrl]);
 
   // Suppress right-click context menu (right-click = rotate model)
   useEffect(() => {

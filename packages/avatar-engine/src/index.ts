@@ -4,6 +4,9 @@ export type { AvatarSceneOptions } from './avatar-scene.ts';
 
 export { VrmManager } from './vrm-manager.ts';
 
+export { AssetResolver } from './asset-resolver.ts';
+export type { AssetCache, AssetResolverOptions } from './asset-resolver.ts';
+
 export { AnimationController } from './animation-controller.ts';
 export { LAYER_LABELS } from './animation-controller.ts';
 export type { LayerState, ActiveClipInfo } from './animation-controller.ts';

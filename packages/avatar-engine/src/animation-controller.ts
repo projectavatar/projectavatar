@@ -19,6 +19,7 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry, ClipPropBinding } from './clip-registry.ts';
 import { IdleLayer } from './idle-layer.ts';
+import type { AssetResolver } from './asset-resolver.ts';
 import type { IdleMode, HandGesture } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
@@ -101,6 +102,7 @@ export class AnimationController {
   private registry: ClipRegistry;
   private mixer: THREE.AnimationMixer;
   private clipCache = new Map<string, THREE.AnimationClip>();
+  private assetResolver: AssetResolver | null = null;
   private currentAction: Action = 'idle';
   private currentEmotion: Emotion = 'idle';
   private currentIntensity: Intensity = 'medium';
@@ -147,10 +149,13 @@ export class AnimationController {
 
   /** Callback when the active prop binding changes (driven by clip selection). */
   onPropChange?: (binding: ClipPropBinding | undefined) => void;
+  /** Callback fired after each individual clip is loaded (for progress tracking). */
+  onClipLoaded?: () => void;
 
-  constructor(vrm: VRM, registry: ClipRegistry) {
+  constructor(vrm: VRM, registry: ClipRegistry, assetResolver?: AssetResolver) {
     this.vrm = vrm;
     this.registry = registry;
+    this.assetResolver = assetResolver ?? null;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.idleLayer = new IdleLayer(vrm, 'air');
   }
@@ -168,12 +173,14 @@ export class AnimationController {
     await Promise.all(
       files.map(async (file) => {
         try {
-          const url = basePath + file;
+          const rawPath = basePath + file;
+          const url = this.assetResolver ? await this.assetResolver.resolve(rawPath) : rawPath;
           const clip = file.toLowerCase().endsWith('.vrma')
             ? await loadVRMAAnimation(url, this.vrm)
             : await loadMixamoAnimation(url, this.vrm);
           clip.name = file;
           this.clipCache.set(file, clip);
+          this.onClipLoaded?.();
         } catch (err) {
           console.warn(`[AnimationController] Failed to load ${file}:`, err);
         }

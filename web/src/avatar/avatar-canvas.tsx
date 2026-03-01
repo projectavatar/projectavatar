@@ -13,10 +13,13 @@ import {
   VfxManager,
   ClipRegistry,
   EffectsManager,
+  AssetResolver,
 } from '@project-avatar/avatar-engine';
 
 import type { AvatarEvent, ChannelState } from '@project-avatar/shared';
 import type { ClipsJsonData } from '@project-avatar/avatar-engine';
+import { LoadingOverlay } from '../components/loading-overlay.tsx';
+import type { LoadingState } from '../components/loading-overlay.tsx';
 
 // Import clips data for the registry
 import clipsData from '../data/clips.json';
@@ -56,16 +59,19 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
+  const [loadingState, setLoadingState] = useState<LoadingState>({ label: 'loading model', progress: null, done: false });
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const animControllerRef = useRef<AnimationController | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
   const effectsManagerRef = useRef<EffectsManager | null>(null);
+  const assetResolverRef = useRef<AssetResolver | null>(null);
 
   const token                = useStore((s) => s.token);
   const relayUrl             = useStore((s) => s.relayUrl);
   const modelUrl             = useStore((s) => s.modelUrl);
+  const assetBaseUrl         = useStore((s) => s.assetBaseUrl);
   const setConnectionState   = useStore((s) => s.setConnectionState);
   const setReconnectAttempt  = useStore((s) => s.setReconnectAttempt);
   const setAvatarState       = useStore((s) => s.setAvatarState);
@@ -89,12 +95,34 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const vrmManager  = new VrmManager(avatarScene.scene);
 
+    // Asset resolver — desktop sets assetBaseUrl to fetch from web CDN
+    // Stored in ref so blob URLs survive the full scene lifecycle
+    assetResolverRef.current?.dispose();
+    const assetResolver = assetBaseUrl
+      ? new AssetResolver({ baseUrl: assetBaseUrl })
+      : null;
+    assetResolverRef.current = assetResolver;
+
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
-      const animationController = new AnimationController(vrm, clipRegistry);
+      const animationController = new AnimationController(vrm, clipRegistry, assetResolver ?? undefined);
       animControllerRef.current = animationController;
+      // Track animation loading progress
+      const totalClips = clipRegistry.getAllClipFiles().length;
+      let loadedClips = 0;
+      animationController.onClipLoaded = () => {
+        loadedClips++;
+        setLoadingState({
+          label: 'loading animations',
+          progress: 0.65 + (loadedClips / totalClips) * 0.35,
+          done: false,
+        });
+      };
+
+      setLoadingState({ label: 'loading animations', progress: 0.65, done: false });
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
+          setLoadingState({ label: '', progress: 1, done: true });
           // Reveal after the first mixer tick + 500ms for the T-pose→idle crossfade to settle
           animationController.onFirstFrame(() => {
             // 500ms: wait for T-pose→idle crossfade to settle, then reveal model
@@ -114,13 +142,14 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           console.warn('[AvatarCanvas] Animation load failed:', err);
           document.title = `ANIM ERROR: ${err}`;
           setAnimationsLoaded(true);
+          setLoadingState({ label: '', progress: 1, done: true });
           vrmManager.show(); // show anyway on failure
         });
       const stateMachine = new StateMachine(
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(avatarScene.scene),
+        new PropManager(avatarScene.scene, assetResolver ?? undefined),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,
@@ -167,7 +196,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const initModel = async () => {
       if (modelUrl) {
         try {
-          const vrm = await vrmManager.load(modelUrl);
+          setLoadingState({ label: 'loading model', progress: 0, done: false });
+          const resolvedModelUrl = assetResolver
+            ? await assetResolver.resolve(modelUrl)
+            : modelUrl;
+          const vrm = await vrmManager.load(resolvedModelUrl, (pct) => {
+            setLoadingState({ label: 'loading model', progress: pct * 0.65, done: false });
+          });
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
           // Dynamic framing: zoomed out → body center, zoomed in → face
@@ -336,9 +371,11 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       effectsManagerRef.current = null;
       avatarScene.dispose();
       vrmManager.dispose();
+      assetResolverRef.current?.dispose();
+      assetResolverRef.current = null;
       sceneRef.current = null;
     };
-  }, [modelUrl, setAvatarState]);
+  }, [modelUrl, assetBaseUrl, setAvatarState]);
 
   // Sync render scale (pixel ratio)
   useEffect(() => {
@@ -406,14 +443,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas ref={canvasRef} style={baseCanvasStyle} />
-      {!animationsLoaded && (
-        <div style={{
-          position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-          color: 'var(--color-text-muted)', fontSize: 11, opacity: 0.6, pointerEvents: 'none',
-        }}>
-          loading animations…
-        </div>
-      )}
+      {!animationsLoaded && <LoadingOverlay state={loadingState} />}
     </div>
   );
 }

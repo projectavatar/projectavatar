@@ -1,5 +1,20 @@
 # Desktop Changelog
 
+
+## 0.5.0
+
+### Added
+- **Remote asset loading** — assets fetched from web CDN instead of bundled locally. Desktop binary is dramatically smaller.
+- **Loading progress bar** — shows model + animation download progress with smooth transitions and fade-out.
+
+### Fixed
+- **CSP policy** — `ipc.localhost`, `blob:`, and `app.projectavatar.io` added to Content Security Policy. Fixes Tauri IPC fallback and blob URL asset loading.
+
+## 0.4.0
+
+### Fixed
+- **CSP connect-src** — added `http://ipc.localhost` and `blob:` to fix Tauri IPC custom protocol blocking and VRM/GLB blob URL loading.
+
 ## 0.3.1
 
 ### Polish
