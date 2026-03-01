@@ -12,5 +12,6 @@
     "@pixiv/three-vrm-animation": "^3.5.0",
     "@project-avatar/shared": "*",
     "three": "^0.172.0"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

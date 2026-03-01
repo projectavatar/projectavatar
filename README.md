@@ -247,6 +247,16 @@ Both `packages/web/` and `packages/clip-manager/` depend on `@project-avatar/ava
 
 ---
 
+## License
+
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+
+You're free to use, modify, and self-host. If you deploy a modified version as a network service, you must make your source code available under the same license.
+
+
+
+---
+
 ## Why?
 
 AI agents are invisible. They're text on a screen. But humans are visual creatures — we connect with faces, expressions, body language. Project Avatar gives your agent a presence. Not a chatbot widget. Not a profile picture. A living, breathing (well, animated) companion that reacts to what it's doing in real-time.
