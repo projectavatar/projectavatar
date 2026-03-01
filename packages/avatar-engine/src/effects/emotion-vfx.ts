@@ -625,9 +625,12 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
         pos.array[i * 3 + 1] = verticalOffset[i]! + bob;
         pos.array[i * 3 + 2] = Math.sin(angle) * r + wob * Math.cos(angle);
 
-        // Soft pulsing alpha — slow, dreamy
-        const particlePulse = 0.5 + 0.5 * Math.sin(time * 0.8 + orbitPhase[i]! * 3);
-        alpha.array[i] = currentOpacity * particlePulse * pulse * 0.6;
+        // Pulsing alpha — layered sine waves for organic randomness
+        const p1 = Math.sin(time * 0.4 + orbitPhase[i]! * 5);
+        const p2 = Math.sin(time * 0.17 + wobblePhase[i]! * 3);
+        const p3 = Math.sin(time * 0.9 + orbitPhase[i]! * 7 + wobblePhase[i]!);
+        const particlePulse = 0.15 + 0.85 * Math.max(0, (p1 * 0.5 + p2 * 0.3 + p3 * 0.2));
+        alpha.array[i] = currentOpacity * particlePulse * pulse;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;
