@@ -12,6 +12,7 @@
     "@project-avatar/clip-manager",
     "@project-avatar/avatar-engine",
     "@project-avatar/relay",
-    "@project-avatar/web"
+    "@project-avatar/web",
+    "@project-avatar/desktop"
   ]
 }
