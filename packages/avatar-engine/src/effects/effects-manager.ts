@@ -85,6 +85,9 @@ export class EffectsManager {
 
     // Set camera for energy trails
     this.energyTrails.setCamera(camera);
+
+    // Add holographic overlay to scene
+    scene.add(this.holographic.object3D);
   }
 
   /** Get current effects state. */
@@ -176,6 +179,7 @@ export class EffectsManager {
   /** Clean up all effects. */
   dispose(): void {
     this.scene.remove(this.particleAura.object3D);
+    this.scene.remove(this.holographic.object3D);
     for (const obj of this.energyTrails.objects) {
       this.scene.remove(obj);
     }
