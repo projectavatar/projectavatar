@@ -570,7 +570,7 @@ export class IdleLayer {
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
     // Apply as additive rotation — stronger influence when tracking cursor
-    const influence = HEAD_TRACK_INFLUENCE + this.cursorBlend * 0.55; // 0.25 → 0.80
+    const influence = HEAD_TRACK_INFLUENCE + this.cursorBlend * 0.05; // 0.25 → 0.30
     this.head.rotation.y += this._headCurrentYaw * influence;
     this.head.rotation.x += this._headCurrentPitch * influence;
   }

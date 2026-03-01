@@ -213,20 +213,13 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
 
-      // Place plane halfway between camera and origin, facing camera
+      // Place plane at the model origin, facing the camera
       const cam = avatarScene.camera;
-      const camDir = new THREE.Vector3();
-      cam.getWorldDirection(camDir);
-      const dist = cam.position.length();
-      const planeZ = dist * 0.5;
-      const planePos = cam.position.clone().add(camDir.multiplyScalar(planeZ));
-      targetPlane.setFromNormalAndCoplanarPoint(
-        cam.position.clone().sub(planePos).normalize(),
-        planePos,
-      );
+      const camNormal = cam.position.clone().normalize();
+      targetPlane.setFromNormalAndCoplanarPoint(camNormal, new THREE.Vector3(0, 0, 0));
 
       // DEBUG: move plane visual
-      debugPlane.position.copy(planePos);
+      debugPlane.position.set(0, 0, 0);
       debugPlane.lookAt(cam.position);
 
       raycaster.setFromCamera(mouseNDC, cam);
