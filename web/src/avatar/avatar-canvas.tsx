@@ -259,6 +259,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const onMouseLeave = () => {
       // Cursor left the window — clear target so head/eyes return to camera
+      console.log('[CursorTrack] mouseleave fired');
       lastCursorMove = 0;
       animControllerRef.current?.setCursorTarget(null);
     };
