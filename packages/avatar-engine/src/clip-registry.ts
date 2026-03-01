@@ -13,6 +13,23 @@ import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/** Per-clip prop transform — where the prop should be placed in world space. */
+export interface PropTransform {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+}
+
+/** Per-clip prop binding — which prop to show and where. */
+export interface ClipPropBinding {
+  /** Prop id (filename without extension, matches props/ folder). */
+  prop: string;
+  /** World-space transform for the prop. */
+  transform: PropTransform;
+  /** Material style for the prop. Default: holographic */
+  material?: 'solid' | 'holographic' | 'ghostly';
+}
+
 /** Resolved clip entry with playback parameters and body part scope. */
 export interface ClipEntry {
   /** FBX filename in /animations/ */
@@ -27,6 +44,8 @@ export interface ClipEntry {
   fadeOut?: number;
   /** Which body part groups this clip affects. */
   bodyParts: string[];
+  /** Prop binding from the clip — which prop to show and where. */
+  propBinding?: ClipPropBinding;
 }
 
 /** Resolved clip set after combining action + emotion + intensity. */
@@ -47,6 +66,7 @@ export interface ClipJson {
   bodyParts: string[];
   tags: string[];
   handGesture?: string;
+  propBinding?: ClipPropBinding;
 }
 
 /** Clip layer within an animation group. */
@@ -203,6 +223,7 @@ export class ClipRegistry {
         fadeIn: clipData.fadeIn,
         fadeOut: clipData.fadeOut,
         bodyParts: layer.bodyParts,
+        propBinding: clipData.propBinding,
       });
     }
 
@@ -322,6 +343,24 @@ export class ClipRegistry {
     return this.data.clips[clipName];
   }
 
+  /**
+   * Get the prop binding for an action at a specific group index.
+   * Returns the first clip's propBinding in the group (props are per-clip,
+   * and the primary clip in a group determines the prop).
+   */
+  getPropBinding(action: Action, groupIndex: number = 0): ClipPropBinding | undefined {
+    const actionData = this.data.actions[action as string];
+    if (!actionData || actionData.groups.length === 0) return undefined;
+
+    const safeIndex = Math.min(groupIndex, actionData.groups.length - 1);
+    const group = actionData.groups[safeIndex]!;
+    if (group.clips.length === 0) return undefined;
+
+    const firstClipRef = group.clips[0]!;
+    const clipData = this.data.clips[firstClipRef.clip];
+    return clipData?.propBinding;
+  }
+
   private _lastResortClip(): ClipEntry[] {
     for (const [clipId, clipData] of Object.entries(this.data.clips)) {
       console.warn('[ClipRegistry] No idle action configured — falling back to first clip:', clipId);
@@ -351,6 +390,7 @@ export class ClipRegistry {
       fadeIn: clip.fadeIn,
       fadeOut: clip.fadeOut,
       bodyParts: bodyParts ?? clip.bodyParts,
+      propBinding: clip.propBinding,
     };
   }
 }

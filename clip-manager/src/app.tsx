@@ -15,10 +15,13 @@ import { ActionList } from './components/action-list.tsx';
 import { ActionEditor } from './components/action-editor.tsx';
 import { EmotionList } from './components/emotion-list.tsx';
 import { EmotionEditor } from './components/emotion-editor.tsx';
+import { PropList } from './components/prop-list.tsx';
+import { PropEditor } from './components/prop-editor.tsx';
 import { PreviewPanel } from './preview/preview-panel.tsx';
 
 import clipsData from '@data/clips.json';
 import { useScanClips } from './hooks/use-scan-clips.ts';
+import { useScanProps } from './hooks/use-scan-props.ts';
 
 // ─── Model options ────────────────────────────────────────────────────────────
 
@@ -81,6 +84,7 @@ const ANIM_BASE = '/animations/';
 export function App() {
   const [state, dispatch] = useAppState(clipsData as ClipsJson);
   const unregisteredClips = useScanClips(state.data);
+  const availableProps = useScanProps();
   const [modelUrl, setModelUrl] = useState(MODEL_OPTIONS[0]!.url);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -175,6 +179,14 @@ export function App() {
               dispatch={dispatch}
             />
           )}
+          {state.activeTab === 'props' && (
+            <PropList
+              data={state.data}
+              availableProps={availableProps}
+              selectedProp={state.selectedProp}
+              dispatch={dispatch}
+            />
+          )}
         </div>
 
         {/* Center panel — detail */}
@@ -200,6 +212,13 @@ export function App() {
               <EmotionEditor
                 data={state.data}
                 selectedEmotion={state.expandedEmotion}
+                dispatch={dispatch}
+              />
+            )}
+            {state.activeTab === 'props' && (
+              <PropEditor
+                data={state.data}
+                selectedProp={state.selectedProp}
                 dispatch={dispatch}
               />
             )}

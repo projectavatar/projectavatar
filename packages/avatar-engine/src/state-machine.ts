@@ -1,5 +1,5 @@
 import { DEFAULTS } from '@project-avatar/shared';
-import type { AvatarEvent, Emotion, Action, Prop, Intensity } from '@project-avatar/shared';
+import type { AvatarEvent, Emotion, Action, Intensity } from '@project-avatar/shared';
 import type { ExpressionController } from './expression-controller.ts';
 import type { AnimationController } from './animation-controller.ts';
 import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
@@ -21,7 +21,6 @@ import type { PropManager } from './prop-manager.ts';
 interface AvatarState {
   emotion: Emotion;
   action: Action;
-  prop: Prop;
   intensity: Intensity;
   lastEventTime: number;
 }
@@ -29,7 +28,6 @@ interface AvatarState {
 const DEFAULT_STATE: AvatarState = {
   emotion: 'idle',
   action: 'idle',
-  prop: 'none',
   intensity: 'medium',
   lastEventTime: 0,
 };
@@ -39,7 +37,6 @@ export interface EventLogEntry {
   timestamp: number;
   emotion: Emotion;
   action: Action;
-  prop?: Prop;
   intensity?: Intensity;
   source: 'relay' | 'dev-panel' | 'system';
 }
@@ -85,6 +82,11 @@ export class StateMachine {
       this.animationCtrl.playAction('idle', this.state.intensity, this.state.emotion);
       this.onStateChange?.(this.state);
     };
+
+    // When animation controller selects a new clip group, update the prop
+    this.animationCtrl.onPropChange = (binding) => {
+      void this.propManager.setPropBinding(binding);
+    };
   }
 
   /** Get current state (read-only). */
@@ -120,11 +122,8 @@ export class StateMachine {
       this.animationCtrl.playAction(event.action, this.state.intensity, this.state.emotion);
     }
 
-    // Update prop
-    if (event.prop !== undefined && event.prop !== prev.prop) {
-      this.state.prop = event.prop;
-      void this.propManager.setProp(event.prop);
-    }
+    // Props are now driven by clip selection (via AnimationController.onPropChange).
+    // The event.prop field from avatar_signal is ignored — props are tied to clips.
 
     // Notify listener
     this.onStateChange?.(this.state);
@@ -162,6 +161,9 @@ export class StateMachine {
    */
   update(delta: number): void {
     this.animationCtrl.update(delta);
+
+    // Prop fade animations
+    this.propManager.update(delta);
 
     // Expression layers respect toggles
     const layers = this.animationCtrl.layers;
@@ -202,7 +204,6 @@ export class StateMachine {
       timestamp: Date.now(),
       emotion: event.emotion,
       action: event.action,
-      prop: event.prop,
       intensity: event.intensity,
       source,
     });

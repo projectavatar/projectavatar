@@ -13,7 +13,7 @@ export { BlinkController } from './blink-controller.ts';
 export { PropManager } from './prop-manager.ts';
 
 export { ClipRegistry } from './clip-registry.ts';
-export type { ClipEntry, ClipJson, ResolvedClips, ClipsJsonData, AnimationGroupJson } from './clip-registry.ts';
+export type { ClipEntry, ClipJson, ResolvedClips, ClipsJsonData, AnimationGroupJson, PropTransform, ClipPropBinding } from './clip-registry.ts';
 
 export { StateMachine } from './state-machine.ts';
 export type { EventLogEntry } from './state-machine.ts';
