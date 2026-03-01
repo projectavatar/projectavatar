@@ -71,6 +71,7 @@ export class VfxManager {
    * falls back to action VFX if emotion has none.
    */
   setState(emotion: string | null, action: string | null): void {
+    console.log("[VfxManager] setState", emotion, action);
     const emotionKey = emotion ? `emotion:${emotion}` : null;
     const actionKey = action ? `action:${action}` : null;
 
