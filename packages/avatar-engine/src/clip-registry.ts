@@ -89,6 +89,7 @@ interface ActionJson {
   groups: AnimationGroupJson[];
   durationOverride: number | null;
   bypassHeadTracking?: boolean;
+  vfx?: VfxBindingJson[];
 }
 
 /** Clip reference (for emotion overrides/layers). */
@@ -101,9 +102,18 @@ interface EmotionJson {
   weightScale: number;
   overrides: Record<string, ClipRefJson>;
   layers: ClipRefJson[];
+  vfx?: VfxBindingJson[];
 }
 
 /** Shape of the clips.json data object (v3). */
+/** VFX binding — visual effect tied to an emotion or action. */
+export interface VfxBindingJson {
+  type: string;
+  color?: string;
+  intensity?: number;
+  offsetY?: number;
+}
+
 export interface ClipsJsonData {
   version: number;
   clips: Record<string, ClipJson>;
@@ -359,6 +369,26 @@ export class ClipRegistry {
     const firstClipRef = group.clips[0]!;
     const clipData = this.data.clips[firstClipRef.clip];
     return clipData?.propBinding;
+  }
+
+  /**
+   * Get VFX bindings for all emotions and actions.
+   */
+  getVfxBindings(): {
+    emotionVfx: Record<string, VfxBindingJson[]>;
+    actionVfx: Record<string, VfxBindingJson[]>;
+  } {
+    const emotionVfx: Record<string, VfxBindingJson[]> = {};
+    const actionVfx: Record<string, VfxBindingJson[]> = {};
+
+    for (const [name, emotion] of Object.entries(this.data.emotions)) {
+      if (emotion.vfx?.length) emotionVfx[name] = emotion.vfx;
+    }
+    for (const [name, action] of Object.entries(this.data.actions)) {
+      if (action.vfx?.length) actionVfx[name] = action.vfx;
+    }
+
+    return { emotionVfx, actionVfx };
   }
 
   private _lastResortClip(): ClipEntry[] {

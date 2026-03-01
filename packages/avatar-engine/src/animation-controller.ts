@@ -397,7 +397,6 @@ export class AnimationController {
 
     // Notify prop change — the primary clip determines the prop
     const propBinding = this.registry.getPropBinding(action, groupIndex);
-    console.log('[AnimCtrl] prop for action', action, 'group', groupIndex, ':', propBinding?.prop ?? 'none');
     this.onPropChange?.(propBinding);
     this.idleLayer.setPropActive(!!propBinding);
 

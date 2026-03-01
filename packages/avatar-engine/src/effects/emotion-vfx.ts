@@ -1,0 +1,528 @@
+/**
+ * Emotion VFX — lightweight particle effects tied to emotions/actions.
+ *
+ * Each VFX type is a self-contained particle system with its own
+ * shaders, geometry, and update logic. VFX are spawned/despawned
+ * by the VfxManager based on clips.json bindings.
+ */
+import * as THREE from 'three';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type VfxType =
+  | 'thought-bubbles'
+  | 'sparkles'
+  | 'soft-glow'
+  | 'rain'
+  | 'embers'
+  | 'confetti';
+
+export interface VfxBinding {
+  type: VfxType;
+  /** Override default color (hex string, e.g. "#ff9900") */
+  color?: string;
+  /** Intensity multiplier (default 1.0) */
+  intensity?: number;
+  /** Vertical offset from avatar center (default 0) */
+  offsetY?: number;
+}
+
+export interface VfxInstance {
+  type: VfxType;
+  object: THREE.Object3D;
+  update: (time: number, delta: number) => void;
+  dispose: () => void;
+  /** Current opacity for fade in/out (0–1) */
+  opacity: number;
+  targetOpacity: number;
+  setOpacity: (o: number) => void;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+
+// ─── Shared shaders ───────────────────────────────────────────────────────────
+
+const particleVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aAlpha;
+  attribute vec3 aColor;
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  void main() {
+    vAlpha = aAlpha;
+    vColor = aColor;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aSize * (200.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const particleFragment = /* glsl */ `
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  void main() {
+    float d = length(gl_PointCoord - vec2(0.5));
+    if (d > 0.5) discard;
+    float alpha = vAlpha * smoothstep(0.5, 0.15, d);
+    gl_FragColor = vec4(vColor, alpha);
+  }
+`;
+
+// ─── Factory functions ────────────────────────────────────────────────────────
+
+export function createVfx(type: VfxType, binding: VfxBinding): VfxInstance {
+  switch (type) {
+    case 'thought-bubbles': return createThoughtBubbles(binding);
+    case 'sparkles':        return createSparkles(binding);
+    case 'soft-glow':       return createSoftGlow(binding);
+    case 'rain':            return createRain(binding);
+    case 'embers':          return createEmbers(binding);
+    case 'confetti':        return createConfetti(binding);
+    default:
+      console.warn(`[VFX] Unknown type: ${type}`);
+      return createSparkles(binding); // fallback
+  }
+}
+
+// ─── Thought Bubbles ──────────────────────────────────────────────────────────
+
+function createThoughtBubbles(binding: VfxBinding): VfxInstance {
+  const count = 12;
+  const color = new THREE.Color(binding.color ?? '#88ccff');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.75;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  // Per-particle state
+  const phases = new Float32Array(count);
+  const speeds = new Float32Array(count);
+  const radii = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random() * Math.PI * 2;
+    speeds[i] = 0.3 + Math.random() * 0.4;
+    radii[i] = 0.15 + Math.random() * 0.2;
+    sizes[i] = (0.08 + Math.random() * 0.06) * intensity;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'thought-bubbles',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) {
+      currentOpacity = o;
+      this.opacity = o;
+    },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const t = time * speeds[i]! + phases[i]!;
+        const r = radii[i]!;
+        // Orbit around head area
+        pos.array[i * 3] = Math.cos(t) * r;
+        pos.array[i * 3 + 1] = Math.sin(t * 0.7) * 0.1 + Math.sin(t * 1.3) * 0.05;
+        pos.array[i * 3 + 2] = Math.sin(t) * r * 0.6;
+
+        // Pulsing alpha
+        alpha.array[i] = currentOpacity * (0.4 + 0.6 * Math.sin(t * 2 + phases[i]!) * 0.5 + 0.5);
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() {
+      geo.dispose();
+      mat.dispose();
+    },
+  };
+}
+
+// ─── Sparkles ─────────────────────────────────────────────────────────────────
+
+function createSparkles(binding: VfxBinding): VfxInstance {
+  const count = 30;
+  const color = new THREE.Color(binding.color ?? '#ffdd44');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.4;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const velocities = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random() * Math.PI * 2;
+    velocities[i] = 0.2 + Math.random() * 0.4;
+    sizes[i] = (0.04 + Math.random() * 0.04) * intensity;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'sparkles',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const t = time * velocities[i]! + phases[i]!;
+        const life = (t % 3) / 3; // 0–1 lifecycle, repeats every 3s
+
+        // Rise upward, spread outward
+        const angle = phases[i]! + time * 0.3;
+        const spread = 0.3 + life * 0.3;
+        pos.array[i * 3] = Math.cos(angle) * spread;
+        pos.array[i * 3 + 1] = life * 0.6;
+        pos.array[i * 3 + 2] = Math.sin(angle) * spread;
+
+        // Fade in, hold, fade out
+        const fadeIn = Math.min(life * 5, 1);
+        const fadeOut = Math.max(1 - (life - 0.7) * 3.3, 0);
+        alpha.array[i] = currentOpacity * fadeIn * fadeOut * (0.6 + 0.4 * Math.sin(t * 8));
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Soft Glow ────────────────────────────────────────────────────────────────
+
+function createSoftGlow(binding: VfxBinding): VfxInstance {
+  const color = new THREE.Color(binding.color ?? '#ffcc66');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.4;
+
+  const geo = new THREE.SphereGeometry(0.6, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = offsetY;
+  mesh.scale.setScalar(intensity);
+
+  return {
+    type: 'soft-glow',
+    object: mesh,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) {
+      this.opacity = o;
+      mat.opacity = o * 0.15; // very subtle
+    },
+    update(time: number, _delta: number) {
+      const pulse = 1 + Math.sin(time * 1.5) * 0.05;
+      mesh.scale.setScalar(intensity * pulse);
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Rain ─────────────────────────────────────────────────────────────────────
+
+function createRain(binding: VfxBinding): VfxInstance {
+  const count = 25;
+  const color = new THREE.Color(binding.color ?? '#6699cc');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.8;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const startX = new Float32Array(count);
+  const startZ = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random();
+    startX[i] = (Math.random() - 0.5) * 0.8;
+    startZ[i] = (Math.random() - 0.5) * 0.5;
+    sizes[i] = (0.02 + Math.random() * 0.015) * intensity;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'rain',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const life = ((time * 0.8 + phases[i]!) % 1); // 0–1, loops
+        pos.array[i * 3] = startX[i]!;
+        pos.array[i * 3 + 1] = -life * 1.2; // fall downward
+        pos.array[i * 3 + 2] = startZ[i]!;
+
+        // Fade in at top, fade out at bottom
+        const fadeIn = Math.min(life * 4, 1);
+        const fadeOut = 1 - life;
+        alpha.array[i] = currentOpacity * fadeIn * fadeOut * 0.7;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Embers ───────────────────────────────────────────────────────────────────
+
+function createEmbers(binding: VfxBinding): VfxInstance {
+  const count = 20;
+  const color = new THREE.Color(binding.color ?? '#ff6622');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const driftX = new Float32Array(count);
+  const driftZ = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random();
+    driftX[i] = (Math.random() - 0.5) * 0.6;
+    driftZ[i] = (Math.random() - 0.5) * 0.4;
+    sizes[i] = (0.03 + Math.random() * 0.03) * intensity;
+    // Warm gradient: orange to red
+    const warmth = Math.random();
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g * (0.5 + warmth * 0.5);
+    colors[i * 3 + 2] = color.b * warmth;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'embers',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const life = ((time * 0.3 + phases[i]!) % 2) / 2; // 0–1 over 2s
+        const wobble = Math.sin(time * 3 + phases[i]! * 10) * 0.05;
+
+        pos.array[i * 3] = driftX[i]! + wobble;
+        pos.array[i * 3 + 1] = life * 1.0; // rise upward
+        pos.array[i * 3 + 2] = driftZ[i]!;
+
+        // Flicker + lifecycle fade
+        const flicker = 0.6 + 0.4 * Math.sin(time * 12 + phases[i]! * 20);
+        const fadeOut = 1 - life * life; // quadratic fade
+        alpha.array[i] = currentOpacity * flicker * fadeOut * 0.8;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+
+function createConfetti(binding: VfxBinding): VfxInstance {
+  const count = 40;
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 1.2;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const driftX = new Float32Array(count);
+  const driftZ = new Float32Array(count);
+  const swaySpeed = new Float32Array(count);
+
+  const confettiColors = [
+    new THREE.Color('#ff4466'),
+    new THREE.Color('#44aaff'),
+    new THREE.Color('#ffdd44'),
+    new THREE.Color('#44ff88'),
+    new THREE.Color('#ff88ff'),
+    new THREE.Color('#ffaa22'),
+  ];
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random();
+    driftX[i] = (Math.random() - 0.5) * 1.2;
+    driftZ[i] = (Math.random() - 0.5) * 0.8;
+    swaySpeed[i] = 2 + Math.random() * 3;
+    sizes[i] = (0.04 + Math.random() * 0.03) * intensity;
+    const c = confettiColors[Math.floor(Math.random() * confettiColors.length)]!;
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'confetti',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const life = ((time * 0.4 + phases[i]!) % 2.5) / 2.5;
+        const sway = Math.sin(time * swaySpeed[i]! + phases[i]! * 5) * 0.15;
+
+        pos.array[i * 3] = driftX[i]! + sway;
+        pos.array[i * 3 + 1] = -life * 1.5; // fall downward
+        pos.array[i * 3 + 2] = driftZ[i]!;
+
+        // Tumbling alpha
+        const tumble = 0.5 + 0.5 * Math.sin(time * 6 + phases[i]! * 10);
+        const fadeOut = Math.max(1 - (life - 0.6) * 2.5, 0);
+        alpha.array[i] = currentOpacity * tumble * fadeOut;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}

@@ -9,6 +9,7 @@ import {
   BlinkController,
   PropManager,
   StateMachine,
+  VfxManager,
   ClipRegistry,
   EffectsManager,
 } from '@project-avatar/avatar-engine';
@@ -120,6 +121,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       stateMachine.setCamera(avatarScene.camera);
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
+
+      // --- Emotion VFX ---
+      const vfxMgr = new VfxManager(avatarScene.scene);
+      const { emotionVfx, actionVfx } = clipRegistry.getVfxBindings();
+      vfxMgr.loadBindings(emotionVfx, actionVfx);
+      stateMachine.setVfxManager(vfxMgr);
 
       // ─── Effects ──────────────────────────────────────────────
       const effectsManager = new EffectsManager(

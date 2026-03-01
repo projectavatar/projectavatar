@@ -261,7 +261,28 @@
         "feet"
       ],
       "tags": [],
-      "handGesture": "pointing"
+      "handGesture": "pointing",
+      "propBinding": {
+        "prop": "tablet",
+        "transform": {
+          "position": [
+            -0.063,
+            0.011,
+            0.318
+          ],
+          "rotation": [
+            2.241,
+            1.547,
+            3.141
+          ],
+          "scale": [
+            2.325,
+            1,
+            2.304
+          ]
+        },
+        "material": "holographic"
+      }
     },
     "idle-stretch": {
       "file": "idle-stretch.fbx",
@@ -437,7 +458,15 @@
           ]
         }
       ],
-      "durationOverride": 3
+      "durationOverride": 3,
+      "vfx": [
+        {
+          "type": "confetti",
+          "color": "#ffdd44",
+          "intensity": 1.2,
+          "offsetY": 1.2
+        }
+      ]
     },
     "dismissive": {
       "groups": [
@@ -566,22 +595,50 @@
     "happy": {
       "weightScale": 1.1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "soft-glow",
+          "color": "#ffcc66",
+          "intensity": 0.8
+        }
+      ]
     },
     "sad": {
       "weightScale": 0.7,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "rain",
+          "color": "#6699cc",
+          "intensity": 0.8
+        }
+      ]
     },
     "angry": {
       "weightScale": 1.15,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "embers",
+          "color": "#ff6622",
+          "intensity": 1.0
+        }
+      ]
     },
     "excited": {
       "weightScale": 1.2,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sparkles",
+          "color": "#ffdd44",
+          "intensity": 1.0
+        }
+      ]
     },
     "confused": {
       "weightScale": 1,
@@ -606,7 +663,15 @@
     "thinking": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "thought-bubbles",
+          "color": "#88ccff",
+          "intensity": 1.0,
+          "offsetY": 0.75
+        }
+      ]
     }
   }
 }

@@ -170,9 +170,6 @@ export class IdleLayer {
   }
 
   setPropActive(active: boolean): void {
-    if (active !== this._propActive) {
-      console.log('[IdleLayer] propActive:', active);
-    }
     this._propActive = active;
   }
 

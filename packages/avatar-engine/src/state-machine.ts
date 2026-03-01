@@ -5,6 +5,7 @@ import type { AnimationController } from './animation-controller.ts';
 import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
+import type { VfxManager } from './effects/vfx-manager.ts';
 
 /**
  * Avatar state machine coordinating all subsystems.
@@ -49,6 +50,7 @@ export class StateMachine {
   private animationCtrl: AnimationController;
   private blinkCtrl: BlinkController;
   private propManager: PropManager;
+  private vfxManager: VfxManager | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimeoutMs: number;
   private onStateChange?: (state: Readonly<AvatarState>) => void;
@@ -125,6 +127,11 @@ export class StateMachine {
     // Props are now driven by clip selection (via AnimationController.onPropChange).
     // The event.prop field from avatar_signal is ignored — props are tied to clips.
 
+    // Update VFX based on current emotion + action
+    if (event.emotion || event.action) {
+      this.vfxManager?.setState(this.state.emotion, this.state.action);
+    }
+
     // Notify listener
     this.onStateChange?.(this.state);
 
@@ -133,6 +140,11 @@ export class StateMachine {
   }
 
   /** Set camera for head tracking. */
+  /** Set VFX manager (optional, added post-construction). */
+  setVfxManager(mgr: VfxManager): void {
+    this.vfxManager = mgr;
+  }
+
   setCamera(camera: import('three').Camera): void {
     this.animationCtrl.setCamera(camera);
   }
@@ -165,6 +177,9 @@ export class StateMachine {
     // Prop fade animations — pass bob offset so props track the idle layer bob
     const bobOffset = this.animationCtrl.getIdleBobOffset();
     this.propManager.update(delta, bobOffset);
+
+    // VFX animations
+    this.vfxManager?.update(delta);
 
     // Expression layers respect toggles
     const layers = this.animationCtrl.layers;

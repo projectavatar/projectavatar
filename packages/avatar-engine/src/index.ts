@@ -38,3 +38,7 @@ export type { BodyPart } from './body-parts.ts';
 // ─── Effects ──────────────────────────────────────────────────────────────────
 export { EffectsManager, DEFAULT_EFFECTS_STATE, EFFECT_LABELS, EFFECT_DESCRIPTIONS } from './effects/index.ts';
 export type { EffectsState } from './effects/index.ts';
+
+export { VfxManager } from './effects/vfx-manager.ts';
+export type { VfxBinding, VfxType } from './effects/emotion-vfx.ts';
+export type { VfxBindingJson } from './clip-registry.ts';
