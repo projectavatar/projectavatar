@@ -1,3 +1,13 @@
+use mouse_position::mouse_position::Mouse;
+
+#[tauri::command]
+fn get_cursor_position() -> (i32, i32) {
+    match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => (x, y),
+        Mouse::Error => (0, 0),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Force WebView2 transparent background via environment variable.
@@ -10,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .invoke_handler(tauri::generate_handler![get_cursor_position])
         .setup(|_app| {
             // Workaround: WebView2 on Windows doesn't apply transparency until a
             // resize event forces it to repaint. Nudging the window size by 1px

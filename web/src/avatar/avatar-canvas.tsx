@@ -262,9 +262,55 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         lastCursorMove = performance.now();
       }
     };
-    window.addEventListener('mousemove', onMouseMove);
+    // Desktop (Tauri): poll global cursor position via Rust plugin
+    // Web: use mousemove event (cursor only tracked inside window)
+    const isTauri = '__TAURI__' in window;
+    let cursorPollId: ReturnType<typeof setInterval> | null = null;
+
+    if (isTauri) {
+      const poll = async () => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const { currentWindow } = await import('@tauri-apps/api/window');
+          const win = currentWindow();
+          const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
+          const pos = await win.outerPosition();
+          const size = await win.outerSize();
+          const scale = await win.scaleFactor();
+
+          // Convert screen coords to window-relative logical pixels
+          const relX = (screenX - pos.x) / scale;
+          const relY = (screenY - pos.y) / scale;
+          const w = size.width / scale;
+          const h = size.height / scale;
+
+          // NDC
+          const ndcX = (relX / w) * 2 - 1;
+          const ndcY = -(relY / h) * 2 + 1;
+
+          const cam = avatarScene.camera;
+          const camDir = new THREE.Vector3();
+          cam.getWorldDirection(camDir);
+          const planePos = cam.position.clone().lerp(new THREE.Vector3(0, 0, 0), 0.5);
+          const plane = new THREE.Plane();
+          plane.setFromNormalAndCoplanarPoint(camDir, planePos);
+
+          const raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cam);
+          if (raycaster.ray.intersectPlane(plane, cursorTarget)) {
+            animControllerRef.current?.setCursorTarget(cursorTarget);
+            debugSphere.position.copy(cursorTarget);
+            lastCursorMove = performance.now();
+          }
+        } catch { /* ignore errors during polling */ }
+      };
+      cursorPollId = setInterval(poll, 50); // 20Hz polling
+    } else {
+      window.addEventListener('mousemove', onMouseMove);
+    }
 
     return () => {
+      if (cursorPollId) clearInterval(cursorPollId);
       window.removeEventListener('mousemove', onMouseMove);
       avatarScene.scene.remove(debugSphere);
       avatarScene.scene.remove(debugPlane);
