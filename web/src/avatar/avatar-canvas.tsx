@@ -188,8 +188,9 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const raycaster = new THREE.Raycaster();
     const mouseNDC = new THREE.Vector2();
     const cursorTarget = new THREE.Vector3();
-    // Plane at z=2 facing the camera (between camera and model)
-    const targetPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -2);
+    // Dynamic plane — always halfway between camera and origin,
+    // facing the camera. Scales with zoom level.
+    const targetPlane = new THREE.Plane();
 
     // DEBUG: visible target point + projection plane
     const debugSphere = new THREE.Mesh(
@@ -200,7 +201,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       new THREE.PlaneGeometry(8, 6),
       new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.15 }),
     );
-    debugPlane.position.z = 2;
     avatarScene.scene.add(debugSphere);
     avatarScene.scene.add(debugPlane);
 
@@ -212,7 +212,24 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         ((e.clientX - rect.left) / rect.width) * 2 - 1,
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       );
-      raycaster.setFromCamera(mouseNDC, avatarScene.camera);
+
+      // Place plane halfway between camera and origin, facing camera
+      const cam = avatarScene.camera;
+      const camDir = new THREE.Vector3();
+      cam.getWorldDirection(camDir);
+      const dist = cam.position.length();
+      const planeZ = dist * 0.5;
+      const planePos = cam.position.clone().add(camDir.multiplyScalar(planeZ));
+      targetPlane.setFromNormalAndCoplanarPoint(
+        cam.position.clone().sub(planePos).normalize(),
+        planePos,
+      );
+
+      // DEBUG: move plane visual
+      debugPlane.position.copy(planePos);
+      debugPlane.lookAt(cam.position);
+
+      raycaster.setFromCamera(mouseNDC, cam);
       if (raycaster.ray.intersectPlane(targetPlane, cursorTarget)) {
         ctrl.setCursorTarget(cursorTarget);
         debugSphere.position.copy(cursorTarget);
