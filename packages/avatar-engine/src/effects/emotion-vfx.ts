@@ -253,7 +253,7 @@ function createSparkles(binding: VfxBinding): VfxInstance {
 
 // ─── Hearts ───────────────────────────────────────────────────────────────────
 
-/** Heart shape fragment shader — SDF-based heart rendered per point. */
+/** Heart shape fragment shader — flat 2D heart, solid color, no shading. */
 const heartFragment = /* glsl */ `
   varying float vAlpha;
   varying vec3 vColor;
@@ -270,8 +270,7 @@ const heartFragment = /* glsl */ `
 
     if (heart > 0.0) discard;
 
-    float alpha = vAlpha * smoothstep(0.005, -0.01, heart);
-    gl_FragColor = vec4(vColor, alpha);
+    gl_FragColor = vec4(vColor, vAlpha);
   }
 `;
 
@@ -317,7 +316,7 @@ function createHearts(binding: VfxBinding): VfxInstance {
     vertexShader: particleVertex,
     fragmentShader: heartFragment,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     depthWrite: false,
   });
 
