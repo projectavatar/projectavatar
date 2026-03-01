@@ -9,7 +9,7 @@ import * as THREE from 'three';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const PARTICLE_COUNT     = 120;
+const PARTICLE_COUNT     = 80;
 const ORBIT_RADIUS       = 0.55;
 const ORBIT_RADIUS_VAR   = 0.3;
 const ORBIT_SPEED        = 0.3;
