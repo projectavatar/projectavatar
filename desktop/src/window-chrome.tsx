@@ -1,32 +1,29 @@
 /**
- * WindowChrome — transparent overlay for window management.
+ * WindowChrome — transparent overlay for borderless window management.
  *
  * Interaction model:
- * - Mouse near edges/corners (within EDGE px) → resize cursor, left-drag to resize
- * - Left-drag anywhere else → move the window
- * - Right-drag anywhere → rotate the 3D model (passes through to OrbitControls)
- * - Hover → dashed rounded border fades in
- * - Escape → close the window
+ * - Hover → dashed rounded border fades in + titlebar appears at top
+ * - Drag the titlebar → move window (via Tauri startDragging)
+ * - Drag edges/corners → resize window (via Tauri startResizeDragging)
+ * - Right-drag on canvas → rotate 3D model (OrbitControls, unaffected)
+ * - Left-click on canvas → passes through normally (no capture)
+ * - Escape (double-tap) → close window
  *
- * Architecture:
- * The overlay sits above the canvas at z-index 9999. The INNER area
- * (not near edges) has pointerEvents: none so right-clicks pass through
- * to OrbitControls. The edge strips always capture events.
- *
- * Left-click behavior:
- * - On edge → startResizeDragging
- * - On inner area → we intercept via a document-level mousedown and
- *   call startDragging if no resize direction is detected
+ * The titlebar and resize edges only appear on hover. When not hovered,
+ * the window is fully click-through except for the invisible edge strips.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-/** Edge hit zone size in px */
-const EDGE = 6;
-/** Corner hit zone size in px (extends further for easier grab) */
-const CORNER = 14;
-/** Border radius for the dashed outline */
-const RADIUS = 12;
+/*
+ * Edge/corner hit zone sizes (px).
+ * 6px edges = comfortable grab without eating too much canvas.
+ * 14px corners = larger target for diagonal resize.
+ */
+const EDGE_SIZE = 6;
+const CORNER_SIZE = 14;
+const BORDER_RADIUS = 12;
+const TITLEBAR_HEIGHT = 32;
 
 type ResizeDirection =
   | 'Top' | 'Bottom' | 'Left' | 'Right'
@@ -35,16 +32,16 @@ type ResizeDirection =
 function getResizeDirection(
   x: number, y: number, w: number, h: number,
 ): ResizeDirection | null {
-  const top = y < EDGE;
-  const bottom = y > h - EDGE;
-  const left = x < EDGE;
-  const right = x > w - EDGE;
+  const top = y < EDGE_SIZE;
+  const bottom = y > h - EDGE_SIZE;
+  const left = x < EDGE_SIZE;
+  const right = x > w - EDGE_SIZE;
 
-  // Corners first (larger area)
-  if (x < CORNER && y < CORNER) return 'TopLeft';
-  if (x > w - CORNER && y < CORNER) return 'TopRight';
-  if (x < CORNER && y > h - CORNER) return 'BottomLeft';
-  if (x > w - CORNER && y > h - CORNER) return 'BottomRight';
+  // Corners (larger hit area for easier grab)
+  if (x < CORNER_SIZE && y < CORNER_SIZE) return 'TopLeft';
+  if (x > w - CORNER_SIZE && y < CORNER_SIZE) return 'TopRight';
+  if (x < CORNER_SIZE && y > h - CORNER_SIZE) return 'BottomLeft';
+  if (x > w - CORNER_SIZE && y > h - CORNER_SIZE) return 'BottomRight';
 
   // Edges
   if (top) return 'Top';
@@ -67,57 +64,50 @@ function getCursorForDirection(dir: ResizeDirection | null): string {
 
 export function WindowChrome() {
   const [hovered, setHovered] = useState(false);
-  const [cursorDir, setCursorDir] = useState<ResizeDirection | null>(null);
-  const frameRef = useRef<HTMLDivElement>(null);
+  const lastEscapeRef = useRef(0);
 
-  // Track mouse to determine if we're on an edge
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    const dir = getResizeDirection(
-      e.clientX, e.clientY, window.innerWidth, window.innerHeight,
-    );
-    setCursorDir(dir);
-  }, []);
+  // ── Edge resize via invisible strips ────────────────────────────────
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [handleMouseMove]);
+    let currentDir: ResizeDirection | null = null;
 
-  // Global left-click handler: resize on edges, drag-move elsewhere
-  useEffect(() => {
-    const handler = async (e: MouseEvent) => {
-      if (e.button !== 0) return; // Only left-click
-
+    const onMouseMove = (e: MouseEvent) => {
       const dir = getResizeDirection(
         e.clientX, e.clientY, window.innerWidth, window.innerHeight,
       );
-
-      const appWindow = getCurrentWindow();
-
-      if (dir) {
-        e.preventDefault();
-        e.stopPropagation();
-        await appWindow.startResizeDragging(dir);
-      } else {
-        // Left-drag in inner area = move window
-        // But don't steal clicks from UI elements (buttons, inputs, etc.)
-        const target = e.target as HTMLElement;
-        const isInteractive = target.closest('button, input, select, textarea, a, [role="button"], [data-no-drag]');
-        if (!isInteractive) {
-          e.preventDefault();
-          await appWindow.startDragging();
-        }
+      if (dir !== currentDir) {
+        currentDir = dir;
+        document.body.style.cursor = dir ? getCursorForDirection(dir) : '';
       }
     };
 
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
+    const onMouseDown = async (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const dir = getResizeDirection(
+        e.clientX, e.clientY, window.innerWidth, window.innerHeight,
+      );
+      if (dir) {
+        e.preventDefault();
+        e.stopPropagation();
+        await getCurrentWindow().startResizeDragging(dir);
+      }
+      // If not on edge, do nothing — let the event pass through to canvas/UI
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousedown', onMouseDown, { capture: true });
+      document.body.style.cursor = '';
+    };
   }, []);
 
-  // Track window hover via mouseenter/mouseleave on document
+  // ── Hover detection (document-level) ────────────────────────────────
+
   useEffect(() => {
     const enter = () => setHovered(true);
-    const leave = () => { setHovered(false); setCursorDir(null); };
+    const leave = () => setHovered(false);
     document.documentElement.addEventListener('mouseenter', enter);
     document.documentElement.addEventListener('mouseleave', leave);
     return () => {
@@ -126,30 +116,36 @@ export function WindowChrome() {
     };
   }, []);
 
-  // Set cursor on body based on edge detection
-  useEffect(() => {
-    document.body.style.cursor = cursorDir
-      ? getCursorForDirection(cursorDir)
-      : '';
-  }, [cursorDir]);
+  // ── Escape to close (double-tap within 500ms) ──────────────────────
 
-  // Escape to close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') getCurrentWindow().close();
+      if (e.key !== 'Escape') return;
+      const now = Date.now();
+      if (now - lastEscapeRef.current < 500) {
+        getCurrentWindow().close();
+      }
+      lastEscapeRef.current = now;
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // ── Titlebar drag handler ──────────────────────────────────────────
+
+  const handleTitlebarMouseDown = useCallback(async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    await getCurrentWindow().startDragging();
+  }, []);
+
   return (
     <div
-      ref={frameRef}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        pointerEvents: 'none', // Click-through — events handled globally
+        pointerEvents: 'none',
       }}
     >
       {/* Dashed border — visible on hover */}
@@ -157,13 +153,53 @@ export function WindowChrome() {
         style={{
           position: 'absolute',
           inset: 2,
-          borderRadius: RADIUS,
+          borderRadius: BORDER_RADIUS,
           border: '2px dashed rgba(255, 255, 255, 0.35)',
           opacity: hovered ? 1 : 0,
           transition: 'opacity 0.2s ease',
           pointerEvents: 'none',
         }}
       />
+
+      {/* Titlebar — visible on hover, draggable */}
+      <div
+        onMouseDown={handleTitlebarMouseDown}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: TITLEBAR_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: `${BORDER_RADIUS}px ${BORDER_RADIUS}px 0 0`,
+          background: 'rgba(10, 10, 15, 0.6)',
+          backdropFilter: 'blur(8px)',
+          opacity: hovered ? 1 : 0,
+          transition: 'opacity 0.2s ease',
+          pointerEvents: hovered ? 'auto' : 'none',
+          cursor: 'grab',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+        }}
+      >
+        {/* Drag grip dots */}
+        <div style={{
+          display: 'flex',
+          gap: 4,
+          opacity: 0.4,
+        }}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} style={{
+              width: 4,
+              height: 4,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.6)',
+            }} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

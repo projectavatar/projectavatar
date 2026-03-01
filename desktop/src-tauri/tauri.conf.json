@@ -15,15 +15,17 @@
         "title": "Project Avatar",
         "width": 400,
         "height": 600,
+        "minWidth": 200,
+        "minHeight": 200,
         "decorations": false,
         "transparent": true,
-        "resizable": false,
+        "resizable": true,
         "alwaysOnTop": true,
         "shadow": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss://relay.projectavatar.io https://relay.projectavatar.io ws://localhost:* http://localhost:*; img-src 'self' blob: data: https:; font-src 'self' data:; worker-src 'self' blob:"
     }
   },
   "bundle": {

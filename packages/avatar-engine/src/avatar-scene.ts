@@ -150,9 +150,12 @@ export class AvatarScene {
       this.controls.target.set(0, 0, 0);
       this.controls.minDistance = 1;
       this.controls.maxDistance = 15;
-      this.controls.mouseButtons = options?.desktop
-        ? { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
-        : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+      const mouseButtons: Record<string, THREE.MOUSE> = {
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.ROTATE,
+      };
+      if (!options?.desktop) mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+      this.controls.mouseButtons = mouseButtons;
       // No panning — orbit target must stay on the model
       this.controls.enablePan = false;
       // Lock vertical rotation in production — no peeking allowed
