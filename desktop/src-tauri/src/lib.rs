@@ -1,5 +1,11 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Force WebView2 transparent background via environment variable.
+    // This must be set BEFORE the webview is created.
+    // See: https://github.com/MicrosoftEdge/WebView2Feedback/issues/2899
+    #[cfg(target_os = "windows")]
+    std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
