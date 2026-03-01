@@ -417,10 +417,13 @@ export class AnimationController {
       }
     }
 
-    // Fade out any unmatched outgoing actions (body parts no longer claimed by new action)
+    // Stop any unmatched outgoing actions immediately — fading out to
+    // rest pose causes quaternion slerp to take the long path, spinning
+    // extremities. Snapping avoids this; the idle layer will smoothly
+    // take over those bones anyway.
     for (const [, subs] of outgoingByGroup) {
       for (const sub of subs) {
-        sub.action.fadeOut(crossfadeDuration);
+        sub.action.stop();
       }
     }
 
