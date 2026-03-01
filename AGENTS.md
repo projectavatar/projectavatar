@@ -71,9 +71,9 @@ Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade
 - **BlinkController** — random blink + micro-glance.
 - **PropManager** — GLB prop loading + hand bone attachment.
 - **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
-- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev, desktop }`. `desktop: true` disables left-click rotation (reserved for window drag in Tauri). Supports custom render callback for postprocessing (bloom).
+- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev, desktop }`. `desktop: true` disables left-click rotation (reserved for window drag in Tauri). Supports custom render callback for postprocessing (bloom). Camera distance used by avatar-canvas to auto-switch idle modes.
 - **VrmManager** — normalizes all VRMs to 1.6m height, centers hips at origin (0,0,0). Exposes `bodyCenter` & `faceCenter` for camera framing.
-- **IdleLayer** — procedural idle animation (air mode: hover bob, body tilt, backward lean, leg dangle with asymmetric tuck, finger curl; ground mode: breathing, sway). Runs after mixer.
+- **IdleLayer** — procedural idle animation with smooth mode blending. Air mode: hover bob, body tilt, backward lean, leg dangle with asymmetric tuck. Ground mode: breathing, sway, weight shift. Modes crossfade via `modeBlend` (exponential lerp). Auto-switches to ground when zoomed in (distance < threshold). Head tracking follows cursor with configurable influence. Runs after mixer.
 - **EffectsManager** — orchestrates toggleable visual effects (particle aura, energy trails, bloom, holographic). All effects gate on `modelReady` and use exponential lerp fade.
 
 ### Visual Effects (`packages/avatar-engine/src/effects/`)
