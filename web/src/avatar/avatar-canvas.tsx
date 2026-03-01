@@ -195,7 +195,9 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const EYE_IDLE_TIMEOUT = 5000;
 
     // Blend eye lookAt between camera and cursor
-    avatarScene.onUpdate(() => {
+    let eyeDebugTimer = 0;
+    avatarScene.onUpdate((delta) => {
+      eyeDebugTimer += delta;
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
       const targetBlend = cursorActive ? 1 : 0;
@@ -205,6 +207,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       // This makes eye movement visible even when head is already turning
       const eyeTarget = cursorTarget.clone().sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
       lookAtProxy.position.lerpVectors(avatarScene.camera.position, eyeTarget, eyeBlend);
+      if (eyeDebugTimer > 2) {
+        eyeDebugTimer = 0;
+        console.log('[EyeTrack]', { eyeBlend: eyeBlend.toFixed(3), proxyPos: lookAtProxy.position.toArray().map(n => n.toFixed(2)), cursorTarget: cursorTarget.toArray().map(n => n.toFixed(2)), camPos: avatarScene.camera.position.toArray().map(n => n.toFixed(2)) });
+      }
     });
 
     avatarScene.start();
