@@ -1,5 +1,11 @@
 # Changelog
 
+
+## [0.4.0] — 2026-03-01
+
+### Fixed
+- **CSP policy** — added `http://ipc.localhost` and `blob:` to `connect-src`. Tauri IPC custom protocol was being blocked (falling back to slower postMessage), and blob URLs for VRM/GLB asset loading were failing entirely.
+
 ## [0.3.1] — 2026-03-01
 
 ### Added
