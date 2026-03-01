@@ -96,7 +96,7 @@
         "feet"
       ],
       "tags": [],
-      "handGesture": "fist"
+      "handGesture": "relaxed"
     },
     "laughing": {
       "file": "laughing.fbx",
@@ -128,7 +128,8 @@
         "legs",
         "feet"
       ],
-      "tags": []
+      "tags": [],
+      "handGesture": "fist"
     },
     "nodding": {
       "file": "nodding.fbx",
@@ -240,7 +241,8 @@
         "legs",
         "feet"
       ],
-      "tags": []
+      "tags": [],
+      "handGesture": "pointing"
     },
     "idle-stretch": {
       "file": "idle-stretch.fbx",
