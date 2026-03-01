@@ -1,6 +1,6 @@
 {
   "name": "@projectavatar/openclaw-avatar",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Real-time 3D avatar driven by OpenClaw agent lifecycle hooks. Your agent gets a face.",
   "repository": {
     "type": "git",

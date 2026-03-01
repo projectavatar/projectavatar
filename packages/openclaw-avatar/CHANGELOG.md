@@ -2,6 +2,12 @@
 
 ## 2.0.0
 
+### Major Changes
+
+- v2.0.0 — avatar_signal tool replaces tag-based approach, simplified schema (10 emotions, 12 actions), multi-session arbitration, per-category cooldowns, AGPL-3.0 license
+
+## 2.0.0
+
 ### Breaking Changes
 
 - **Simplified schema:** Emotions reduced from 14 → 10, actions from 29 → 12. Removed unused/redundant values (`focused`, `satisfied`, `concerned`, `relaxed` emotions; `responding`, `coding`, `reading`, `waiting`, `error`, `waving`, `pointing`, `fist_pump`, `sarcastic`, `looking_around`, `shading_eyes`, `telling_secret`, `victory`, `head_shake`, `relief`, `cautious_agree`, `angry_fist`, `rallying`, `sad_idle`, `nervous_look`, `terrified`, `scratching_head`, `cocky`, `questioning`, `phone` actions). If your agent prompt references removed values, update it.
