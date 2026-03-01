@@ -329,7 +329,6 @@ export class ClipPreview {
 
   /** Initialize VFX manager and load bindings from clip data. */
   initVfx(clipsData: ClipsJsonData): void {
-    console.log('[ClipPreview] initVfx');
     this.vfxManager?.clear();
     this.vfxManager = new VfxManager(this.avatarScene.scene);
     const registry = new ClipRegistry(clipsData);

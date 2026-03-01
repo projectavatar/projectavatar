@@ -165,12 +165,13 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 - **14 emotions** — idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous
 - **28 actions** — idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating
-- **6 reactive props** — keyboard, magnifying glass, coffee cup, book, phone, scroll
+- **World-space props** — GLB models tied to clips (keyboard, tablet), positioned via TransformControls gizmo, 3 material styles (holographic, solid, ghostly), fade in/out transitions
 - **Bundled VRM models** — import your own from VRoid Hub or anywhere
 - **Intensity levels** — low, medium, high — affects animation energy and expression strength
 - **Hybrid animation system** — Mixamo FBX clips + procedural idle layer (air mode: hover, leg dangle, backward lean; ground mode: breathing, sway)
 - **Finger animation** — 30-bone Mixamo→VRM retargeting + procedural finger curl fallback
-- **Visual effects** — toggleable particle aura, energy trails, bloom + SMAA, holographic scan lines
+- **Emotion VFX** — data-driven particle effects per emotion (particle aura, thought bubbles, sparkles, hearts, rain, embers, confetti, sweat drops), configurable in clips.json and clip-manager
+- **Visual effects** — energy trails, bloom + SMAA, holographic scan lines
 - **Render scale** — 1x/2x/3x pixel ratio for performance vs quality tradeoff
 - **Layer toggles** — enable/disable FBX clips, idle noise, expressions, head offset, blink independently
 - **One-URL skill install** — agent installs its own skill by fetching a link

@@ -45,7 +45,6 @@ export class VfxManager {
     for (const [key, vfx] of Object.entries(actionVfx)) {
       this.bindings.set(`action:${key}`, vfx);
     }
-    console.log(`[VfxManager] Loaded ${this.bindings.size} VFX bindings`);
   }
 
   /**
@@ -71,7 +70,6 @@ export class VfxManager {
    * falls back to action VFX if emotion has none.
    */
   setState(emotion: string | null, action: string | null): void {
-    console.log("[VfxManager] setState", emotion, action);
     const emotionKey = emotion ? `emotion:${emotion}` : null;
     const actionKey = action ? `action:${action}` : null;
 
