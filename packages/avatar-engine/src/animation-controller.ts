@@ -208,6 +208,7 @@ export class AnimationController {
     if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
     const gesture = this.registry.getHandGesture(action, groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
     this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+    console.log(`[AnimCtrl] action=${action} gesture=${gesture ?? 'relaxed'} bypass=${bypass}`);
 
     this._playBlendedAction(action, this.currentEmotion, intensity, groupIndex);
   }

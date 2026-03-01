@@ -167,6 +167,7 @@ export class IdleLayer {
 
   /** Set the current hand gesture. */
   setHandGesture(gesture: HandGesture): void {
+    console.log(`[IdleLayer] setHandGesture: ${gesture}`);
     this.currentGesture = gesture;
   }
 
