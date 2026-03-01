@@ -82,6 +82,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
+
+    // Eye lookAt proxy — blends between camera and cursor position
+    const lookAtProxy = new THREE.Object3D();
+    lookAtProxy.position.copy(avatarScene.camera.position);
+    avatarScene.scene.add(lookAtProxy);
+
     const vrmManager  = new VrmManager(avatarScene.scene);
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
