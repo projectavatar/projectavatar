@@ -78,7 +78,6 @@ export class AvatarScene {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;
-  private groundShadow: THREE.Mesh | null = null;
   readonly clock: THREE.Clock;
 
   private controls: OrbitControls | null = null;
@@ -140,29 +139,6 @@ export class AvatarScene {
     const ambient = new THREE.AmbientLight(0xffffff, 0.5);
     this.scene.add(ambient);
 
-
-    // Ground shadow — soft circular blob to ground the avatar
-    const shadowCanvas = document.createElement('canvas');
-    shadowCanvas.width = 128;
-    shadowCanvas.height = 128;
-    const ctx = shadowCanvas.getContext('2d')!;
-    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.35)');
-    gradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.15)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 128, 128);
-    const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
-    const shadowGeo = new THREE.PlaneGeometry(1.2, 1.2);
-    const shadowMat = new THREE.MeshBasicMaterial({
-      map: shadowTexture,
-      transparent: true,
-      depthWrite: false,
-    });
-    this.groundShadow = new THREE.Mesh(shadowGeo, shadowMat);
-    this.groundShadow.rotation.x = -Math.PI / 2;
-    this.groundShadow.position.y = -0.01; // just below feet
-    this.scene.add(this.groundShadow);
 
     // Optional grid floor
     if (options?.grid) {

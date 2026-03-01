@@ -20,7 +20,7 @@ import type { ClipsJsonData } from '@project-avatar/avatar-engine';
 // Import clips data for the registry
 import clipsData from '../data/clips.json';
 
-const canvasStyle: React.CSSProperties = {
+const baseCanvasStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
   display: 'block',
@@ -55,6 +55,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
+  const theme            = useStore((s) => s.theme);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
@@ -260,7 +261,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas ref={canvasRef} style={canvasStyle} />
+      <canvas ref={canvasRef} style={{
+        ...baseCanvasStyle,
+        filter: theme === 'transparent' ? 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3))' : undefined,
+      }} />
       {!animationsLoaded && (
         <div style={{
           position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
