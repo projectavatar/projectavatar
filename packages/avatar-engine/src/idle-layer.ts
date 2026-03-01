@@ -35,7 +35,7 @@ const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward cam
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
-const LEG_SWAP_INTERVAL  = 8.0;    // seconds — how often legs swap
+const LEG_SWAP_INTERVAL  = 5.0;    // seconds — how often legs swap
 const LEG_SWAP_DURATION  = 1.5;    // seconds — crossfade between poses
 
 // Air mode — leg dangle
