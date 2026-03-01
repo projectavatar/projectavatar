@@ -26,6 +26,9 @@ export interface ClipData {
 
   // Tags
   tags: string[];
+
+  // Hand gesture
+  handGesture?: 'relaxed' | 'fist' | 'pointing' | 'none';
 }
 
 /** A single animation group — one possible animation for an action. */

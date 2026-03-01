@@ -46,12 +46,27 @@ const FINGER_PHASE_RING    = 0.8;
 const FINGER_PHASE_LITTLE  = 1.2;
 const FINGER_PHASE_THUMB   = 0.6;
 
-// Per-finger curl multipliers (index=lightest → pinky=most curled)
-const CURL_INDEX  = 0.6;
-const CURL_MIDDLE = 0.8;
-const CURL_RING   = 1.0;
-const CURL_LITTLE = 1.2;
+// ─── Hand Gesture Presets ──────────────────────────────────────────────
+// Each gesture defines curl multipliers per finger segment.
+// Values are multiplied with the base curl constants.
+export type HandGesture = 'relaxed' | 'fist' | 'pointing' | 'none';
 
+interface GesturePreset {
+  index: number;   // multiplier for index finger
+  middle: number;
+  ring: number;
+  little: number;
+  thumb: number;
+}
+
+const GESTURE_PRESETS: Record<HandGesture, GesturePreset> = {
+  none:     { index: 0,   middle: 0,   ring: 0,   little: 0,   thumb: 0   },
+  relaxed:  { index: 0.6, middle: 0.8, ring: 1.0, little: 1.2, thumb: 1.0 },
+  fist:     { index: 2.8, middle: 2.8, ring: 2.8, little: 2.8, thumb: 2.0 },
+  pointing: { index: 0.0, middle: 2.8, ring: 2.8, little: 2.8, thumb: 1.5 },
+};
+
+// Per-finger curl multipliers (index=lightest → pinky=most curled)
 const FINGER_CURL_PROXIMAL    = 0.25;  // radians — base curl (first knuckle)
 const FINGER_CURL_INTERMEDIATE = 0.35; // radians — second knuckle
 const FINGER_CURL_DISTAL      = 0.20;  // radians — fingertip
@@ -100,8 +115,9 @@ export class IdleLayer {
   private initialized = false;
 
   // Finger + wrist bones
-  private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number }[] = [];
+  private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
+  private currentGesture: HandGesture = 'relaxed';
 
 
   /** Rest pose rotations — captured once so we can reset before applying. */
@@ -147,6 +163,11 @@ export class IdleLayer {
 
   get isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /** Set the current hand gesture. */
+  setHandGesture(gesture: HandGesture): void {
+    this.currentGesture = gesture;
   }
 
   /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
@@ -219,41 +240,41 @@ export class IdleLayer {
     this._captureRestPose();
 
     // Resolve finger bones for relaxed curl
-    const fingerNames: [string, number][] = [
+    const fingerNames: [string, number, keyof GesturePreset][] = [
       // Left hand
-      ['leftIndexProximal', FINGER_CURL_PROXIMAL * CURL_INDEX],
-      ['leftIndexIntermediate', FINGER_CURL_INTERMEDIATE * CURL_INDEX],
-      ['leftIndexDistal', FINGER_CURL_DISTAL * CURL_INDEX],
-      ['leftMiddleProximal', FINGER_CURL_PROXIMAL * CURL_MIDDLE],
-      ['leftMiddleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_MIDDLE],
-      ['leftMiddleDistal', FINGER_CURL_DISTAL * CURL_MIDDLE],
-      ['leftRingProximal', FINGER_CURL_PROXIMAL * CURL_RING],
-      ['leftRingIntermediate', FINGER_CURL_INTERMEDIATE * CURL_RING],
-      ['leftRingDistal', FINGER_CURL_DISTAL * CURL_RING],
-      ['leftLittleProximal', FINGER_CURL_PROXIMAL * CURL_LITTLE],
-      ['leftLittleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_LITTLE],
-      ['leftLittleDistal', FINGER_CURL_DISTAL * CURL_LITTLE],
-      ['leftThumbMetacarpal', THUMB_CURL_META],
-      ['leftThumbProximal', THUMB_CURL_PROXIMAL],
-      ['leftThumbDistal', THUMB_CURL_DISTAL],
+      ['leftIndexProximal', FINGER_CURL_PROXIMAL, 'index'],
+      ['leftIndexIntermediate', FINGER_CURL_INTERMEDIATE, 'index'],
+      ['leftIndexDistal', FINGER_CURL_DISTAL, 'index'],
+      ['leftMiddleProximal', FINGER_CURL_PROXIMAL, 'middle'],
+      ['leftMiddleIntermediate', FINGER_CURL_INTERMEDIATE, 'middle'],
+      ['leftMiddleDistal', FINGER_CURL_DISTAL, 'middle'],
+      ['leftRingProximal', FINGER_CURL_PROXIMAL, 'ring'],
+      ['leftRingIntermediate', FINGER_CURL_INTERMEDIATE, 'ring'],
+      ['leftRingDistal', FINGER_CURL_DISTAL, 'ring'],
+      ['leftLittleProximal', FINGER_CURL_PROXIMAL, 'little'],
+      ['leftLittleIntermediate', FINGER_CURL_INTERMEDIATE, 'little'],
+      ['leftLittleDistal', FINGER_CURL_DISTAL, 'little'],
+      ['leftThumbMetacarpal', THUMB_CURL_META, 'thumb'],
+      ['leftThumbProximal', THUMB_CURL_PROXIMAL, 'thumb'],
+      ['leftThumbDistal', THUMB_CURL_DISTAL, 'thumb'],
       // Right hand
-      ['rightIndexProximal', FINGER_CURL_PROXIMAL * CURL_INDEX],
-      ['rightIndexIntermediate', FINGER_CURL_INTERMEDIATE * CURL_INDEX],
-      ['rightIndexDistal', FINGER_CURL_DISTAL * CURL_INDEX],
-      ['rightMiddleProximal', FINGER_CURL_PROXIMAL * CURL_MIDDLE],
-      ['rightMiddleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_MIDDLE],
-      ['rightMiddleDistal', FINGER_CURL_DISTAL * CURL_MIDDLE],
-      ['rightRingProximal', FINGER_CURL_PROXIMAL * CURL_RING],
-      ['rightRingIntermediate', FINGER_CURL_INTERMEDIATE * CURL_RING],
-      ['rightRingDistal', FINGER_CURL_DISTAL * CURL_RING],
-      ['rightLittleProximal', FINGER_CURL_PROXIMAL * CURL_LITTLE],
-      ['rightLittleIntermediate', FINGER_CURL_INTERMEDIATE * CURL_LITTLE],
-      ['rightLittleDistal', FINGER_CURL_DISTAL * CURL_LITTLE],
-      ['rightThumbMetacarpal', THUMB_CURL_META],
-      ['rightThumbProximal', THUMB_CURL_PROXIMAL],
-      ['rightThumbDistal', THUMB_CURL_DISTAL],
+      ['rightIndexProximal', FINGER_CURL_PROXIMAL, 'index'],
+      ['rightIndexIntermediate', FINGER_CURL_INTERMEDIATE, 'index'],
+      ['rightIndexDistal', FINGER_CURL_DISTAL, 'index'],
+      ['rightMiddleProximal', FINGER_CURL_PROXIMAL, 'middle'],
+      ['rightMiddleIntermediate', FINGER_CURL_INTERMEDIATE, 'middle'],
+      ['rightMiddleDistal', FINGER_CURL_DISTAL, 'middle'],
+      ['rightRingProximal', FINGER_CURL_PROXIMAL, 'ring'],
+      ['rightRingIntermediate', FINGER_CURL_INTERMEDIATE, 'ring'],
+      ['rightRingDistal', FINGER_CURL_DISTAL, 'ring'],
+      ['rightLittleProximal', FINGER_CURL_PROXIMAL, 'little'],
+      ['rightLittleIntermediate', FINGER_CURL_INTERMEDIATE, 'little'],
+      ['rightLittleDistal', FINGER_CURL_DISTAL, 'little'],
+      ['rightThumbMetacarpal', THUMB_CURL_META, 'thumb'],
+      ['rightThumbProximal', THUMB_CURL_PROXIMAL, 'thumb'],
+      ['rightThumbDistal', THUMB_CURL_DISTAL, 'thumb'],
     ];
-    for (const [name, curl] of fingerNames) {
+    for (const [name, curl, finger] of fingerNames) {
       const bone = h.getNormalizedBoneNode(name as any);
       const isThumb = name.toLowerCase().includes('thumb');
       let sign = name.startsWith('left') ? -1 : 1;
@@ -269,7 +290,7 @@ export class IdleLayer {
       else if (lowerName.includes('thumb')) phase = FINGER_PHASE_THUMB;
       // Offset left vs right so hands aren't synchronized
       if (name.startsWith('right')) phase += Math.PI * 0.5;
-      if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis, phase });
+      if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis, phase, finger });
     }
 
     // Detect leg bend direction from bone chain geometry.
@@ -492,11 +513,12 @@ export class IdleLayer {
 
   /** Apply a relaxed finger curl — natural resting hand pose. */
   private _applyFingerCurl(t: number): void {
-    for (const { bone, curl, restVal, sign, axis, phase } of this.fingerBones) {
+    const preset = GESTURE_PRESETS[this.currentGesture];
+    for (const { bone, curl, restVal, sign, axis, phase, finger } of this.fingerBones) {
+      const gestureMultiplier = preset[finger];
       const wave = Math.sin(t * FINGER_WAVE_FREQ * Math.PI * 2 + phase) * FINGER_WAVE_AMOUNT;
-      bone.rotation[axis] = restVal + (curl + wave) * sign * this.legBendSign;
+      bone.rotation[axis] = restVal + (curl * gestureMultiplier + wave) * sign * this.legBendSign;
     }
-
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────

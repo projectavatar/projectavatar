@@ -23,7 +23,7 @@ export { loadVRMAAnimation } from './vrma-loader.ts';
 
 // ─── Idle layer ───────────────────────────────────────────────────────────────
 export { IdleLayer } from './idle-layer.ts';
-export type { IdleMode } from './idle-layer.ts';
+export type { IdleMode, HandGesture } from './idle-layer.ts';
 
 // ─── Body parts ───────────────────────────────────────────────────────────────
 export {

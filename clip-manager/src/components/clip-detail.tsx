@@ -208,6 +208,20 @@ export function ClipDetail({ clipId, data, dispatch }: ClipDetailProps) {
             {ENERGIES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
+
+        <div style={rowStyle}>
+          <span style={labelStyle}>Hand Gesture</span>
+          <select
+            style={selectStyle}
+            value={clip.handGesture ?? 'relaxed'}
+            onChange={(e) => update({ handGesture: e.target.value as ClipData['handGesture'] })}
+          >
+            <option value="relaxed">relaxed</option>
+            <option value="fist">fist</option>
+            <option value="pointing">pointing</option>
+            <option value="none">none</option>
+          </select>
+        </div>
       </div>
 
       {/* Tags */}
