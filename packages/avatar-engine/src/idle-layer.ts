@@ -58,9 +58,9 @@ const CURL_LITTLE = 1.2;
 const FINGER_CURL_PROXIMAL    = 0.25;  // radians — base curl (first knuckle)
 const FINGER_CURL_INTERMEDIATE = 0.35; // radians — second knuckle
 const FINGER_CURL_DISTAL      = 0.20;  // radians — fingertip
-const THUMB_CURL_META         = 0.30;  // radians — thumb base
-const THUMB_CURL_PROXIMAL     = 0.35;  // radians — thumb middle
-const THUMB_CURL_DISTAL       = 0.20;  // radians — thumb tip
+const THUMB_CURL_META         = 0.22;  // radians — thumb base
+const THUMB_CURL_PROXIMAL     = 0.27;  // radians — thumb middle
+const THUMB_CURL_DISTAL       = 0.15;  // radians — thumb tip
 
 // Air mode — leg sway (sine variation on dangle)
 const LEG_SWAY_FREQ_1   = 0.08;   // Hz — primary slow cycle
