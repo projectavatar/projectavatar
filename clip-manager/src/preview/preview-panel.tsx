@@ -167,6 +167,8 @@ interface PreviewPanelProps {
   previewAction?: string | null;
   /** Group index to preview (Actions tab — specific group) */
   previewGroupIndex?: number;
+  /** Emotion to preview VFX for (Emotions tab) */
+  previewEmotion?: string | null;
   /** Called when preview is ready */
   onReady?: () => void;
   /** Prop to show in the preview (Props tab) */
@@ -181,7 +183,7 @@ const SPEEDS = [0.25, 0.5, 1.0, 1.5, 2.0];
 
 export function PreviewPanel({
   clipPath, modelUrl, clipBodyParts, clipsData, previewAction, previewGroupIndex = 0, onReady,
-  propId, propTransform, onPropTransformChange,
+  propId, propTransform, onPropTransformChange, previewEmotion,
 }: PreviewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<ClipPreview | null>(null);
@@ -265,6 +267,7 @@ export function PreviewPanel({
       if (data) {
         try {
           await preview.enableEngine(data as ClipsJsonData);
+          preview.initVfx(data as ClipsJsonData);
           setEngineReady(true);
         } catch (err) {
           console.warn('[PreviewPanel] Engine init failed:', err);
@@ -274,6 +277,11 @@ export function PreviewPanel({
       console.error('[PreviewPanel] Failed to load model:', err);
     });
   }, [modelUrl, onReady]);
+
+  // VFX emotion preview
+  useEffect(() => {
+    previewRef.current?.setPreviewEmotion(previewEmotion ?? null);
+  }, [previewEmotion]);
 
   // Play single clip when clipPath changes (Clips tab)
   useEffect(() => {
@@ -327,6 +335,7 @@ export function PreviewPanel({
       if (!preview.engineActive) {
         try {
           await preview.enableEngine(data as ClipsJsonData);
+          preview.initVfx(data as ClipsJsonData);
           setEngineReady(true);
         } catch (err) {
           console.warn('[PreviewPanel] Engine init failed for action preview:', err);

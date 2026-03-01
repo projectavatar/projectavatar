@@ -19,6 +19,7 @@ import {
   ExpressionController,
   BlinkController,
   ClipRegistry,
+  VfxManager,
   loadMixamoAnimation,
   loadVRMAAnimation,
 } from '@project-avatar/avatar-engine';
@@ -58,6 +59,7 @@ export class ClipPreview {
   private propModelCache = new Map<string, THREE.Object3D>();
   private propInstance: THREE.Object3D | null = null;
   private gizmo: import('three/addons/controls/TransformControls.js').TransformControls | null = null;
+  private vfxManager: VfxManager | null = null;
   private _gizmoMode: 'translate' | 'rotate' | 'scale' = 'translate';
 
   /** Callback when the prop transform changes via gizmo drag. */
@@ -321,6 +323,20 @@ export class ClipPreview {
   }
 
   // ─── Prop Gizmo ─────────────────────────────────────────────────────────────────────
+
+  /** Initialize VFX manager and load bindings from clip data. */
+  initVfx(clipsData: ClipsJsonData): void {
+    this.vfxManager?.clear();
+    this.vfxManager = new VfxManager(this.avatarScene.scene);
+    const registry = new ClipRegistry(clipsData);
+    const { emotionVfx, actionVfx } = registry.getVfxBindings();
+    this.vfxManager.loadBindings(emotionVfx, actionVfx);
+  }
+
+  /** Set the preview emotion — spawns/despawns VFX. */
+  setPreviewEmotion(emotion: string | null): void {
+    this.vfxManager?.setState(emotion, null);
+  }
 
   async showProp(propId: string, transform: PropTransform): Promise<void> {
     this.removeProp();

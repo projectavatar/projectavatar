@@ -234,6 +234,7 @@ export function App() {
             propId={propPreviewId}
             propTransform={propPreviewTransform}
             onPropTransformChange={handlePropTransformChange}
+            previewEmotion={state.activeTab === 'emotions' ? state.expandedEmotion : null}
           />
         </div>
       </div>
