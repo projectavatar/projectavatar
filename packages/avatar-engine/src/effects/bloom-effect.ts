@@ -95,6 +95,18 @@ export class BloomEffect {
     const smaaPass = new SMAAPass(resolution.x, resolution.y);
     this.composer.addPass(smaaPass);
 
+    // Patch bloom blend material: use custom blending to preserve alpha.
+    // Default AdditiveBlending adds to ALL channels including alpha,
+    // making transparent areas opaque. Custom blending adds RGB only.
+    const blendMat = (this.bloomPass as any).blendMaterial;
+    if (blendMat) {
+      blendMat.blending = THREE.CustomBlending;
+      blendMat.blendSrc = THREE.OneFactor;
+      blendMat.blendDst = THREE.OneFactor;
+      blendMat.blendSrcAlpha = THREE.ZeroFactor;
+      blendMat.blendDstAlpha = THREE.OneFactor;
+    }
+
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);
   }
