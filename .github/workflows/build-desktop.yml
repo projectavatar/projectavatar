@@ -3,7 +3,7 @@ name: Build Desktop
 on:
   workflow_dispatch:
   push:
-    branches: [release]
+    branches: [master]
     paths:
       - 'desktop/**'
       - 'web/**'
