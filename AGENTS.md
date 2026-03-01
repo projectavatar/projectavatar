@@ -64,15 +64,25 @@ Three.js mixer does NOT normalize weights — if total weight < 1.0, rest pose (
 Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade-out duration used at runtime is always the incoming clip's `fadeIn` (for weight complementarity).
 
 ### Key Engine Classes
-- **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Integrates TransitionStabilizer for smooth transitions.
-- **TransitionStabilizer** — masks crossfade artifacts for hips and hands via soft positional pinning. Foot skating is handled by per-body-part crossfade timing (fast feet, slow hips) instead of procedural arcs.
+- **AnimationController** — weight-based multi-clip blending. Splits clips into per-body-part sub-actions. Finger bone retargeting (30 Mixamo→VRM mappings). Detects clip finger tracks and signals IdleLayer to skip procedural curl.
 - **ClipRegistry** — data-driven clip resolver (v3). Resolves action + emotion + intensity + group index → final clip set with body part scoping. `selectGroup()` for weighted random selection, `isActionLooping()`, `getGroupCount()`. Dynamic fallback chain: action → idle action → first clip in registry.
 - **ExpressionController** — VRM blend shapes + additive head bone rotation per emotion.
 - **BlinkController** — random blink + micro-glance.
 - **PropManager** — GLB prop loading + hand bone attachment.
 - **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
-- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev }`.
+- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev }`. Supports custom render callback for postprocessing (bloom).
 - **VrmManager** — normalizes all VRMs to 1.6m height, centers hips at origin (0,0,0). Exposes `bodyCenter` & `faceCenter` for camera framing.
+- **IdleLayer** — procedural idle animation (air mode: hover bob, body tilt, backward lean, leg dangle with asymmetric tuck, finger curl; ground mode: breathing, sway). Runs after mixer.
+- **EffectsManager** — orchestrates toggleable visual effects (particle aura, energy trails, bloom, holographic). All effects gate on `modelReady` and use exponential lerp fade.
+
+### Visual Effects (`packages/avatar-engine/src/effects/`)
+Four toggleable effects, all off by default, persisted to localStorage:
+- **ParticleAura** — 80 orbiting particles with custom ShaderMaterial, additive blending
+- **EnergyTrails** — ribbon geometry following middle finger distal bones
+- **BloomEffect** — UnrealBloomPass + SMAAPass via EffectComposer, strength 0.4. Uses `AvatarScene.setCustomRender()`.
+- **Holographic** — overlay SkinnedMesh clones as siblings in VRM scene graph. Custom scan line + fresnel ShaderMaterial with `skinning: true`.
+
+**Important:** VRM uses MToon materials. Shader injection via `onBeforeCompile` breaks MToon. Overlay meshes must be siblings in the VRM scene graph (not external Group) to share skeleton references.
 
 ### Animation Data Pipeline
 
@@ -111,14 +121,15 @@ Client → server messages (`WebSocketClientMessage`):
 ## Key Files
 
 ### Avatar Engine (`packages/avatar-engine/`)
-- `src/animation-controller.ts` — Weight-based multi-clip blending + body part sub-actions.
-- `src/transition-stabilizer.ts` — Pins hips/hands during transitions (soft constraints). Foot skating handled by per-body-part crossfade timing in animation-controller.
+- `src/animation-controller.ts` — Weight-based multi-clip blending + body part sub-actions + finger track detection.
 - `src/expression-controller.ts` — Blend shape weights + head bone euler offsets.
 - `src/clip-registry.ts` — Data-driven clip resolver (ClipRegistry class).
 - `src/state-machine.ts` — Event dispatch + idle timeout.
-- `src/mixamo-loader.ts` — FBX → VRM retargeting.
-- `src/body-parts.ts` — Bone ↔ body part mapping.
-- `src/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling, optional grid.
+- `src/mixamo-loader.ts` — FBX → VRM retargeting (includes 30 finger bone mappings).
+- `src/body-parts.ts` — Bone ↔ body part mapping (finger bones in `arms` group).
+- `src/idle-layer.ts` — Procedural idle (air/ground modes, leg dangle, backward lean, finger curl).
+- `src/avatar-scene.ts` — Three.js scene setup, render loop, visibility handling, optional grid, custom render callback.
+- `src/effects/` — Visual effects: particle-aura, energy-trails, bloom-effect, holographic, effects-manager.
 
 ### Relay
 - `relay/src/channel.ts` — Durable Object. Handles push, stream, state, set_model.

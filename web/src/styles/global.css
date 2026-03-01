@@ -62,3 +62,26 @@ input {
 input:focus {
   border-color: var(--color-accent);
 }
+
+/* Minimal scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(136, 136, 152, 0.3);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(136, 136, 152, 0.5);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(136, 136, 152, 0.3) transparent;
+}

@@ -35,6 +35,32 @@ const DEFAULT_GRID_DIVISIONS = 16;
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
+
+// ─── Camera persistence ───────────────────────────────────────────────────────
+
+const CAMERA_STORAGE_KEY = 'project-avatar-camera';
+const CAMERA_SAVE_DEBOUNCE = 500; // ms
+
+interface CameraState {
+  position: [number, number, number];
+}
+
+function loadCameraState(): CameraState | null {
+  try {
+    const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.position)) return parsed;
+    return null;
+  } catch { return null; }
+}
+
+function saveCameraState(state: CameraState): void {
+  try {
+    localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(state));
+  } catch { /* localStorage unavailable */ }
+}
+
 export class AvatarScene {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
@@ -45,6 +71,15 @@ export class AvatarScene {
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
+  private onResizeCallback: ((width: number, height: number) => void) | null = null;
+  private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private cameraRestored = false;
+
+  /**
+   * Optional custom render function — replaces renderer.render() in tick().
+   * Used by BloomEffect to render through the EffectComposer instead.
+   */
+  private customRender: (() => void) | null = null;
 
   /** Dynamic framing points — set via setFramingPoints() after model load. */
   private bodyCenter = new THREE.Vector3(0, 0, 0);
@@ -115,6 +150,8 @@ export class AvatarScene {
         MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.ROTATE,
       };
+      // No panning — orbit target must stay on the model
+      this.controls.enablePan = false;
       // Lock vertical rotation in production — no peeking allowed
       if (!options?.dev) {
         // Clamp polar angle to ±22° from equator
@@ -123,6 +160,28 @@ export class AvatarScene {
       }
 
       this.controls.update();
+
+      // Restore saved camera position/zoom
+      const saved = loadCameraState();
+      if (saved) {
+        this.camera.position.set(...saved.position);
+        this.controls.update();
+        this.framingEnabled = false;
+        this.cameraRestored = true;
+      }
+
+      // Persist camera on change (debounced)
+      this.controls.addEventListener('change', () => {
+        if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
+        this.cameraSaveTimer = setTimeout(() => {
+          const pos = this.camera.position;
+          saveCameraState({
+            position: [pos.x, pos.y, pos.z],
+          });
+          // Once the user manually moves the camera, stop auto-framing
+          this.framingEnabled = false;
+        }, CAMERA_SAVE_DEBOUNCE);
+      });
     }
 
     this.clock = new THREE.Clock();
@@ -144,8 +203,11 @@ export class AvatarScene {
   setFramingPoints(body: THREE.Vector3, face: THREE.Vector3): void {
     this.bodyCenter.copy(body);
     this.faceCenter.copy(face);
-    this.framingEnabled = true;
-    this._updateFramingTarget();
+    // Don't override user's saved camera position with auto-framing
+    if (!this.cameraRestored) {
+      this.framingEnabled = true;
+      this._updateFramingTarget();
+    }
   }
 
   /** Register an update callback invoked each frame with delta time. */
@@ -157,6 +219,14 @@ export class AvatarScene {
   removeUpdate(callback: (delta: number) => void): void {
     const idx = this.updateCallbacks.indexOf(callback);
     if (idx !== -1) this.updateCallbacks.splice(idx, 1);
+  }
+
+  /**
+   * Set a custom render function that replaces renderer.render().
+   * Pass null to restore default rendering.
+   */
+  setCustomRender(fn: (() => void) | null): void {
+    this.customRender = fn;
   }
 
   /** Start the render loop. */
@@ -178,6 +248,7 @@ export class AvatarScene {
   /** Full cleanup — call when unmounting. */
   dispose(): void {
     this.stop();
+    if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
     this.controls?.dispose();
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
@@ -223,7 +294,16 @@ export class AvatarScene {
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
-    this.renderer.render(this.scene, this.camera);
+    if (this.customRender) {
+      this.customRender();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  /** Set a resize callback for external compositors. */
+  onResize(fn: ((width: number, height: number) => void) | null): void {
+    this.onResizeCallback = fn;
   }
 
   private handleResize(): void {
@@ -234,6 +314,7 @@ export class AvatarScene {
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      this.onResizeCallback?.(width, height);
     }
   }
 

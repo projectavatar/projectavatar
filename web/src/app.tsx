@@ -7,7 +7,7 @@ import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
 import { DevPanel } from './components/dev-panel.tsx';
-import type { StateMachine } from '@project-avatar/avatar-engine';
+import type { StateMachine, EffectsManager } from '@project-avatar/avatar-engine';
 
 const settingsBtnStyle: React.CSSProperties = {
   position: 'fixed',
@@ -78,13 +78,17 @@ export function App() {
   const modelId                = useStore((s) => s.modelId);
   const theme                  = useStore((s) => s.theme);
   const channelStateReceived   = useStore((s) => s.channelStateReceived);
+  const effects                 = useStore((s) => s.effects);
+  const renderScale              = useStore((s) => s.renderScale);
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.
   const sendSetModelRef = useRef<((modelId: string | null) => void) | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
+  const effectsManagerRef = useRef<EffectsManager | null>(null);
   const [stateMachine, setStateMachine] = useState<StateMachine | null>(null);
+  const [effectsManager, setEffectsManager] = useState<EffectsManager | null>(null);
 
   const handleSendSetModelReady = useCallback(
     (fn: ((modelId: string | null) => void) | null) => {
@@ -97,6 +101,14 @@ export function App() {
     (sm: StateMachine | null) => {
       stateMachineRef.current = sm;
       setStateMachine(sm);
+    },
+    [],
+  );
+
+  const handleEffectsManager = useCallback(
+    (em: EffectsManager | null) => {
+      effectsManagerRef.current = em;
+      setEffectsManager(em);
     },
     [],
   );
@@ -116,6 +128,13 @@ export function App() {
     [], // stable for App lifetime
   );
 
+  // Sync effects state from store to manager
+  useEffect(() => {
+    if (effectsManager) effectsManager.applyState(effects);
+  }, [effectsManager, effects]);
+
+  // Sync render scale — not available on sceneRef yet, pass via prop
+
   useEffect(() => {
     document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
   }, [theme]);
@@ -131,7 +150,7 @@ export function App() {
   return (
     <WsContext.Provider value={wsContextValue}>
       <div style={avatarContainerStyle}>
-        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} />
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} renderScale={renderScale} />
 
         {showPicker && <ModelPickerOverlay />}
 

@@ -134,7 +134,10 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 - **6 reactive props** — keyboard, magnifying glass, coffee cup, book, phone, scroll
 - **Bundled VRM models** — import your own from VRoid Hub or anywhere
 - **Intensity levels** — low, medium, high — affects animation energy and expression strength
-- **Hybrid animation system** — Mixamo FBX clips + procedural idle layer (breathing, sway, head drift)
+- **Hybrid animation system** — Mixamo FBX clips + procedural idle layer (air mode: hover, leg dangle, backward lean; ground mode: breathing, sway)
+- **Finger animation** — 30-bone Mixamo→VRM retargeting + procedural finger curl fallback
+- **Visual effects** — toggleable particle aura, energy trails, bloom + SMAA, holographic scan lines
+- **Render scale** — 1x/2x/3x pixel ratio for performance vs quality tradeoff
 - **Layer toggles** — enable/disable FBX clips, idle noise, expressions, head offset, blink independently
 - **One-URL skill install** — agent installs its own skill by fetching a link
 - **OBS Browser Source** — works out of the box, transparent background

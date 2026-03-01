@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useStore } from '../state/store.ts';
 import { useWsClient } from '../avatar/avatar-canvas.tsx';
 import { isValidToken } from '@project-avatar/shared';
+import { EFFECT_LABELS, EFFECT_DESCRIPTIONS } from '@project-avatar/avatar-engine';
+import type { EffectsState } from '@project-avatar/avatar-engine';
 import manifest from '../assets/models/manifest.json';
 import type { ModelEntry } from '../types.ts';
 
@@ -29,6 +31,8 @@ const drawerStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '1.25rem',
+  scrollbarWidth: 'thin',
+  scrollbarColor: 'rgba(136, 136, 152, 0.3) transparent',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -102,60 +106,54 @@ const hintStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
+const tabBarStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '0.25rem',
+  borderBottom: '1px solid var(--color-border)',
+  paddingBottom: 0,
+};
 
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [value]);
-  return (
-    <button
-      onClick={handleCopy}
-      style={{
-        ...btnStyle,
-        background: copied ? 'rgba(34,197,94,0.15)' : 'transparent',
-        border: '1px solid var(--color-border)',
-        color: copied ? 'var(--color-success)' : 'var(--color-text-muted)',
-        fontSize: '0.75rem',
-        padding: '6px 10px',
-        flexShrink: 0,
-      }}
-    >
-      {copied ? 'Copied!' : 'Copy'}
-    </button>
-  );
-}
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '8px 16px',
+  fontSize: '0.8rem',
+  fontWeight: active ? 600 : 400,
+  color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+  cursor: 'pointer',
+  transition: 'all 0.15s',
+});
 
-function UrlField({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={sectionStyle}>
-      <label style={labelStyle}>{label}</label>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <div style={{
-          flex: 1,
-          padding: '7px 10px',
-          fontSize: 12,
-          fontFamily: 'var(--font-mono)',
-          background: 'var(--color-bg)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 6,
-          color: 'var(--color-text-muted)',
-          wordBreak: 'break-all',
-          lineHeight: 1.4,
-          userSelect: 'all',
-        }}>
-          {value}
-        </div>
-        <CopyButton value={value} />
-      </div>
-      {hint && <div style={hintStyle}>{hint}</div>}
-    </div>
-  );
-}
+const effectToggleStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '10px 0',
+  borderBottom: '1px solid rgba(42, 42, 58, 0.5)',
+};
+
+const effectToggleSwitchStyle = (on: boolean): React.CSSProperties => ({
+  width: 36,
+  height: 18,
+  borderRadius: 9,
+  background: on ? 'var(--color-accent)' : 'var(--color-border)',
+  cursor: 'pointer',
+  position: 'relative' as const,
+  transition: 'background 0.15s',
+  flexShrink: 0,
+});
+
+const effectToggleKnobStyle = (on: boolean): React.CSSProperties => ({
+  width: 14,
+  height: 14,
+  borderRadius: 7,
+  background: '#fff',
+  position: 'absolute' as const,
+  top: 2,
+  left: on ? 20 : 2,
+  transition: 'left 0.15s',
+});
 
 // ─── Main Drawer ───────────────────────────────────────────────────────────────
 
@@ -165,14 +163,20 @@ export function SettingsDrawer() {
     modelId,
     relayUrl,
     theme,
+    effects,
+    renderScale,
     settingsOpen,
     connectionState,
     setToken,
     setRelayUrl,
     setTheme,
+    setEffect,
+    setRenderScale,
     setSettingsOpen,
     generateAndSetToken,
   } = useStore();
+
+  const [activeTab, setActiveTab] = useState<'general' | 'effects'>('general');
 
   const { sendSetModel } = useWsClient();
 
@@ -180,9 +184,6 @@ export function SettingsDrawer() {
   const [relayInput, setRelayInput] = useState(relayUrl);
   const [tokenError, setTokenError] = useState('');
 
-  // Share link: token only — model is owned by the DO, not the URL
-  const avatarUrl  = token ? `${window.location.origin}/?token=${token}` : null;
-  const skillUrl   = token ? `${relayUrl}/skill/install?token=${token}` : null;
   const isConnected = connectionState === 'connected';
 
   if (!settingsOpen) return null;
@@ -227,24 +228,81 @@ export function SettingsDrawer() {
           <button style={closeBtnStyle} onClick={() => setSettingsOpen(false)}>×</button>
         </div>
 
-        {/* Share links */}
-        {skillUrl && (
-          <UrlField
-            label="Skill Install URL"
-            value={skillUrl}
-            hint="Give this URL to your AI agent to connect it to your avatar."
-          />
-        )}
-        {avatarUrl && (
-          <UrlField
-            label="Avatar URL"
-            value={avatarUrl}
-            hint="Open this on any screen or add to OBS as a browser source."
-          />
+        {/* Tab bar */}
+        <div style={tabBarStyle}>
+          <button style={tabStyle(activeTab === 'general')} onClick={() => setActiveTab('general')}>
+            General
+          </button>
+          <button style={tabStyle(activeTab === 'effects')} onClick={() => setActiveTab('effects')}>
+            ✨ Effects
+          </button>
+        </div>
+
+        {activeTab === 'effects' && (
+          <>
+            <div style={sectionStyle}>
+              <div style={{ ...labelStyle, marginBottom: '0.25rem' }}>VISUAL EFFECTS</div>
+              <div style={hintStyle}>
+                Toggle visual effects on the avatar. Some effects work best together (e.g. Eye Glow + Bloom).
+              </div>
+            </div>
+            <div style={effectToggleStyle}>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}>
+                  Render Scale
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  Higher = sharper but heavier ({renderScale}x)
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[1, 2, 3].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setRenderScale(s)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      border: `1px solid ${renderScale === s ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                      background: renderScale === s ? 'rgba(108, 92, 231, 0.2)' : 'transparent',
+                      color: renderScale === s ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(Object.keys(EFFECT_LABELS) as (keyof EffectsState)[]).map((effect) => (
+              <div key={effect} style={effectToggleStyle}>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--color-text)' }}>
+                    {EFFECT_LABELS[effect]}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                    {EFFECT_DESCRIPTIONS[effect]}
+                  </div>
+                </div>
+                <div
+                  style={effectToggleSwitchStyle(effects[effect])}
+                  onClick={() => setEffect(effect, !effects[effect])}
+                  role="switch"
+                  aria-checked={effects[effect]}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setEffect(effect, !effects[effect]); }}
+                >
+                  <div style={effectToggleKnobStyle(effects[effect])} />
+                </div>
+              </div>
+            ))}
+          </>
         )}
 
-        <div style={{ borderTop: '1px solid var(--color-border)' }} />
-
+        {activeTab === 'general' && <>
         {/* Model picker */}
         <div style={sectionStyle}>
           <label style={labelStyle}>Avatar Model</label>
@@ -338,6 +396,8 @@ export function SettingsDrawer() {
             <option value="transparent">Transparent (OBS)</option>
           </select>
         </div>
+
+        </>}
 
         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
           <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>

@@ -28,6 +28,7 @@ const HOVER_FREQUENCY_2 = 0.67;    // Hz — slightly faster, incommensurate
 const TILT_AMPLITUDE    = 0.03;    // radians (~1.7°) — gentle forward/back lean
 const TILT_FREQUENCY    = 0.25;    // Hz — slower than bob for variety
 const DRIFT_AMPLITUDE   = 0.02;    // radians — subtle left/right sway
+const BACKWARD_LEAN     = 0.15;    // radians (~8.6°) — static backward lean to balance tucked legs
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
@@ -82,7 +83,7 @@ const LEG_SWAY_AMOUNT_2 = 0.025;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
-const TOE_DROOP_ANGLE   = 0.14;    // radians — toes pointing slightly down
+const TOE_DROOP_ANGLE   = 0.349;    // radians — toes pointing slightly down
 
 // Ground mode
 const BREATHE_AMPLITUDE = 0.003;   // chest rotation oscillation
@@ -117,6 +118,7 @@ export class IdleLayer {
   // Finger + wrist bones
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
+  private clipHasFingers = false;
   private currentGesture: HandGesture = 'relaxed';
 
 
@@ -173,6 +175,11 @@ export class IdleLayer {
   /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
   setBypassHeadTracking(bypass: boolean): void {
     this.bypassHeadTracking = bypass;
+  }
+
+  /** Tell idle layer whether active clips have finger tracks. */
+  setClipHasFingers(hasFingers: boolean): void {
+    this.clipHasFingers = hasFingers;
   }
 
   /** Set camera reference for subtle head tracking. */
@@ -398,7 +405,13 @@ export class IdleLayer {
       );
     }
 
-    // 3. Gentle body tilt — spine leans forward/back
+    // 3. Backward lean on hips — counterbalances tucked legs
+    if (this.hips) {
+      // VRM 0.x has inverted axes — legBendSign handles this
+      this.hips.rotation.x += -BACKWARD_LEAN * this.legBendSign;
+    }
+
+    // 4. Gentle body tilt — spine leans forward/back
     if (this.spine) {
       const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE;
       this.spine.rotation.x += tiltX;
@@ -410,13 +423,15 @@ export class IdleLayer {
       this.hips.rotation.z += driftZ;
     }
 
-    // 5. Leg dangle — relaxed hanging pose
+    // 6. Leg dangle — relaxed hanging pose
     this._applyLegDangle(t);
 
-    // 6. Relaxed finger curl + wave
-    this._applyFingerCurl(t);
+    // 7. Relaxed finger curl + wave (skip if clip has its own finger animation)
+    if (!this.clipHasFingers) {
+      this._applyFingerCurl(t);
+    }
 
-    // 7. Subtle head tracking toward camera
+    // 8. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
       this._applyHeadTracking(delta);
     }
@@ -448,8 +463,10 @@ export class IdleLayer {
       this.hips.position.x += shift;
     }
 
-    // 4. Relaxed finger curl + wave
-    this._applyFingerCurl(t);
+    // 4. Relaxed finger curl + wave (skip if clip has its own finger animation)
+    if (!this.clipHasFingers) {
+      this._applyFingerCurl(t);
+    }
 
     // 5. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {

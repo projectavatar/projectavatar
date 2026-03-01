@@ -26,6 +26,11 @@ import type { BodyPart } from './body-parts.ts';
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const DEFAULT_FADE_IN = 0.3;
+
+/** Finger bone name fragments for detecting finger animation tracks. */
+const FINGER_BONE_NAMES = [
+  'Index', 'Middle', 'Ring', 'Little', 'Thumb',
+];
 /** In air mode, dampen leg/feet clip weight so idle dangle dominates. */
 const AIR_LEG_WEIGHT = 0.45;
 
@@ -108,6 +113,8 @@ export class AnimationController {
 
   /** Whether loadAnimations() has completed. Idle layer is suppressed until then. */
   private _loaded = false;
+  private _firstFrameFired = false;
+  private _firstFrameCallback: (() => void) | null = null;
 
   /** Whether all animations have been preloaded. */
   get loaded(): boolean { return this._loaded; }
@@ -255,6 +262,11 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
+      if (!this._firstFrameFired) {
+        this._firstFrameFired = true;
+        this._firstFrameCallback?.();
+        this._firstFrameCallback = null;
+      }
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
         this.loopCycleElapsed += dt;
@@ -319,6 +331,24 @@ export class AnimationController {
   /** Enable/disable the procedural idle layer. */
   setIdleLayerEnabled(enabled: boolean): void {
     this.idleLayer.setEnabled(enabled);
+  }
+
+  /** Check if a cached clip has tracks for finger bones. */
+  private _clipHasFingerTracks(filename: string): boolean {
+    const clip = this.clipCache.get(filename);
+    if (!clip) return false;
+    return clip.tracks.some((track) =>
+      FINGER_BONE_NAMES.some((name) => track.name.includes(name)),
+    );
+  }
+
+  /** Register a callback to fire after the first mixer update post-load. */
+  onFirstFrame(callback: () => void): void {
+    if (this._firstFrameFired) {
+      callback(); // already happened
+    } else {
+      this._firstFrameCallback = callback;
+    }
   }
 
   dispose(): void {
@@ -534,14 +564,23 @@ export class AnimationController {
   }
 
   /**
-   * Sync idle layer state (head tracking bypass, hand gesture) with current action.
+   * Sync idle layer state (head tracking bypass, hand gesture, finger tracks) with current action.
    */
   private _syncIdleLayerState(action: Action, groupIndex: number): void {
     const bypass = this.registry.shouldBypassHeadTracking(action);
     this.idleLayer.setBypassHeadTracking(bypass);
     if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
-    const gesture = this.registry.getHandGesture(action, groupIndex) as HandGesture | undefined;
-    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+
+    // Check if any clip in this action group has finger animation tracks
+    const { clips } = this.registry.resolveClips(action, this.currentEmotion, this.currentIntensity, groupIndex);
+    const hasFingers = clips.some((clip) => this._clipHasFingerTracks(clip.file));
+    this.idleLayer.setClipHasFingers(hasFingers);
+
+    // Only apply procedural hand gesture if clip doesn't have its own fingers
+    if (!hasFingers) {
+      const gesture = this.registry.getHandGesture(action, groupIndex) as HandGesture | undefined;
+      this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+    }
   }
 
   /**
