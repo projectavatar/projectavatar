@@ -547,6 +547,9 @@ export class IdleLayer {
     // Compute camera direction
     const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
 
+    // DEBUG: check why cursor tracking might not activate
+    if (Math.random() < 0.005) console.log('[HeadTrack-pre]', { hasCursorTarget: !!this.cursorTarget, cursorActive, cursorBlend: this.cursorBlend.toFixed(4), timeSinceMove: this.cursorTarget ? (now - this.cursorLastMoveTime).toFixed(0) : 'n/a' });
+
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
       // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
       const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
