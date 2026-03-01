@@ -19,7 +19,7 @@
     },
     "dismissive": {
       "file": "dismissive.fbx",
-      "loop": true,
+      "loop": false,
       "fadeIn": 0.15,
       "fadeOut": 0.3,
       "category": "gesture",
@@ -96,7 +96,7 @@
         "feet"
       ],
       "tags": [],
-      "handGesture": "relaxed"
+      "handGesture": "fist"
     },
     "laughing": {
       "file": "laughing.fbx",
@@ -128,8 +128,7 @@
         "legs",
         "feet"
       ],
-      "tags": [],
-      "handGesture": "fist"
+      "tags": []
     },
     "nodding": {
       "file": "nodding.fbx",
@@ -225,8 +224,7 @@
         "legs",
         "feet"
       ],
-      "tags": [],
-      "handGesture": "relaxed"
+      "tags": []
     },
     "typing-touch": {
       "file": "typing-touch.fbx",
@@ -242,8 +240,7 @@
         "legs",
         "feet"
       ],
-      "tags": [],
-      "handGesture": "pointing"
+      "tags": []
     },
     "idle-stretch": {
       "file": "idle-stretch.fbx",
@@ -308,7 +305,7 @@
     "typing": {
       "groups": [
         {
-          "rarity": 0,
+          "rarity": 0.7,
           "clips": [
             {
               "clip": "typing-keyboard",
