@@ -554,26 +554,6 @@ export function PreviewPanel({
           ))}
         </div>
 
-        {/* Prop Gizmo Controls */}
-        {propId && (
-          <div style={layerSectionStyle}>
-            <div style={layerTitleStyle}>Prop Gizmo</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {(['translate', 'rotate', 'scale'] as const).map(mode => (
-                <button
-                  key={mode}
-                  style={gizmoMode === mode ? activeBtnStyle : btnStyle}
-                  onClick={() => setGizmoMode(mode)}
-                >
-                  {mode === 'translate' ? '↔ Move' : mode === 'rotate' ? '↻ Rotate' : '⇔ Scale'}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--color-text-dim)', marginTop: 6 }}>
-              Drag the gizmo to position the prop. Changes save to clips.json.
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
