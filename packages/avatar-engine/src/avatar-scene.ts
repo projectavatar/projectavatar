@@ -47,7 +47,12 @@ const CAMERA_STORAGE_KEY = 'project-avatar-camera';
 const CAMERA_SAVE_DEBOUNCE = 500; // ms
 
 interface CameraState {
-  position: [number, number, number];
+  /** Spherical distance from orbit target (zoom level). */
+  distance: number;
+  /** Azimuthal angle in radians (horizontal orbit). */
+  azimuthal: number;
+  /** Polar angle in radians (vertical orbit). */
+  polar: number;
 }
 
 function loadCameraState(): CameraState | null {
@@ -55,7 +60,8 @@ function loadCameraState(): CameraState | null {
     const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.position)) return parsed;
+    if (typeof parsed.distance === 'number') return parsed;
+    // Discard legacy position-based format
     return null;
   } catch { return null; }
 }
@@ -78,6 +84,8 @@ export class AvatarScene {
   private updateCallbacks: Array<(delta: number) => void> = [];
   private onResizeCallback: ((width: number, height: number) => void) | null = null;
   private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Deferred spherical coords — applied once framing points are set. */
+  private savedSpherical: CameraState | null = null;
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -166,20 +174,22 @@ export class AvatarScene {
 
       this.controls.update();
 
-      // Restore saved camera position/zoom
+      // Restore saved camera angle/zoom (spherical coordinates).
+      // The orbit target is set by dynamic framing after model load —
+      // we only persist the viewer's angle and distance, not position.
       const saved = loadCameraState();
       if (saved) {
-        this.camera.position.set(...saved.position);
-        this.controls.update();
+        this.savedSpherical = saved;
       }
 
       // Persist camera on change (debounced)
       this.controls.addEventListener('change', () => {
         if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
         this.cameraSaveTimer = setTimeout(() => {
-          const pos = this.camera.position;
           saveCameraState({
-            position: [pos.x, pos.y, pos.z],
+            distance: this.controls!.getDistance(),
+            azimuthal: this.controls!.getAzimuthalAngle(),
+            polar: this.controls!.getPolarAngle(),
           });
         }, CAMERA_SAVE_DEBOUNCE);
       });
@@ -206,6 +216,19 @@ export class AvatarScene {
     this.faceCenter.copy(face);
     this.framingEnabled = true;
     this._updateFramingTarget();
+
+    // Apply deferred spherical coords now that the orbit target is valid.
+    // We position the camera relative to the freshly-computed target.
+    if (this.savedSpherical && this.controls) {
+      const { distance, azimuthal, polar } = this.savedSpherical;
+      const target = this.controls.target;
+      const offset = new THREE.Vector3();
+      // Spherical → Cartesian offset from target
+      offset.setFromSphericalCoords(distance, polar, azimuthal);
+      this.camera.position.copy(target).add(offset);
+      this.controls.update();
+      this.savedSpherical = null;
+    }
   }
 
   /** Register an update callback invoked each frame with delta time. */
