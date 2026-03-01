@@ -46,6 +46,7 @@ export interface ClipJson {
   energy: 'low' | 'medium' | 'high';
   bodyParts: string[];
   tags: string[];
+  handGesture?: string;
 }
 
 /** Clip layer within an animation group. */
@@ -67,6 +68,7 @@ export interface AnimationGroupJson {
 interface ActionJson {
   groups: AnimationGroupJson[];
   durationOverride: number | null;
+  bypassHeadTracking?: boolean;
 }
 
 /** Clip reference (for emotion overrides/layers). */
@@ -297,6 +299,29 @@ export class ClipRegistry {
   /**
    * Last resort fallback: find any usable clip in the registry.
    */
+  /** Get the hand gesture for an action (from its first clip). */
+  getHandGesture(action: Action, groupIndex: number = 0): string | undefined {
+    const actionData = this.data.actions[action as string];
+    if (!actionData || actionData.groups.length === 0) return undefined;
+    const safeIndex = Math.min(groupIndex, actionData.groups.length - 1);
+    const group = actionData.groups[safeIndex]!;
+    if (group.clips.length === 0) return undefined;
+    const firstClipRef = group.clips[0]!;
+    const clipData = this.data.clips[firstClipRef.clip];
+    return clipData?.handGesture;
+  }
+
+  /** Check if an action bypasses head tracking. */
+  shouldBypassHeadTracking(action: Action): boolean {
+    const actionData = this.data.actions[action as string];
+    return actionData?.bypassHeadTracking === true;
+  }
+
+  /** Get raw clip data by clip name (for fallback lookups). */
+  getClipData(clipName: string): ClipJson | undefined {
+    return this.data.clips[clipName];
+  }
+
   private _lastResortClip(): ClipEntry[] {
     for (const [clipId, clipData] of Object.entries(this.data.clips)) {
       console.warn('[ClipRegistry] No idle action configured — falling back to first clip:', clipId);

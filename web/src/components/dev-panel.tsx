@@ -194,6 +194,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
     fbxClips: true,
     expressions: true,
     blink: true,
+    idleLayer: true,
   });
 
   const logRef = useRef<HTMLDivElement>(null);

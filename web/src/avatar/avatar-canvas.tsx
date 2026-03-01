@@ -71,7 +71,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const avatarScene = new AvatarScene(canvas);
+    const avatarScene = new AvatarScene(canvas, { orbit: true });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 
@@ -95,6 +95,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
           }),
         },
       );
+      stateMachine.setCamera(avatarScene.camera);
       stateMachineRef.current = stateMachine;
       onStateMachine?.(stateMachine);
       avatarScene.onUpdate((delta) => { stateMachine.update(delta); vrmManager.update(delta); });
@@ -107,6 +108,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine }: {
         try {
           const vrm = await vrmManager.load(modelUrl);
           if (cancelled) return;
+          vrmManager.setLookAtTarget(avatarScene.camera);
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;

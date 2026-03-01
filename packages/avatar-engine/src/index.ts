@@ -21,6 +21,10 @@ export type { EventLogEntry } from './state-machine.ts';
 export { loadMixamoAnimation } from './mixamo-loader.ts';
 export { loadVRMAAnimation } from './vrma-loader.ts';
 
+// ─── Idle layer ───────────────────────────────────────────────────────────────
+export { IdleLayer } from './idle-layer.ts';
+export type { IdleMode, HandGesture } from './idle-layer.ts';
+
 // ─── Body parts ───────────────────────────────────────────────────────────────
 export {
   BODY_PARTS,

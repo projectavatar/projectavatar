@@ -12,7 +12,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -27,7 +28,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -42,7 +44,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -57,7 +60,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -72,7 +76,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -87,9 +92,11 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
-      "tags": []
+      "tags": [],
+      "handGesture": "relaxed"
     },
     "laughing": {
       "file": "laughing.fbx",
@@ -102,7 +109,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -117,9 +125,11 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
-      "tags": []
+      "tags": [],
+      "handGesture": "fist"
     },
     "nodding": {
       "file": "nodding.fbx",
@@ -132,7 +142,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -147,7 +158,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -162,7 +174,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -177,7 +190,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -192,14 +206,15 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
     "typing-keyboard": {
       "file": "typing-keyboard.fbx",
       "loop": true,
-      "fadeIn": 0.4,
+      "fadeIn": 0.05,
       "fadeOut": 0.4,
       "category": "continuous",
       "energy": "medium",
@@ -207,7 +222,8 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
       ],
       "tags": []
     },
@@ -222,7 +238,25 @@
         "head",
         "torso",
         "arms",
-        "legs", "feet"
+        "legs",
+        "feet"
+      ],
+      "tags": [],
+      "handGesture": "pointing"
+    },
+    "idle-stretch": {
+      "file": "idle-stretch.fbx",
+      "loop": false,
+      "fadeIn": 0.15,
+      "fadeOut": 0.3,
+      "category": "gesture",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs",
+        "feet"
       ],
       "tags": []
     }
@@ -240,37 +274,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.12,
-          "clips": [
-            {
-              "clip": "idle-happy",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs", "feet"
-              ]
-            }
-          ]
-        },
-        {
-          "rarity": 0.12,
-          "clips": [
-            {
-              "clip": "idle-switch",
-              "weight": 1,
-              "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -290,7 +295,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -311,13 +317,6 @@
                 "torso",
                 "arms"
               ]
-            },
-            {
-              "clip": "idle",
-              "weight": 0.5,
-              "bodyParts": [
-                "legs", "feet"
-              ]
             }
           ]
         },
@@ -337,7 +336,8 @@
               "clip": "idle",
               "weight": 0.5,
               "bodyParts": [
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -361,7 +361,8 @@
               "clip": "idle",
               "weight": 0.5,
               "bodyParts": [
-                "legs", "feet",
+                "legs",
+                "feet",
                 "torso",
                 "arms"
               ]
@@ -382,8 +383,9 @@
               "bodyParts": [
                 "head",
                 "torso",
+                "feet",
                 "arms",
-                "legs", "feet"
+                "legs"
               ]
             }
           ]
@@ -409,7 +411,8 @@
               "clip": "idle",
               "weight": 0.5,
               "bodyParts": [
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -426,10 +429,7 @@
               "clip": "dismissive",
               "weight": 1,
               "bodyParts": [
-                "head",
-                "torso",
-                "arms",
-                "legs", "feet"
+                "head"
               ]
             }
           ]
@@ -449,7 +449,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -469,7 +470,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -489,7 +491,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -509,7 +512,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]
@@ -529,7 +533,8 @@
                 "head",
                 "torso",
                 "arms",
-                "legs", "feet"
+                "legs",
+                "feet"
               ]
             }
           ]

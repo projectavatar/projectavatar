@@ -3,7 +3,8 @@
  * Lists all clips with search, filter, status indicators.
  */
 import { useMemo } from 'react';
-import type { ClipsJson } from '../types.ts';
+import type { ClipsJson, ClipData } from '../types.ts';
+import type { UnregisteredClip } from '../hooks/use-scan-clips.ts';
 import { getClipStatus } from '../state.ts';
 import type { Action } from '../state.ts';
 
@@ -105,6 +106,26 @@ const tagChipStyle: React.CSSProperties = {
   background: 'var(--color-surface-2)',
 };
 
+const unregisteredItemStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  cursor: 'pointer',
+  borderBottom: '1px solid rgba(42, 42, 58, 0.3)',
+  background: 'rgba(255, 170, 0, 0.05)',
+  transition: 'background 0.1s',
+};
+
+const unregisteredSectionStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 10,
+  fontFamily: 'var(--font-mono)',
+  fontWeight: 600,
+  color: 'var(--color-warning)',
+  borderBottom: '1px solid var(--color-border)',
+  background: 'rgba(255, 170, 0, 0.08)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+};
+
 const CATEGORIES = ['idle', 'gesture', 'reaction', 'emotion', 'continuous'];
 const ENERGIES = ['low', 'medium', 'high'];
 
@@ -116,11 +137,12 @@ interface ClipLibraryProps {
   searchQuery: string;
   categoryFilter: string | null;
   energyFilter: string | null;
+  unregisteredClips?: UnregisteredClip[];
   dispatch: React.Dispatch<Action>;
 }
 
 export function ClipLibrary({
-  data, selectedClip, searchQuery, categoryFilter, energyFilter, dispatch,
+  data, selectedClip, searchQuery, categoryFilter, energyFilter, unregisteredClips, dispatch,
 }: ClipLibraryProps) {
   const clips = useMemo(() => {
     let entries = Object.entries(data.clips);
@@ -222,10 +244,46 @@ export function ClipLibrary({
             </div>
           </div>
         ))}
-        {clips.length === 0 && (
+        {clips.length === 0 && !unregisteredClips?.length && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-dim)', fontStyle: 'italic', fontSize: 12 }}>
             No clips match filters
           </div>
+        )}
+
+        {/* Unregistered FBX files */}
+        {unregisteredClips && unregisteredClips.length > 0 && (
+          <>
+            <div style={unregisteredSectionStyle}>
+              + {unregisteredClips.length} new
+            </div>
+            {unregisteredClips.map(({ id, file }) => (
+              <div
+                key={id}
+                style={unregisteredItemStyle}
+                onClick={() => {
+                  const newClip: ClipData = {
+                    file,
+                    loop: false,
+                    fadeIn: 0.15,
+                    fadeOut: 0.3,
+                    category: 'gesture',
+                    energy: 'medium',
+                    bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
+                    tags: [],
+                  };
+                  dispatch({ type: 'ADD_CLIP', clipId: id, data: newClip });
+                  dispatch({ type: 'SELECT_CLIP', clipId: id });
+                }}
+                title={`Click to register ${file}`}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={dotStyle('var(--color-warning)')} />
+                  <div style={itemNameStyle}>{id}</div>
+                  <span style={badgeStyle('var(--color-warning)')}>new</span>
+                </div>
+              </div>
+            ))}
+          </>
         )}
       </div>
     </div>

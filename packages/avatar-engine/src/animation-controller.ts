@@ -18,26 +18,18 @@ import type { Action, Emotion, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry } from './clip-registry.ts';
-import { TransitionStabilizer } from './transition-stabilizer.ts';
+import { IdleLayer } from './idle-layer.ts';
+import type { IdleMode, HandGesture } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
 import type { BodyPart } from './body-parts.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const DEFAULT_FADE_IN = 0.3;
+/** In air mode, dampen leg/feet clip weight so idle dangle dominates. */
+const AIR_LEG_WEIGHT = 0.45;
 
-/**
- * Feet get a faster crossfade to minimize foot skating.
- * Short enough that sliding is barely visible, long enough to avoid a hard snap.
- */
-const FEET_FADE_IN = 0.1;
 
-/**
- * Legs (hips + upper/lower leg, excludes feet) get a slower crossfade than the default.
- * Multiplied with the base fade duration to make hip transitions smoother
- * and less jarring — the body should shift weight gradually.
- */
-const LEGS_FADE_MULTIPLIER = 2.0;
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -48,6 +40,8 @@ export interface LayerState {
   expressions: boolean;
   /** Blink + micro-glance */
   blink: boolean;
+  /** Procedural idle layer (hover/breathing) */
+  idleLayer: boolean;
 }
 
 /** Info about an active animation clip — exposed for dev panel. */
@@ -72,6 +66,7 @@ const DEFAULT_LAYERS: LayerState = {
   fbxClips: true,
   expressions: true,
   blink: true,
+  idleLayer: true,
 };
 
 /** Human-readable labels for each animation layer. */
@@ -79,6 +74,7 @@ export const LAYER_LABELS: Record<keyof LayerState, string> = {
   fbxClips: 'FBX Clips',
   expressions: 'Expressions',
   blink: 'Blink',
+  idleLayer: 'Idle Layer',
 };
 
 // ─── Sub-action: one mixer action per (clip × body-part-group) ────────────────
@@ -89,6 +85,8 @@ interface SubAction {
   bodyPartGroup: BodyPart;
   /** The configured weight before normalization. */
   baseWeight: number;
+  /** Fade out duration from clip config. */
+  fadeOut?: number;
 }
 
 // ─── AnimationController ──────────────────────────────────────────────────────
@@ -126,8 +124,8 @@ export class AnimationController {
   /** Whether the current action is looping and has multiple groups. */
   private isLoopCycling = false;
 
-  /** Foot IK stabilizer — pins feet during animation transitions. */
-  private stabilizer: TransitionStabilizer;
+  /** Procedural idle layer — hover/breathing on top of mixer clips. */
+  private idleLayer: IdleLayer;
 
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
@@ -139,7 +137,7 @@ export class AnimationController {
     this.vrm = vrm;
     this.registry = registry;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
-    this.stabilizer = new TransitionStabilizer(vrm);
+    this.idleLayer = new IdleLayer(vrm, 'air');
   }
 
   /**
@@ -171,6 +169,8 @@ export class AnimationController {
 
     // Start idle with a random group
     const groupIndex = this.registry.selectGroup('idle');
+    const initGesture = this.registry.getHandGesture('idle', groupIndex) as HandGesture | undefined;
+    this.idleLayer.setHandGesture(initGesture ?? 'relaxed');
     this._playBlendedAction('idle', 'idle', 'medium', groupIndex);
     this._loaded = true;
   }
@@ -196,6 +196,10 @@ export class AnimationController {
 
     // Select a random group for this action
     const groupIndex = this.registry.selectGroup(action);
+
+    // Update idle layer based on action properties
+    this._syncIdleLayerState(action, groupIndex);
+
     this._playBlendedAction(action, this.currentEmotion, intensity, groupIndex);
   }
 
@@ -207,6 +211,9 @@ export class AnimationController {
     this.currentAction = action;
     this.currentIntensity = intensity;
     this.currentEmotion = emotion;
+
+    this._syncIdleLayerState(action, groupIndex);
+
     this._playBlendedAction(action, emotion, intensity, groupIndex);
   }
 
@@ -228,6 +235,10 @@ export class AnimationController {
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this.layers[layer] = enabled;
 
+    if (layer === 'idleLayer') {
+      this.idleLayer.setEnabled(enabled);
+    }
+
     if (layer === 'fbxClips') {
       const allSubs = this.activeSubActions;
       for (const sub of allSubs) {
@@ -244,9 +255,6 @@ export class AnimationController {
 
     if (this.layers.fbxClips && this._loaded) {
       this.mixer.update(dt);
-      // Stabilizer: pin feet/hips during crossfade to prevent sliding
-      this.stabilizer.update(dt);
-
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
         this.loopCycleElapsed += dt;
@@ -265,6 +273,11 @@ export class AnimationController {
         }
       }
     }
+
+    // Procedural idle layer: hover bob, breathing, etc.
+    // Runs AFTER mixer so additive offsets aren't overwritten by clips.
+    // Independent of FBX clips toggle — has its own toggle.
+    this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
   }
 
   getActiveClips(): ActiveClipInfo[] {
@@ -288,6 +301,26 @@ export class AnimationController {
     return result;
   }
 
+  /** Set the idle layer mode (air = hovering, ground = breathing/sway). */
+  setIdleMode(mode: IdleMode): void {
+    this.idleLayer.setMode(mode);
+  }
+
+  /** Get the current idle layer mode. */
+  getIdleMode(): IdleMode {
+    return this.idleLayer.getMode();
+  }
+
+  /** Set camera for head tracking in idle layer. */
+  setCamera(camera: THREE.Camera): void {
+    this.idleLayer.setCamera(camera);
+  }
+
+  /** Enable/disable the procedural idle layer. */
+  setIdleLayerEnabled(enabled: boolean): void {
+    this.idleLayer.setEnabled(enabled);
+  }
+
   dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.vrm.scene);
@@ -297,7 +330,7 @@ export class AnimationController {
       clearTimeout(this.durationTimer);
       this.durationTimer = null;
     }
-    this.stabilizer.dispose();
+    this.idleLayer.dispose();
   }
 
   // ─── Private: blended action playback ───────────────────────────────────
@@ -324,10 +357,7 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Remember whether we had previous animations (need stabilizer lock)
-    const hadPreviousActions = this.activeSubActions.length > 0;
-
-    // Resolve incoming clips first — we need maxFadeIn for safe cleanup timing
+    // Resolve incoming clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
     let maxFadeIn = DEFAULT_FADE_IN;
     for (const entry of clips) {
@@ -335,46 +365,24 @@ export class AnimationController {
       if (fi > maxFadeIn) maxFadeIn = fi;
     }
 
-    // Crossfade: fade out old sub-actions.
-    // CRITICAL: fadeOut duration must match the incoming fadeIn duration so
-    // that old weight + new weight ≈ 1.0 at every point during the blend.
-    // If fadeOut < fadeIn, there's a gap where total weight < 1 → T-pose bleed.
-    // If fadeOut > fadeIn, there's a period where total weight > 1 → over-saturated.
-    // Using maxFadeIn for all outgoing clips ensures complementary curves.
-    const outgoing = this.activeSubActions;
-    const crossfadeDuration = maxFadeIn; // match outgoing fade to incoming fade
-    for (const sub of outgoing) {
-      let outFade = crossfadeDuration;
-      if (sub.bodyPartGroup === 'feet') outFade = Math.min(crossfadeDuration, FEET_FADE_IN);
-      else if (sub.bodyPartGroup === 'legs') outFade = crossfadeDuration * LEGS_FADE_MULTIPLIER;
-      sub.action.fadeOut(outFade);
+    const crossfadeDuration = maxFadeIn;
+
+    // Build a map of outgoing sub-actions by body part for crossFadeTo matching
+    const outgoingByGroup = new Map<BodyPart, SubAction[]>();
+    for (const sub of this.activeSubActions) {
+      const list = outgoingByGroup.get(sub.bodyPartGroup) ?? [];
+      list.push(sub);
+      outgoingByGroup.set(sub.bodyPartGroup, list);
     }
-    // Clean up after crossfade completes.
-    // Safety: check that each clip isn't still used by activeSubActions
-    // before uncaching — rapid transitions (A→B→C) can cause timer A
-    // to fire while B's filtered sub-clips from the same FBX are still active.
-    if (outgoing.length > 0) {
-      const captured = [...outgoing];
-      setTimeout(() => {
-        // Build set of clip names currently in use
-        const activeClipNames = new Set(
-          this.activeSubActions.map((s) => s.action.getClip().name),
-        );
-        for (const sub of captured) {
-          sub.action.stop();
-          const clip = sub.action.getClip();
-          this.mixer.uncacheAction(clip);
-          // Only uncache the clip data if no active sub-action is using it
-          if (!activeClipNames.has(clip.name)) {
-            this.mixer.uncacheClip(clip);
-          }
-        }
-      }, (crossfadeDuration + 0.1) * 1000);
-    }
+
+    const previousSubActions = this.activeSubActions;
     this.activeSubActions = [];
 
     // Track max clip duration for loop cycling
     let maxClipDuration = 0;
+
+    // Track body parts claimed by new action
+    const claimedGroups = new Set<BodyPart>();
 
     // For each body part group, collect claiming clips and normalize weights
     for (const group of BODY_PARTS) {
@@ -385,14 +393,27 @@ export class AnimationController {
         }
       }
 
-      if (claiming.length === 0) continue; // No clip covers this group — rest pose
+      if (claiming.length === 0) continue;
 
-      // Normalize so weights sum to 1.0
+      claimedGroups.add(group);
       const totalWeight = claiming.reduce((sum, c) => sum + c.weight, 0);
       for (const claimed of claiming) {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
-        const sub = this._createSubAction(claimed.entry, group, normalizedWeight);
+        const sub = this._createSubAction(claimed.entry, group, normalizedWeight, false);
         if (sub) {
+          // crossFadeTo from matching outgoing action for smooth warped transition
+          const outgoing = outgoingByGroup.get(group);
+          const fadeDuration = crossfadeDuration;
+
+          if (outgoing && outgoing.length > 0) {
+            const outSub = outgoing.shift()!;
+            // crossFadeTo handles weight warping — synchronized fade with no gaps
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
+          } else {
+            sub.action.fadeIn(claimed.entry.fadeIn ?? DEFAULT_FADE_IN);
+          }
+
+          sub.action.play();
           this.activeSubActions.push(sub);
           const clipDuration = sub.action.getClip().duration;
           if (clipDuration > maxClipDuration) maxClipDuration = clipDuration;
@@ -400,18 +421,54 @@ export class AnimationController {
       }
     }
 
-    // Lock stabilizer — captures current bone positions before crossfade.
-    // Foot drift is measured at runtime via continuous sampling throughout
-    // the first half of the arc duration (see TransitionStabilizer).
-    if (hadPreviousActions) {
-      this.stabilizer.lock();
+    // For unclaimed body parts, crossfade outgoing actions to idle clip
+    // instead of fading to nothing (which causes quaternion spin).
+    // Use the first idle clip directly from clip data (not action groups,
+    // since action groups may exclude legs/feet for the idle layer).
+    const idleFallbackEntry = this._getIdleFallbackClip();
+    for (const [group, subs] of outgoingByGroup) {
+      if (subs.length === 0) continue;
+      const idleEntry = idleFallbackEntry;
+      if (idleEntry) {
+        const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
+        if (idleSub) {
+          for (const sub of subs) {
+            const fadeDuration = sub.fadeOut ?? DEFAULT_FADE_IN;
+            sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
+          }
+          idleSub.action.play();
+          this.activeSubActions.push(idleSub);
+          continue;
+        }
+      }
+      // No idle clip for this part — just fade out
+      for (const sub of subs) {
+        sub.action.fadeOut(sub.fadeOut ?? DEFAULT_FADE_IN);
+      }
+    }
+
+    // Clean up old actions after crossfade completes
+    if (previousSubActions.length > 0) {
+      const captured = [...previousSubActions];
+      setTimeout(() => {
+        const activeClipNames = new Set(
+          this.activeSubActions.map((s) => s.action.getClip().name),
+        );
+        for (const sub of captured) {
+          sub.action.stop();
+          const clip = sub.action.getClip();
+          this.mixer.uncacheAction(clip);
+          if (!activeClipNames.has(clip.name)) {
+            this.mixer.uncacheClip(clip);
+          }
+        }
+      }, (crossfadeDuration + 0.5) * 1000);
     }
 
     // Set up loop cycling for looping actions with multiple groups
     const isLooping = this.registry.isActionLooping(action, groupIndex);
     const groupCount = this.registry.getGroupCount(action);
     this.isLoopCycling = isLooping && groupCount > 1;
-    // Guard: minimum 1s cycle to prevent infinite re-rolls if all clips fail to load
     this.loopCycleDuration = Math.max(maxClipDuration, 1.0);
     this.loopCycleElapsed = 0;
 
@@ -427,6 +484,7 @@ export class AnimationController {
     }
   }
 
+
   /**
    * Create a sub-action: a mixer action for a specific clip filtered to a single body-part group.
    */
@@ -434,6 +492,7 @@ export class AnimationController {
     entry: ClipEntry,
     group: BodyPart,
     normalizedWeight: number,
+    autoPlay: boolean = true,
   ): SubAction | null {
     const fullClip = this.clipCache.get(entry.file);
     if (!fullClip) {
@@ -452,20 +511,53 @@ export class AnimationController {
     );
     action.clampWhenFinished = !entry.loop;
     action.reset();
-    action.setEffectiveWeight(normalizedWeight);
+    // In air mode, dampen leg/feet clip weights so the idle layer's
+    // dangle pose dominates but clips still have some influence.
+    let effectiveWeight = normalizedWeight;
+    if (this.idleLayer.getMode() === 'air' && (group === 'legs' || group === 'feet')) {
+      effectiveWeight *= AIR_LEG_WEIGHT;
+    }
+    action.setEffectiveWeight(effectiveWeight);
     action.setEffectiveTimeScale(1);
-    const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
-    let groupFade = baseFade;
-    if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
-    else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
-    action.fadeIn(groupFade);
-    action.play();
+    if (autoPlay) {
+      action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
+      action.play();
+    }
 
     return {
       action,
       clipId: entry.file,
       bodyPartGroup: group,
       baseWeight: normalizedWeight,
+      fadeOut: entry.fadeOut,
+    };
+  }
+
+  /**
+   * Sync idle layer state (head tracking bypass, hand gesture) with current action.
+   */
+  private _syncIdleLayerState(action: Action, groupIndex: number): void {
+    const bypass = this.registry.shouldBypassHeadTracking(action);
+    this.idleLayer.setBypassHeadTracking(bypass);
+    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
+    const gesture = this.registry.getHandGesture(action, groupIndex) as HandGesture | undefined;
+    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+  }
+
+  /**
+   * Get the first idle clip entry with ALL body parts — used as fallback
+   * for unclaimed body parts during transitions.
+   */
+  private _getIdleFallbackClip(): import('./clip-registry.ts').ClipEntry | null {
+    const clipData = this.registry.getClipData('idle');
+    if (!clipData) return null;
+    return {
+      file: clipData.file,
+      weight: 1.0,
+      loop: clipData.loop,
+      fadeIn: clipData.fadeIn,
+      fadeOut: clipData.fadeOut,
+      bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
     };
   }
 

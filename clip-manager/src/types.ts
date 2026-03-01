@@ -26,6 +26,9 @@ export interface ClipData {
 
   // Tags
   tags: string[];
+
+  // Hand gesture
+  handGesture?: 'relaxed' | 'fist' | 'pointing' | 'none';
 }
 
 /** A single animation group — one possible animation for an action. */
@@ -40,6 +43,7 @@ export interface ActionData {
   /** Animation groups — weighted random selection picks one per trigger. */
   groups: AnimationGroup[];
   durationOverride: number | null;
+  bypassHeadTracking?: boolean;
 }
 
 export interface EmotionData {

@@ -75,6 +75,20 @@ export class VrmManager {
     }
   }
 
+  /** Enable/disable VRM lookAt auto-update. */
+  setLookAtEnabled(enabled: boolean): void {
+    if (this.currentVrm?.lookAt) {
+      this.currentVrm.lookAt.autoUpdate = enabled;
+    }
+  }
+
+  setLookAtTarget(target: THREE.Object3D): void {
+    if (this.currentVrm?.lookAt) {
+      this.currentVrm.lookAt.target = target;
+      this.currentVrm.lookAt.autoUpdate = true;
+    }
+  }
+
   /** Clean up current model/placeholder. */
   dispose(): void {
     this.removeCurrent();

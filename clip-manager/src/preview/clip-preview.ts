@@ -62,6 +62,7 @@ export class ClipPreview {
     fbxClips: true,
     expressions: true,
     blink: true,
+    idleLayer: true,
   };
 
   get speed() { return this._speed; }
@@ -91,7 +92,7 @@ export class ClipPreview {
       this.canvas.height = h;
     }
 
-    this.avatarScene = new AvatarScene(this.canvas, { grid: true });
+    this.avatarScene = new AvatarScene(this.canvas, { grid: true, orbit: true });
     this.avatarScene.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.avatarScene.renderer.toneMappingExposure = 1.0;
 
@@ -147,6 +148,7 @@ export class ClipPreview {
 
     const vrm = await this.vrmManager.load(url);
     this.vrm = vrm;
+    this.vrmManager.setLookAtTarget(this.avatarScene.camera);
     this.mixer = new THREE.AnimationMixer(vrm.scene);
 
     this.mixer.addEventListener('finished', () => {
@@ -166,6 +168,7 @@ export class ClipPreview {
       this.animCtrl.setLayer(layer as keyof LayerState, enabled);
     }
 
+    this.animCtrl.setCamera(this.avatarScene.camera);
     await this.animCtrl.loadAnimations();
     this._engineActive = true;
   }
