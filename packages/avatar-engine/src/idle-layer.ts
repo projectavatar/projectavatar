@@ -39,9 +39,6 @@ const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 // Finger wave — subtle sine oscillation on curl
 const FINGER_WAVE_FREQ     = 0.12;   // Hz — slow, dreamy
 const FINGER_WAVE_AMOUNT   = 0.08;   // radians — subtle variation
-const WRIST_WAVE_FREQ      = 0.09;   // Hz — even slower
-const WRIST_WAVE_AMOUNT    = 0.04;   // radians — very subtle
-
 // Phase offset per finger (cascade wave from index → pinky)
 const FINGER_PHASE_INDEX   = 0;
 const FINGER_PHASE_MIDDLE  = 0.4;
@@ -103,9 +100,6 @@ export class IdleLayer {
   private initialized = false;
 
   // Finger + wrist bones
-  private leftWrist: THREE.Object3D | null = null;
-  private rightWrist: THREE.Object3D | null = null;
-  private wristRestZ: { left: number; right: number } = { left: 0, right: 0 };
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number }[] = [];
   private bypassHeadTracking = false;
 
@@ -277,12 +271,6 @@ export class IdleLayer {
       if (name.startsWith('right')) phase += Math.PI * 0.5;
       if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis, phase });
     }
-
-    // Resolve wrist bones
-    this.leftWrist = h.getNormalizedBoneNode('leftHand' as any) ?? null;
-    this.rightWrist = h.getNormalizedBoneNode('rightHand' as any) ?? null;
-    if (this.leftWrist) this.wristRestZ.left = this.leftWrist.rotation.z;
-    if (this.rightWrist) this.wristRestZ.right = this.rightWrist.rotation.z;
 
     // Detect leg bend direction from bone chain geometry.
     // Compare upper leg and lower leg world Y positions — if the lower leg
@@ -508,16 +496,7 @@ export class IdleLayer {
       const wave = Math.sin(t * FINGER_WAVE_FREQ * Math.PI * 2 + phase) * FINGER_WAVE_AMOUNT;
       bone.rotation[axis] = restVal + (curl + wave) * sign * this.legBendSign;
     }
-    // Wrist sway
-    const s = this.legBendSign;
-    if (this.leftWrist) {
-      const wave = Math.sin(t * WRIST_WAVE_FREQ * Math.PI * 2) * WRIST_WAVE_AMOUNT;
-      this.leftWrist.rotation.z = this.wristRestZ.left + wave * -s;
-    }
-    if (this.rightWrist) {
-      const wave = Math.sin(t * WRIST_WAVE_FREQ * Math.PI * 2 + Math.PI * 0.7) * WRIST_WAVE_AMOUNT;
-      this.rightWrist.rotation.z = this.wristRestZ.right + wave * s;
-    }
+
   }
 
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
