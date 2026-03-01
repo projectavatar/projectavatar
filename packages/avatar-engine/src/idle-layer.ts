@@ -32,7 +32,7 @@ const BACKWARD_LEAN     = 0.15;    // radians (~8.6°) — static backward lean 
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
-const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward camera
+const HEAD_TRACK_INFLUENCE = 0.40;  // 0–1 — how much head biases toward camera
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
@@ -118,6 +118,17 @@ export class IdleLayer {
   // Finger + wrist bones
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
+
+  /** Whether head tracking is currently bypassed. */
+  get isHeadTrackingBypassed(): boolean {
+    return this.bypassHeadTracking;
+  }
+
+  // Cursor tracking — head follows a target point instead of camera
+  private cursorTarget: THREE.Vector3 | null = null;
+  private cursorLastMoveTime = 0;
+  private cursorIdleTimeout = 5000; // ms before returning to camera
+  private cursorBlend = 0; // 0 = camera, 1 = cursor
   private clipHasFingers = false;
   private currentGesture: HandGesture = 'relaxed';
 
@@ -184,6 +195,20 @@ export class IdleLayer {
     this.currentGesture = gesture;
   }
 
+  /**
+   * Set cursor world-space position for head tracking.
+   * Pass null to clear (head returns to camera).
+   */
+  setCursorTarget(worldPos: THREE.Vector3 | null): void {
+    if (worldPos) {
+      if (!this.cursorTarget) this.cursorTarget = new THREE.Vector3();
+      this.cursorTarget.copy(worldPos);
+      this.cursorLastMoveTime = performance.now();
+    } else {
+      this.cursorTarget = null;
+    }
+  }
+
   /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
   setBypassHeadTracking(bypass: boolean): void {
     this.bypassHeadTracking = bypass;
@@ -229,6 +254,10 @@ export class IdleLayer {
     if (this.vrm.scene) {
       this.vrm.scene.position.y = this.baseY;
     }
+    // Reset cursor tracking state
+    this.cursorTarget = null;
+    this.cursorBlend = 0;
+    this.cursorLastMoveTime = 0;
   }
 
   // ─── Private: bone setup ──────────────────────────────────────────────
@@ -494,6 +523,8 @@ export class IdleLayer {
   /** Reusable vectors for head tracking math. */
   private _headTargetDir = new THREE.Vector3();
   private _headWorldPos = new THREE.Vector3();
+  private _headCursorDir = new THREE.Vector3();
+  private _parentInverse = new THREE.Matrix4();
   private _headCurrentYaw = 0;
   private _headCurrentPitch = 0;
 
@@ -504,9 +535,27 @@ export class IdleLayer {
   private _applyHeadTracking(delta: number): void {
     if (!this.camera || !this.head) return;
 
-    // Get direction from head to camera in world space
     this.head.getWorldPosition(this._headWorldPos);
-    this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    // Blend between cursor target and camera based on idle time
+    const now = performance.now();
+    const cursorActive = this.cursorTarget && (now - this.cursorLastMoveTime < this.cursorIdleTimeout);
+    const targetBlend = cursorActive ? 1 : 0;
+    const blendSpeed = cursorActive ? 2.0 : 1.5; // gentle transition both ways
+    this.cursorBlend += (targetBlend - this.cursorBlend) * (1 - Math.exp(-blendSpeed * delta));
+
+    // Compute camera direction
+    const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    if (this.cursorBlend > 0.001 && this.cursorTarget) {
+      // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
+      const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
+      if (distToHead > 0.3) {
+        const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
+        this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
+        this._headTargetDir.normalize();
+      }
+    }
 
     // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
     // direction. Mirror the target direction so the head turns toward camera.
@@ -519,7 +568,7 @@ export class IdleLayer {
     if (!parent) return;
 
     parent.updateWorldMatrix(true, false);
-    const parentInverse = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+    const parentInverse = this._parentInverse.copy(parent.matrixWorld).invert();
     this._headTargetDir.transformDirection(parentInverse);
 
     // Extract yaw (Y) and pitch (X) from the direction
@@ -533,9 +582,9 @@ export class IdleLayer {
     this._headCurrentYaw += (targetYaw - this._headCurrentYaw) * lerpFactor;
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
-    // Apply as additive rotation scaled by influence
-    this.head.rotation.y += this._headCurrentYaw * HEAD_TRACK_INFLUENCE;
-    this.head.rotation.x += this._headCurrentPitch * HEAD_TRACK_INFLUENCE;
+    const influence = HEAD_TRACK_INFLUENCE;
+    this.head.rotation.y += this._headCurrentYaw * influence;
+    this.head.rotation.x += this._headCurrentPitch * influence;
   }
 
 

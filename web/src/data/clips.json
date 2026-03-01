@@ -383,7 +383,8 @@
           ]
         }
       ],
-      "durationOverride": null
+      "durationOverride": null,
+      "bypassHeadTracking": true
     },
     "nodding": {
       "groups": [
@@ -504,7 +505,8 @@
           ]
         }
       ],
-      "durationOverride": null
+      "durationOverride": null,
+      "bypassHeadTracking": true
     },
     "nervous": {
       "groups": [

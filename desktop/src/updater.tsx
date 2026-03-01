@@ -53,11 +53,9 @@ export function Updater() {
           setState({ status: 'ready', version: update.version });
         }
       } catch (err) {
+        // Silently log — updater errors are not actionable for the user
         if (!cancelled) {
-          setState({
-            status: 'error',
-            message: err instanceof Error ? err.message : String(err),
-          });
+          console.warn('[Updater] Check failed:', err);
         }
       }
     }

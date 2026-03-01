@@ -59,9 +59,23 @@ export class BloomEffect {
   private _ensureComposer(): void {
     if (this.composer) return;
 
-    this.composer = new EffectComposer(this.renderer);
+    // Create render target with alpha for transparent backgrounds (desktop overlay)
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const pixelRatio = this.renderer.getPixelRatio();
+    const renderTarget = new THREE.WebGLRenderTarget(
+      size.x * pixelRatio,
+      size.y * pixelRatio,
+      {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        colorSpace: THREE.SRGBColorSpace,
+      },
+    );
+
+    this.composer = new EffectComposer(this.renderer, renderTarget);
 
     const renderPass = new RenderPass(this.scene, this.camera);
+    renderPass.clearAlpha = 0; // Preserve transparency
     this.composer.addPass(renderPass);
 
     const resolution = new THREE.Vector2(
@@ -80,6 +94,23 @@ export class BloomEffect {
     // SMAA anti-aliasing — WebGL MSAA doesn't work with postprocessing FBOs
     const smaaPass = new SMAAPass(resolution.x, resolution.y);
     this.composer.addPass(smaaPass);
+
+    // Patch bloom blend material: use custom blending to preserve alpha.
+    // Default AdditiveBlending adds to ALL channels including alpha,
+    // making transparent areas opaque. Custom blending adds RGB only.
+    // Patch blend material for alpha preservation.
+    // blendMaterial is an internal of UnrealBloomPass — if three.js
+    // removes it, bloom will still work but with opaque backgrounds.
+    const blendMat = (this.bloomPass as any).blendMaterial as THREE.ShaderMaterial | undefined;
+    if (blendMat) {
+      blendMat.blending = THREE.CustomBlending;
+      blendMat.blendSrc = THREE.OneFactor;
+      blendMat.blendDst = THREE.OneFactor;
+      blendMat.blendSrcAlpha = THREE.ZeroFactor;
+      blendMat.blendDstAlpha = THREE.OneFactor;
+    } else {
+      console.warn('[BloomEffect] blendMaterial not found on UnrealBloomPass — alpha transparency may not work');
+    }
 
     const outputPass = new OutputPass();
     this.composer.addPass(outputPass);

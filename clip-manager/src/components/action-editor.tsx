@@ -468,6 +468,22 @@ export function ActionEditor({ data, selectedAction, dispatch }: ActionEditorPro
         />
       </div>
 
+      {/* Bypass head tracking */}
+      <div style={durationRowStyle}>
+        <span style={labelStyle}>Bypass Head/Eye Tracking</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={action.bypassHeadTracking ?? false}
+            onChange={(e) => updateAction(selectedAction, { bypassHeadTracking: e.target.checked ? true : undefined })}
+            style={{ accentColor: 'var(--color-accent)' }}
+          />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-muted)' }}>
+            {action.bypassHeadTracking ? 'ON — head & eyes follow clip' : 'OFF — head & eyes follow cursor'}
+          </span>
+        </label>
+      </div>
+
       {/* VFX */}
       <VfxEditor
         vfx={action.vfx ?? []}

@@ -117,11 +117,13 @@ export class AvatarScene {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
+      
       antialias: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    
 
     // Three-point lighting
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
