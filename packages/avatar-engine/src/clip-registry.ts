@@ -297,6 +297,11 @@ export class ClipRegistry {
   /**
    * Last resort fallback: find any usable clip in the registry.
    */
+  /** Get raw clip data by clip name (for fallback lookups). */
+  getClipData(clipName: string): ClipJson | undefined {
+    return this.data.clips[clipName];
+  }
+
   private _lastResortClip(): ClipEntry[] {
     for (const [clipId, clipData] of Object.entries(this.data.clips)) {
       console.warn('[ClipRegistry] No idle action configured — falling back to first clip:', clipId);

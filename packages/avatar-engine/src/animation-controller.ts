@@ -419,13 +419,13 @@ export class AnimationController {
 
     // For unclaimed body parts, crossfade outgoing actions to idle clip
     // instead of fading to nothing (which causes quaternion spin).
-    const idleGroupIndex = this.registry.selectGroup('idle');
-    const { clips: idleFallbackClips } = this.registry.resolveClips('idle', emotion, intensity, idleGroupIndex);
+    // Use the first idle clip directly from clip data (not action groups,
+    // since action groups may exclude legs/feet for the idle layer).
+    const idleFallbackEntry = this._getIdleFallbackClip();
     for (const [group, subs] of outgoingByGroup) {
       if (subs.length === 0) continue;
       console.log(`[AnimCtrl] Unclaimed body part: ${group}, ${subs.length} outgoing subs`);
-      // Find an idle clip that covers this body part
-      const idleEntry = idleFallbackClips.find(c => c.bodyParts.includes(group));
+      const idleEntry = idleFallbackEntry;
       if (idleEntry) {
         const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
         if (idleSub) {
@@ -536,6 +536,23 @@ export class AnimationController {
    * Filter an animation clip to only include tracks for bones in the given body part group.
    * Creates a new clip with a unique name so the mixer caches it separately.
    */
+  /**
+   * Get the first idle clip entry with ALL body parts — used as fallback
+   * for unclaimed body parts during transitions.
+   */
+  private _getIdleFallbackClip(): import('./clip-registry.ts').ClipEntry | null {
+    const clipData = this.registry.getClipData('idle');
+    if (!clipData) return null;
+    return {
+      file: clipData.file,
+      weight: 1.0,
+      loop: clipData.loop,
+      fadeIn: clipData.fadeIn,
+      fadeOut: clipData.fadeOut,
+      bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
+    };
+  }
+
   private _filterClipToGroup(clip: THREE.AnimationClip, group: BodyPart): THREE.AnimationClip {
     const groupBones = BODY_PART_BONES[group];
     const groupNodeNames = new Set<string>();
