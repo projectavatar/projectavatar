@@ -548,13 +548,9 @@ export class IdleLayer {
     const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
 
     if (this.cursorBlend > 0.001 && this.cursorTarget) {
-      // Dead zone: ignore cursor if it's too close to the head (prevents jitter at center)
-      const distToHead = this.cursorTarget.distanceTo(this._headWorldPos);
-      if (distToHead > 0.3) {
-        const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
-        this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
-        this._headTargetDir.normalize();
-      }
+      const cursorDir = this._headCursorDir.copy(this.cursorTarget).sub(this._headWorldPos).normalize();
+      this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
+      this._headTargetDir.normalize();
     }
 
     // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
