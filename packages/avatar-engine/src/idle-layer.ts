@@ -82,7 +82,7 @@ const LEG_SWAY_AMOUNT_2 = 0.025;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
-const TOE_DROOP_ANGLE   = 0.3675;    // radians — toes pointing slightly down
+const TOE_DROOP_ANGLE   = 0.349;    // radians — toes pointing slightly down
 
 // Ground mode
 const BREATHE_AMPLITUDE = 0.003;   // chest rotation oscillation
