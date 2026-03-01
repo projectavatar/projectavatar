@@ -87,12 +87,17 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           setAnimationsLoaded(true);
           // Reveal after the first mixer tick + 500ms for the T-pose→idle crossfade to settle
           animationController.onFirstFrame(() => {
+            // 500ms: wait for T-pose→idle crossfade to settle, then reveal model
             setTimeout(() => {
               vrmManager.show();
+            }, 500);
+            // +500ms more before enabling effects (trails sample hand positions
+            // during crossfade and create long streaks otherwise)
+            setTimeout(() => {
               if (effectsManagerRef.current) {
                 effectsManagerRef.current.setModelReady(true);
               }
-            }, 500);
+            }, 1000);
           });
         })
         .catch((err) => {
