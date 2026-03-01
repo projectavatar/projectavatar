@@ -94,23 +94,6 @@ interface SubAction {
   fadeOut?: number;
 }
 
-// ─── Active crossfade tracking ────────────────────────────────────────────────
-
-interface ActiveCrossfade {
-  from: THREE.AnimationAction;
-  to: THREE.AnimationAction;
-  duration: number;
-  elapsed: number;
-  fromWeight: number;
-  toWeight: number;
-}
-
-/** Attempt smoothstep easing: 3t² - 2t³ */
-function smoothstep(t: number): number {
-  t = Math.max(0, Math.min(1, t));
-  return t * t * (3 - 2 * t);
-}
-
 // ─── AnimationController ──────────────────────────────────────────────────────
 
 export class AnimationController {
@@ -151,9 +134,6 @@ export class AnimationController {
 
   /** Layer toggle state — dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
-
-  /** Active crossfades being eased. */
-  private activeCrossfades: ActiveCrossfade[] = [];
 
   /** Callback when a non-looping action completes (used by state machine). */
   onActionFinished?: () => void;
@@ -279,7 +259,6 @@ export class AnimationController {
     const dt = Math.min(delta, 0.1);
 
     if (this.layers.fbxClips && this._loaded) {
-      this._updateCrossfades(dt);
       this.mixer.update(dt);
       // Check if a looping action's cycle has completed → re-roll group
       if (this.isLoopCycling) {
@@ -347,61 +326,6 @@ export class AnimationController {
     this.idleLayer.setEnabled(enabled);
   }
 
-  // ─── Eased crossfade ─────────────────────────────────────────────────────
-
-  /**
-   * Start a managed crossfade with smoothstep easing.
-   * Replaces Three.js linear crossFadeTo with organic ease-in-out.
-   */
-  private _startEasedCrossfade(
-    from: THREE.AnimationAction | null,
-    to: THREE.AnimationAction | null,
-    duration: number,
-    fromWeight: number,
-    toWeight: number,
-  ): void {
-    // Disable Three.js internal fading — we control weights manually
-    if (from) {
-      from.setEffectiveWeight(fromWeight);
-    }
-    if (to) {
-      to.setEffectiveWeight(0);
-      to.play();
-    }
-
-    this.activeCrossfades.push({
-      from: from!,
-      to: to!,
-      duration: Math.max(duration, 0.01),
-      elapsed: 0,
-      fromWeight,
-      toWeight,
-    });
-  }
-
-  /** Tick all active crossfades. Called every frame in update(). */
-  private _updateCrossfades(delta: number): void {
-    for (let i = this.activeCrossfades.length - 1; i >= 0; i--) {
-      const cf = this.activeCrossfades[i]!;
-      cf.elapsed += delta;
-      const t = smoothstep(Math.min(cf.elapsed / cf.duration, 1));
-
-      if (cf.from) {
-        cf.from.setEffectiveWeight(cf.fromWeight * (1 - t));
-      }
-      if (cf.to) {
-        cf.to.setEffectiveWeight(cf.toWeight * t);
-      }
-
-      // Complete
-      if (cf.elapsed >= cf.duration) {
-        if (cf.from) cf.from.setEffectiveWeight(0);
-        if (cf.to) cf.to.setEffectiveWeight(cf.toWeight);
-        this.activeCrossfades.splice(i, 1);
-      }
-    }
-  }
-
   /** Check if a cached clip has tracks for finger bones. */
   private _clipHasFingerTracks(filename: string): boolean {
     const clip = this.clipCache.get(filename);
@@ -446,9 +370,6 @@ export class AnimationController {
     }
 
     this.currentGroupIndex = groupIndex;
-
-    // Clear any in-progress crossfades from previous transition
-    this.activeCrossfades.length = 0;
 
     // Resolve incoming clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);
@@ -500,13 +421,10 @@ export class AnimationController {
 
           if (outgoing && outgoing.length > 0) {
             const outSub = outgoing.shift()!;
-            // Managed crossfade with smoothstep easing
-            this._startEasedCrossfade(outSub.action, sub.action, fadeDuration,
-              outSub.action.getEffectiveWeight(), normalizedWeight);
+            // crossFadeTo handles weight warping — synchronized fade with no gaps
+            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
           } else {
-            // Managed fade-in with easing
-            this._startEasedCrossfade(null, sub.action, claimed.entry.fadeIn ?? DEFAULT_FADE_IN,
-              0, normalizedWeight);
+            sub.action.fadeIn(claimed.entry.fadeIn ?? DEFAULT_FADE_IN);
           }
 
           sub.action.play();
@@ -530,18 +448,16 @@ export class AnimationController {
         if (idleSub) {
           for (const sub of subs) {
             const fadeDuration = sub.fadeOut ?? DEFAULT_FADE_IN;
-            this._startEasedCrossfade(sub.action, idleSub.action, fadeDuration,
-              sub.action.getEffectiveWeight(), 1.0);
+            sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
           }
           idleSub.action.play();
           this.activeSubActions.push(idleSub);
           continue;
         }
       }
-      // No idle clip for this part — eased fade out
+      // No idle clip for this part — just fade out
       for (const sub of subs) {
-        this._startEasedCrossfade(sub.action, null, sub.fadeOut ?? DEFAULT_FADE_IN,
-          sub.action.getEffectiveWeight(), 0);
+        sub.action.fadeOut(sub.fadeOut ?? DEFAULT_FADE_IN);
       }
     }
 
@@ -618,6 +534,7 @@ export class AnimationController {
     action.setEffectiveWeight(effectiveWeight);
     action.setEffectiveTimeScale(1);
     if (autoPlay) {
+      action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
       action.play();
     }
 
