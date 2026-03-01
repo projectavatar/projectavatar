@@ -301,7 +301,7 @@ function createHearts(binding: VfxBinding): VfxInstance {
     riseSpeed[i] = 0.15 + Math.random() * 0.15;
     swaySpeed[i] = 0.5 + Math.random() * 1.0;
     swayAmp[i] = 0.05 + Math.random() * 0.1;
-    sizes[i] = (0.12 + Math.random() * 0.08) * intensity;
+    sizes[i] = (0.36 + Math.random() * 0.24) * intensity;
     const warmth = 0.7 + Math.random() * 0.3;
     colors[i * 3] = color.r * warmth;
     colors[i * 3 + 1] = color.g * warmth;
