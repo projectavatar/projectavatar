@@ -71,8 +71,8 @@ Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade
 - **BlinkController** — random blink + micro-glance.
 - **PropManager** — GLB prop loading + hand bone attachment.
 - **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
-- **AvatarScene** — scene, camera, lighting, render loop. Options: `{ grid: true }` for clip manager.
-- **VrmManager** — VRM loading, VRM 0.x/1.0 normalization, placeholder cube fallback.
+- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev }`.
+- **VrmManager** — normalizes all VRMs to 1.6m height, centers hips at origin (0,0,0). Exposes `bodyCenter` & `faceCenter` for camera framing.
 
 ### Animation Data Pipeline
 

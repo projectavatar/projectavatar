@@ -4,6 +4,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 /**
  * Core Three.js scene: camera, lighting, renderer, render loop.
  * Pure Three.js — no React, no VRM-specific logic.
+ *
+ * Supports dynamic framing: when zoomed out the orbit target centers on
+ * the full body (hips); when zoomed in the target shifts up to the face
+ * for portrait-style framing.
  */
 
 export interface AvatarSceneOptions {
@@ -15,10 +19,21 @@ export interface AvatarSceneOptions {
   gridDivisions?: number;
   /** Enable orbit controls (zoom, rotate, pan). Default: false. */
   orbit?: boolean;
+  /** Dev mode — unlocks vertical camera rotation. Default: false. */
+  dev?: boolean;
 }
 
 const DEFAULT_GRID_SIZE = 4;
 const DEFAULT_GRID_DIVISIONS = 16;
+
+/**
+ * Distance thresholds for dynamic framing.
+ * - At FAR_DISTANCE or beyond → target = body center (hips)
+ * - At CLOSE_DISTANCE or closer → target = face/head
+ * - Between → smooth lerp
+ */
+const FAR_DISTANCE = 4;
+const CLOSE_DISTANCE = 2;
 
 export class AvatarScene {
   readonly scene: THREE.Scene;
@@ -31,6 +46,11 @@ export class AvatarScene {
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
   private updateCallbacks: Array<(delta: number) => void> = [];
 
+  /** Dynamic framing points — set via setFramingPoints() after model load. */
+  private bodyCenter = new THREE.Vector3(0, 0, 0);
+  private faceCenter = new THREE.Vector3(0, 0.5, 0);
+  private framingEnabled = false;
+
   constructor(canvas: HTMLCanvasElement, options?: AvatarSceneOptions) {
     this.scene = new THREE.Scene();
 
@@ -41,8 +61,8 @@ export class AvatarScene {
       0.1,
       20,
     );
-    this.camera.position.set(2.58, 0.8, 4.86);
-    this.camera.lookAt(0, 0.7, 0);
+    this.camera.position.set(2.50, 0.2, 4.33);
+    this.camera.lookAt(0, 0, 0);
 
     // Renderer: transparent background for OBS/overlay use
     this.renderer = new THREE.WebGLRenderer({
@@ -78,7 +98,7 @@ export class AvatarScene {
         0x2a2a3a,
         0x1a1a2a,
       );
-      grid.position.y = -0.4;
+      grid.position.y = 0;
       this.scene.add(grid);
     }
 
@@ -87,7 +107,7 @@ export class AvatarScene {
       this.controls = new OrbitControls(this.camera, canvas);
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.08;
-      this.controls.target.set(0, 0.7, 0);
+      this.controls.target.set(0, 0, 0);
       this.controls.minDistance = 1;
       this.controls.maxDistance = 15;
       this.controls.mouseButtons = {
@@ -95,6 +115,13 @@ export class AvatarScene {
         MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.ROTATE,
       };
+      // Lock vertical rotation in production — no peeking allowed
+      if (!options?.dev) {
+        // Clamp polar angle to ±22° from equator
+        this.controls.minPolarAngle = Math.PI / 2 - 0.38;  // ~68° (±22°)
+        this.controls.maxPolarAngle = Math.PI / 2 + 0.38;  // ~112° (±22°)
+      }
+
       this.controls.update();
     }
 
@@ -107,6 +134,18 @@ export class AvatarScene {
     // Handle background tab throttling
     this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+  }
+
+  /**
+   * Set the two framing anchor points for dynamic zoom-based targeting.
+   * @param body — orbit target when zoomed out (typically hips/body center)
+   * @param face — orbit target when zoomed in (typically head/face)
+   */
+  setFramingPoints(body: THREE.Vector3, face: THREE.Vector3): void {
+    this.bodyCenter.copy(body);
+    this.faceCenter.copy(face);
+    this.framingEnabled = true;
+    this._updateFramingTarget();
   }
 
   /** Register an update callback invoked each frame with delta time. */
@@ -146,6 +185,32 @@ export class AvatarScene {
     this.updateCallbacks.length = 0;
   }
 
+  // ─── Dynamic framing ───────────────────────────────────────────────
+
+  /**
+   * Lerp the orbit target between bodyCenter and faceCenter based on
+   * camera distance. Called every frame in tick().
+   */
+  private _updateFramingTarget(): void {
+    if (!this.framingEnabled || !this.controls) return;
+
+    const dist = this.camera.position.distanceTo(this.bodyCenter);
+
+    // Compute t: 0 = far (body), 1 = close (face)
+    const t = THREE.MathUtils.clamp(
+      1 - (dist - CLOSE_DISTANCE) / (FAR_DISTANCE - CLOSE_DISTANCE),
+      0,
+      1,
+    );
+
+    // Smooth ease (smoothstep)
+    const tSmooth = t * t * (3 - 2 * t);
+
+    this.controls.target.lerpVectors(this.bodyCenter, this.faceCenter, tSmooth);
+  }
+
+  // ─── Private ────────────────────────────────────────────────────────
+
   private loop = (): void => {
     this.animationFrameId = requestAnimationFrame(this.loop);
     this.tick();
@@ -153,6 +218,7 @@ export class AvatarScene {
 
   private tick(): void {
     const delta = this.clock.getDelta();
+    this._updateFramingTarget();
     this.controls?.update();
     for (const cb of this.updateCallbacks) {
       cb(delta);
