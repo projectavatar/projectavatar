@@ -643,22 +643,52 @@
     "confused": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "thought-bubbles",
+          "color": "#ffaa44",
+          "intensity": 1.0,
+          "offsetY": 0.75
+        }
+      ]
     },
     "nervous": {
       "weightScale": 0.85,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sweat-drops",
+          "color": "#88ccee",
+          "intensity": 1.0,
+          "offsetY": 0.7
+        }
+      ]
     },
     "surprised": {
       "weightScale": 1.1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "sparkles",
+          "color": "#ffffff",
+          "intensity": 1.5
+        }
+      ]
     },
     "bashful": {
       "weightScale": 1,
       "overrides": {},
-      "layers": []
+      "layers": [],
+      "vfx": [
+        {
+          "type": "hearts",
+          "color": "#ffaacc",
+          "intensity": 0.6
+        }
+      ]
     },
     "thinking": {
       "weightScale": 1,

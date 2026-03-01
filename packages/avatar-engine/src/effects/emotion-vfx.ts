@@ -16,7 +16,8 @@ export type VfxType =
   | 'rain'
   | 'embers'
   | 'confetti'
-  | 'particle-aura';
+  | 'particle-aura'
+  | 'sweat-drops';
 
 export interface VfxBinding {
   type: VfxType;
@@ -83,6 +84,7 @@ export function createVfx(type: VfxType, binding: VfxBinding): VfxInstance {
     case 'embers':          return createEmbers(binding);
     case 'confetti':        return createConfetti(binding);
     case 'particle-aura': return createParticleAuraVfx(binding);
+    case 'sweat-drops':    return createSweatDrops(binding);
     default:
       console.warn(`[VFX] Unknown type: ${type}`);
       return createSparkles(binding); // fallback
@@ -631,6 +633,107 @@ function createConfetti(binding: VfxBinding): VfxInstance {
         const tumble = 0.5 + 0.5 * Math.sin(time * 6 + phases[i]! * 10);
         const fadeOut = Math.max(1 - (life - 0.6) * 2.5, 0);
         alpha.array[i] = currentOpacity * tumble * fadeOut;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Sweat Drops ───────────────────────────────────────────────────────────
+
+/** Teardrop fragment shader — elongated drop shape. */
+const sweatFragment = /* glsl */ `
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  void main() {
+    vec2 uv = gl_PointCoord - vec2(0.5);
+
+    // Teardrop: circle at bottom, pointy at top
+    float y = uv.y + 0.15;
+    float x = uv.x;
+
+    // Bottom circle
+    float circle = x * x + (y - 0.1) * (y - 0.1);
+    // Top taper
+    float taper = x * x * (2.0 + y * 8.0) + y * y;
+
+    float shape = y < 0.0 ? circle : taper;
+
+    if (shape > 0.1) discard;
+
+    gl_FragColor = vec4(vColor, vAlpha);
+  }
+`;
+
+function createSweatDrops(binding: VfxBinding): VfxInstance {
+  const count = 8;
+  const color = new THREE.Color(binding.color ?? '#88ccee');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.7;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const phases = new Float32Array(count);
+  const startX = new Float32Array(count);
+  const fallSpeed = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    phases[i] = Math.random() * 2;
+    startX[i] = (Math.random() - 0.5) * 0.5;
+    fallSpeed[i] = 0.4 + Math.random() * 0.3;
+    sizes[i] = (0.08 + Math.random() * 0.04) * intensity;
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: sweatFragment,
+    transparent: true,
+    blending: THREE.NormalBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'sweat-drops',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        const life = ((time * fallSpeed[i]! + phases[i]!) % 1.5) / 1.5;
+
+        pos.array[i * 3] = startX[i]!;
+        pos.array[i * 3 + 1] = -life * 0.8; // fall fast
+        pos.array[i * 3 + 2] = 0;
+
+        // Pop in, fall, fade out
+        const fadeIn = life < 0.1 ? life * 10 : 1;
+        const fadeOut = Math.max(1 - (life - 0.5) * 2, 0);
+        alpha.array[i] = currentOpacity * fadeIn * fadeOut;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;
