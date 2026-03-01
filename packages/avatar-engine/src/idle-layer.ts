@@ -135,6 +135,11 @@ export class IdleLayer {
   /** Hips rest Y position — captured once after first mixer update. */
   private hipsRestY: number | null = null;
 
+  /** When true, counter-move arms to cancel bob (keeps hands fixed for props). */
+  private _propActive = false;
+  private leftUpperArm: THREE.Object3D | null = null;
+  private rightUpperArm: THREE.Object3D | null = null;
+
   /**
    * Sign multiplier for leg bend direction (+1 or -1).
    * Detected from the bone chain geometry — some VRM models have flipped axes.
@@ -156,6 +161,11 @@ export class IdleLayer {
   /** Get current mode. */
   getMode(): IdleMode {
     return this.mode;
+  }
+
+  /** Set whether a prop is active — arms will counter-move to stay world-space fixed. */
+  setPropActive(active: boolean): void {
+    this._propActive = active;
   }
 
   /** Enable/disable the idle layer. */
@@ -240,6 +250,8 @@ export class IdleLayer {
     this.leftFoot      = get('leftFoot');
     this.rightFoot     = get('rightFoot');
     this.head          = get('head');
+    this.leftUpperArm  = get('leftUpperArm');
+    this.rightUpperArm = get('rightUpperArm');
 
     this.initialized = !!(this.hips || this.spine || this.chest);
 
@@ -386,6 +398,14 @@ export class IdleLayer {
       const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE
                        + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
       this.vrm.scene.position.y = this.baseY + bobOffset;
+
+      // Counter-move arms when a prop is active — keeps hands world-space stable
+      // while the body bobs. The arms compensate for the scene Y offset.
+      if (this._propActive) {
+        const counterY = -bobOffset;
+        if (this.leftUpperArm) this.leftUpperArm.position.y += counterY;
+        if (this.rightUpperArm) this.rightUpperArm.position.y += counterY;
+      }
     }
 
     // 2. Smooth hips Y lock — prevent clips from moving the model up/down.

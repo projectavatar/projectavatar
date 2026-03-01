@@ -393,6 +393,7 @@ export class AnimationController {
     // Notify prop change — the primary clip determines the prop
     const propBinding = this.registry.getPropBinding(action, groupIndex);
     this.onPropChange?.(propBinding);
+    this.idleLayer.setPropActive(!!propBinding);
 
     // Resolve incoming clips
     const { clips } = this.registry.resolveClips(action, emotion, intensity, groupIndex);

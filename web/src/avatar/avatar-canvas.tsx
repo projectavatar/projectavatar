@@ -109,7 +109,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new ExpressionController(vrm),
         animationController,
         new BlinkController(vrm),
-        new PropManager(vrm.scene),
+        new PropManager(avatarScene.scene),
         {
           onStateChange: (state) => setAvatarState({
             emotion: state.emotion, action: state.action,

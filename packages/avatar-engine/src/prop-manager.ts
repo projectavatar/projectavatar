@@ -114,7 +114,7 @@ interface ActiveProp {
 // ─── PropManager ──────────────────────────────────────────────────────────────
 
 export class PropManager {
-  private parent: THREE.Object3D;
+  private scene: THREE.Scene;
   private loader = new GLTFLoader();
   private modelCache = new Map<string, THREE.Object3D>();
   private activeProp: ActiveProp | null = null;
@@ -127,8 +127,8 @@ export class PropManager {
     uTime: { value: 0 },
   };
 
-  constructor(parent: THREE.Object3D) {
-    this.parent = parent;
+  constructor(scene: THREE.Scene) {
+    this.scene = scene;
   }
 
   /**
@@ -175,7 +175,7 @@ export class PropManager {
       // Start invisible, fade in
       this._setMaterialOpacity(materials, materialStyle, 0);
 
-      this.parent.add(instance);
+      this.scene.add(instance);
 
       this.activeProp = {
         root: instance,
@@ -209,7 +209,7 @@ export class PropManager {
 
       // Fully faded out — remove from scene
       if (prop.opacity <= 0.001) {
-        this.parent.remove(prop.root);
+        this.scene.remove(prop.root);
         this._disposePropMaterials(prop);
         this.fadingOut.splice(i, 1);
       }
@@ -221,12 +221,12 @@ export class PropManager {
    */
   clear(): void {
     if (this.activeProp) {
-      this.parent.remove(this.activeProp.root);
+      this.scene.remove(this.activeProp.root);
       this._disposePropMaterials(this.activeProp);
       this.activeProp = null;
     }
     for (const prop of this.fadingOut) {
-      this.parent.remove(prop.root);
+      this.scene.remove(prop.root);
       this._disposePropMaterials(prop);
     }
     this.fadingOut.length = 0;

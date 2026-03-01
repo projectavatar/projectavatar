@@ -366,7 +366,7 @@ export class ClipPreview {
     instance.rotation.set(rx, ry, rz);
     instance.scale.set(sx, sy, sz);
 
-    (this.vrm?.scene ?? this.avatarScene.scene).add(instance);
+    this.avatarScene.scene.add(instance);
     this.propInstance = instance;
 
     // TransformControls gizmo (lazy loaded)
@@ -411,7 +411,7 @@ export class ClipPreview {
       this.gizmo = null;
     }
     if (this.propInstance) {
-      this.propInstance.parent?.remove(this.propInstance);
+      this.avatarScene.scene.remove(this.propInstance);
       this.propInstance.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.material?.dispose();
