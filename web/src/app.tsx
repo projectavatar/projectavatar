@@ -136,7 +136,16 @@ export function App() {
   // Sync render scale — not available on sceneRef yet, pass via prop
 
   useEffect(() => {
-    document.body.style.background = theme === 'transparent' ? 'transparent' : 'var(--color-bg)';
+    if (theme === 'transparent') {
+      // Override global.css background on both html and body for true window transparency
+      document.documentElement.style.background = 'transparent';
+      document.body.style.background = 'transparent';
+      document.documentElement.style.setProperty('--color-bg', 'transparent');
+    } else {
+      document.documentElement.style.background = '';
+      document.body.style.background = '';
+      document.documentElement.style.removeProperty('--color-bg');
+    }
   }, [theme]);
 
   if (!token) return <TokenSetup />;
