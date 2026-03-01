@@ -541,7 +541,7 @@ export class IdleLayer {
     const now = performance.now();
     const cursorActive = this.cursorTarget && (now - this.cursorLastMoveTime < this.cursorIdleTimeout);
     const targetBlend = cursorActive ? 1 : 0;
-    const blendSpeed = cursorActive ? 4.0 : 2.0; // snap to cursor faster, return to camera slower
+    const blendSpeed = cursorActive ? 2.0 : 1.5; // gentle transition both ways
     this.cursorBlend += (targetBlend - this.cursorBlend) * (1 - Math.exp(-blendSpeed * delta));
 
     // Compute camera direction
@@ -581,7 +581,7 @@ export class IdleLayer {
     this._headCurrentPitch += (targetPitch - this._headCurrentPitch) * lerpFactor;
 
     // Apply as additive rotation — stronger influence when tracking cursor
-    const influence = HEAD_TRACK_INFLUENCE + this.cursorBlend * 0.25; // 0.25 → 0.50
+    const influence = HEAD_TRACK_INFLUENCE + this.cursorBlend * 0.10; // 0.25 → 0.35
     this.head.rotation.y += this._headCurrentYaw * influence;
     this.head.rotation.x += this._headCurrentPitch * influence;
   }
