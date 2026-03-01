@@ -164,7 +164,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         try {
           const vrm = await vrmManager.load(modelUrl);
           if (cancelled) return;
-          vrmManager.setLookAtTarget(avatarScene.camera);
+          vrmManager.setLookAtTarget(lookAtProxy);
           // Dynamic framing: zoomed out → body center, zoomed in → face
           avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
           setupControllers(vrm);
@@ -182,12 +182,26 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     };
 
     void initModel();
+    // Blend eye lookAt between camera and cursor
+    avatarScene.onUpdate(() => {
+      const now = performance.now();
+      const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
+      const targetBlend = cursorActive ? 1 : 0;
+      const speed = cursorActive ? 6.0 : 2.0;
+      eyeBlend += (targetBlend - eyeBlend) * (1 - Math.exp(-speed * 0.016));
+      lookAtProxy.position.lerpVectors(avatarScene.camera.position, cursorTarget, eyeBlend);
+    });
+
     avatarScene.start();
 
-    // ── Cursor → head tracking ────────────────────────────────────────
+    // ── Cursor → head + eye tracking ─────────────────────────────────
     const raycaster = new THREE.Raycaster();
     const mouseNDC = new THREE.Vector2();
     const cursorTarget = new THREE.Vector3();
+
+    let eyeBlend = 0;
+    let lastCursorMove = 0;
+    const EYE_IDLE_TIMEOUT = 5000;
     // Dynamic plane — always halfway between camera and origin,
     // facing the camera. Scales with zoom level.
     const targetPlane = new THREE.Plane();
@@ -238,6 +252,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       window.removeEventListener('mousemove', onMouseMove);
       avatarScene.scene.remove(debugSphere);
       avatarScene.scene.remove(debugPlane);
+      avatarScene.scene.remove(lookAtProxy);
       debugSphere.geometry.dispose();
       debugPlane.geometry.dispose();
       cancelled = true;
