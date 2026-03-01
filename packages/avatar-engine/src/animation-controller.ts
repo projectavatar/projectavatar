@@ -336,6 +336,11 @@ export class AnimationController {
     this.idleLayer.setCamera(camera);
   }
 
+  /** Set cursor world-space position for head tracking. */
+  setCursorTarget(worldPos: THREE.Vector3 | null): void {
+    this.idleLayer.setCursorTarget(worldPos);
+  }
+
   /** Enable/disable the procedural idle layer. */
   setIdleLayerEnabled(enabled: boolean): void {
     this.idleLayer.setEnabled(enabled);

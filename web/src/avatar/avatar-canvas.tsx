@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, createContext, useContext } from 'react';
+import * as THREE from 'three';
 import { useStore } from '../state/store.ts';
 import { WebSocketClient } from '../ws/web-socket-client.ts';
 import {
@@ -58,6 +59,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   const theme            = useStore((s) => s.theme);
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const sceneRef        = useRef<AvatarScene | null>(null);
+  const animControllerRef = useRef<AnimationController | null>(null);
   const wsRef           = useRef<WebSocketClient | null>(null);
   const stateMachineRef = useRef<StateMachine | null>(null);
   const effectsManagerRef = useRef<EffectsManager | null>(null);
@@ -84,6 +86,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const setupControllers = (vrm: import('@pixiv/three-vrm').VRM) => {
       const animationController = new AnimationController(vrm, clipRegistry);
+      animControllerRef.current = animationController;
       animationController.loadAnimations()
         .then(() => {
           setAnimationsLoaded(true);
@@ -258,6 +261,35 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       resetConnectionState();
     };
   }, [token, relayUrl, setConnectionState, setReconnectAttempt, applyChannelState, setModelId, recordAgentEvent, resetConnectionState, onSendSetModel]);
+  // ── Cursor → head tracking ──────────────────────────────────────────
+  // Convert screen cursor to 3D world point for avatar head tracking.
+  // After 5s idle, head smoothly returns to looking at camera.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const scene = sceneRef.current;
+    if (!canvas || !scene) return;
+
+    const targetPoint = new THREE.Vector3();
+
+    const onMouseMove = (e: MouseEvent) => {
+      const ctrl = animControllerRef.current;
+      if (!ctrl) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      // Project into world space at a plane in front of the model
+      targetPoint.set(ndcX * 3, ndcY * 2, 2);
+      targetPoint.unproject(scene.camera);
+
+      ctrl.setCursorTarget(targetPoint);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    return () => window.removeEventListener('mousemove', onMouseMove);
+  });
+
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

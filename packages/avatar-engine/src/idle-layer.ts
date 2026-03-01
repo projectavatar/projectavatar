@@ -118,6 +118,12 @@ export class IdleLayer {
   // Finger + wrist bones
   private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number; finger: keyof GesturePreset }[] = [];
   private bypassHeadTracking = false;
+
+  // Cursor tracking — head follows a target point instead of camera
+  private cursorTarget: THREE.Vector3 | null = null;
+  private cursorLastMoveTime = 0;
+  private cursorIdleTimeout = 5000; // ms before returning to camera
+  private cursorBlend = 0; // 0 = camera, 1 = cursor
   private clipHasFingers = false;
   private currentGesture: HandGesture = 'relaxed';
 
@@ -182,6 +188,20 @@ export class IdleLayer {
   /** Set the current hand gesture. */
   setHandGesture(gesture: HandGesture): void {
     this.currentGesture = gesture;
+  }
+
+  /**
+   * Set cursor world-space position for head tracking.
+   * Pass null to clear (head returns to camera).
+   */
+  setCursorTarget(worldPos: THREE.Vector3 | null): void {
+    if (worldPos) {
+      if (!this.cursorTarget) this.cursorTarget = new THREE.Vector3();
+      this.cursorTarget.copy(worldPos);
+      this.cursorLastMoveTime = performance.now();
+    } else {
+      this.cursorTarget = null;
+    }
   }
 
   /** Enable/disable head tracking bypass (e.g. when typing, avatar looks at hands). */
@@ -504,9 +524,25 @@ export class IdleLayer {
   private _applyHeadTracking(delta: number): void {
     if (!this.camera || !this.head) return;
 
-    // Get direction from head to camera in world space
     this.head.getWorldPosition(this._headWorldPos);
-    this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    // Blend between cursor target and camera based on idle time
+    const now = performance.now();
+    const cursorActive = this.cursorTarget && (now - this.cursorLastMoveTime < this.cursorIdleTimeout);
+    const targetBlend = cursorActive ? 1 : 0;
+    const blendSpeed = cursorActive ? 4.0 : 2.0; // snap to cursor faster, return to camera slower
+    this.cursorBlend += (targetBlend - this.cursorBlend) * (1 - Math.exp(-blendSpeed * delta));
+
+    // Compute camera direction
+    const cameraDir = this._headTargetDir.copy(this.camera.position).sub(this._headWorldPos).normalize();
+
+    if (this.cursorBlend > 0.001 && this.cursorTarget) {
+      // Compute cursor direction
+      const cursorDir = new THREE.Vector3().copy(this.cursorTarget).sub(this._headWorldPos).normalize();
+      // Blend between camera and cursor direction
+      this._headTargetDir.lerpVectors(cameraDir, cursorDir, this.cursorBlend);
+      this._headTargetDir.normalize();
+    }
 
     // VRM 0.x (legBendSign === -1): the normalized skeleton faces the opposite
     // direction. Mirror the target direction so the head turns toward camera.
