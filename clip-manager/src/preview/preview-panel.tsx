@@ -416,7 +416,52 @@ export function PreviewPanel({
 
   return (
     <div style={containerStyle}>
-      <div ref={containerRef} style={canvasWrapStyle} />
+      <div style={canvasWrapStyle}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        {propId && (
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: 4,
+            background: 'rgba(10, 10, 15, 0.7)',
+            borderRadius: 6,
+            padding: '4px 6px',
+            backdropFilter: 'blur(8px)',
+          }}>
+            {([
+              ['translate', '↔'],
+              ['rotate', '↻'],
+              ['scale', '⇔'],
+            ] as const).map(([mode, icon]) => (
+              <button
+                key={mode}
+                title={mode}
+                onClick={() => setGizmoMode(mode)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 4,
+                  border: gizmoMode === mode ? '1px solid var(--color-accent)' : '1px solid transparent',
+                  background: gizmoMode === mode ? 'rgba(var(--color-accent-rgb, 100, 180, 255), 0.2)' : 'transparent',
+                  color: gizmoMode === mode ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={controlsStyle}>
         {/* Label */}
