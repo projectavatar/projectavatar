@@ -26,5 +26,6 @@
     "@changesets/cli": "^2.29.8",
     "@types/node": "^25.3.2",
     "tsx": "^4.21.0"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }
