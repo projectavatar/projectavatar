@@ -23,7 +23,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 const EDGE_SIZE = 6;
 const CORNER_SIZE = 14;
 const BORDER_RADIUS = 12;
-export const TITLEBAR_HEIGHT = 32;
+const TITLEBAR_HEIGHT = 32;
 
 /**
  * Tauri's ResizeDirection uses cardinal directions:
@@ -66,6 +66,20 @@ function getCursorForDirection(dir: ResizeDir | null): string {
 }
 
 export function WindowChrome() {
+  // ── Set --titlebar-inset CSS variable ───────────────────────────────
+  // Owned here because WindowChrome defines TITLEBAR_HEIGHT.
+  // Web components use var(--titlebar-inset, 0px) to clear the titlebar.
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--titlebar-inset',
+      `${TITLEBAR_HEIGHT}px`,
+    );
+    return () => {
+      document.documentElement.style.removeProperty('--titlebar-inset');
+    };
+  }, []);
+
   const [hovered, setHovered] = useState(false);
   const lastEscapeRef = useRef(0);
 
