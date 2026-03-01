@@ -681,7 +681,8 @@
         {
           "type": "particle-aura",
           "color": "#4d99ff",
-          "intensity": 1.0
+          "intensity": 1.0,
+          "offsetY": 0.2
         }
       ]
     }

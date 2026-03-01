@@ -535,17 +535,18 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
   const count = 80;
   const color = new THREE.Color(binding.color ?? '#4d99ff');
   const intensity = binding.intensity ?? 1.0;
-  const offsetY = binding.offsetY ?? 0.4;
+  const offsetY = binding.offsetY ?? 0.2;
 
-  const ORBIT_RADIUS = 0.55;
-  const ORBIT_RADIUS_VAR = 0.3;
-  const ORBIT_SPEED = 0.3;
-  const ORBIT_SPEED_VAR = 0.15;
-  const VERTICAL_RANGE = 0.8;
-  const VERTICAL_BOB = 0.04;
-  const VERTICAL_BOB_FREQ = 0.5;
-  const PULSE_FREQ = 0.8;
-  const PULSE_AMOUNT = 0.3;
+  // Dreamy, full-body aura — slow drifting, varied radii
+  const ORBIT_RADIUS = 0.7;       // wider base orbit
+  const ORBIT_RADIUS_VAR = 0.5;   // lots of variation (0.2 – 1.2)
+  const ORBIT_SPEED = 0.08;       // much slower (was 0.3)
+  const ORBIT_SPEED_VAR = 0.06;   // some faster, some glacial
+  const VERTICAL_RANGE = 1.4;     // full body height coverage
+  const VERTICAL_BOB = 0.08;      // gentle drift up/down
+  const VERTICAL_BOB_FREQ = 0.15; // very slow bob
+  const PULSE_FREQ = 0.4;         // slow global pulse
+  const PULSE_AMOUNT = 0.2;       // subtle
 
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -553,18 +554,30 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
   const alphas = new Float32Array(count);
   const colors = new Float32Array(count * 3);
 
-  // Per-particle orbital state
+  // Per-particle state — each on its own lazy trajectory
   const orbitR = new Float32Array(count);
   const orbitSpeed = new Float32Array(count);
   const orbitPhase = new Float32Array(count);
   const verticalOffset = new Float32Array(count);
+  // Secondary motion — each particle has its own wobble
+  const wobbleFreq = new Float32Array(count);
+  const wobbleAmp = new Float32Array(count);
+  const wobblePhase = new Float32Array(count);
+  // Vertical drift speed (each particle drifts at its own pace)
+  const vertDriftFreq = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
     orbitR[i] = ORBIT_RADIUS + (Math.random() - 0.5) * ORBIT_RADIUS_VAR;
     orbitSpeed[i] = ORBIT_SPEED + (Math.random() - 0.5) * ORBIT_SPEED_VAR;
     orbitPhase[i] = Math.random() * Math.PI * 2;
     verticalOffset[i] = (Math.random() - 0.5) * VERTICAL_RANGE;
-    sizes[i] = (0.06 + Math.random() * 0.04) * intensity;
+    // Wobble — small random drift perpendicular to orbit
+    wobbleFreq[i] = 0.1 + Math.random() * 0.3;
+    wobbleAmp[i] = 0.05 + Math.random() * 0.15;
+    wobblePhase[i] = Math.random() * Math.PI * 2;
+    // Each particle bobs at its own frequency
+    vertDriftFreq[i] = VERTICAL_BOB_FREQ * (0.5 + Math.random());
+    sizes[i] = (0.05 + Math.random() * 0.05) * intensity;
     colors[i * 3] = color.r;
     colors[i * 3 + 1] = color.g;
     colors[i * 3 + 2] = color.b;
@@ -604,15 +617,17 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
       for (let i = 0; i < count; i++) {
         const angle = time * orbitSpeed[i]! * Math.PI * 2 + orbitPhase[i]!;
         const r = orbitR[i]!;
-        const bob = Math.sin(time * VERTICAL_BOB_FREQ * Math.PI * 2 + orbitPhase[i]!) * VERTICAL_BOB;
+        const bob = Math.sin(time * vertDriftFreq[i]! * Math.PI * 2 + orbitPhase[i]!) * VERTICAL_BOB;
+        // Wobble — perpendicular drift for organic, non-circular motion
+        const wob = Math.sin(time * wobbleFreq[i]! * Math.PI * 2 + wobblePhase[i]!) * wobbleAmp[i]!;
 
-        pos.array[i * 3] = Math.cos(angle) * r;
+        pos.array[i * 3] = Math.cos(angle) * r + wob * Math.sin(angle);
         pos.array[i * 3 + 1] = verticalOffset[i]! + bob;
-        pos.array[i * 3 + 2] = Math.sin(angle) * r;
+        pos.array[i * 3 + 2] = Math.sin(angle) * r + wob * Math.cos(angle);
 
-        // Soft pulsing alpha
-        const particlePulse = 0.5 + 0.5 * Math.sin(time * 2 + orbitPhase[i]! * 3);
-        alpha.array[i] = currentOpacity * particlePulse * pulse * 0.7;
+        // Soft pulsing alpha — slow, dreamy
+        const particlePulse = 0.5 + 0.5 * Math.sin(time * 0.8 + orbitPhase[i]! * 3);
+        alpha.array[i] = currentOpacity * particlePulse * pulse * 0.6;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;
