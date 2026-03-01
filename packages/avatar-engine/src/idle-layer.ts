@@ -32,7 +32,7 @@ const BACKWARD_LEAN     = 0.15;    // radians (~8.6°) — static backward lean 
 const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 
 // Head tracking
-const HEAD_TRACK_INFLUENCE = 0.15;  // 0–1 — how much head biases toward camera
+const HEAD_TRACK_INFLUENCE = 0.22;  // 0–1 — how much head biases toward camera
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
