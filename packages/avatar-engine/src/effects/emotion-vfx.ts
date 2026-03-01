@@ -750,7 +750,7 @@ function createWarmDust(binding: VfxBinding): VfxInstance {
   const count = 80;
   const color = new THREE.Color(binding.color ?? '#ff88aa');
   const intensity = binding.intensity ?? 1.0;
-  const offsetY = binding.offsetY ?? 0.5;
+  const offsetY = binding.offsetY ?? 0;
 
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -774,7 +774,7 @@ function createWarmDust(binding: VfxBinding): VfxInstance {
     driftSpeedY[i] = 0.01 + Math.random() * 0.03;
     phaseA[i] = Math.random() * Math.PI * 2;
     phaseB[i] = Math.random() * Math.PI * 2;
-    sizes[i] = (0.03 + Math.random() * 0.04) * intensity;
+    sizes[i] = (0.05 + Math.random() * 0.07) * intensity;
     // Pink color variation
     const warmth = 0.85 + Math.random() * 0.15;
     colors[i * 3] = color.r * warmth;

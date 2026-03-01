@@ -143,6 +143,8 @@ export class StateMachine {
   /** Set VFX manager (optional, added post-construction). */
   setVfxManager(mgr: VfxManager): void {
     this.vfxManager = mgr;
+    // Apply initial state so idle VFX shows on load
+    mgr.setState(this.state.emotion, this.state.action);
   }
 
   setCamera(camera: import('three').Camera): void {
