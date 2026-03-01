@@ -194,7 +194,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // Smooth eye tracking — lerp proxy position toward target each frame
     const eyeGoal = new THREE.Vector3();
-    const ZOOM_GROUND_THRESHOLD = 2; // switch to ground mode when zoomed in closer than this
+    const ZOOM_GROUND_THRESHOLD = 3; // switch to ground mode when zoomed in closer than this
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
 

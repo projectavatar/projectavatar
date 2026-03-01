@@ -98,6 +98,7 @@ const SHIFT_FREQUENCY   = 0.08;    // Hz — very slow weight shift
 export class IdleLayer {
   private vrm: VRM;
   private mode: IdleMode;
+  private modeBlend = 0; // 0 = air, 1 = ground — smoothly lerps toward target
   private elapsed = 0;
   private enabled = true;
 
@@ -158,6 +159,7 @@ export class IdleLayer {
   constructor(vrm: VRM, mode: IdleMode = 'air') {
     this.vrm = vrm;
     this.mode = mode;
+    this.modeBlend = mode === 'ground' ? 1 : 0;
     this.baseY = vrm.scene.position.y;
     this._buildBones();
   }
@@ -242,10 +244,28 @@ export class IdleLayer {
     this.elapsed += delta;
     const t = this.elapsed;
 
-    if (this.mode === 'air') {
-      this._updateAir(t, delta);
-    } else {
-      this._updateGround(t, delta);
+    // Smoothly blend between air (0) and ground (1)
+    const targetBlend = this.mode === 'ground' ? 1 : 0;
+    const blendSpeed = 2.0; // transition speed
+    this.modeBlend += (targetBlend - this.modeBlend) * (1 - Math.exp(-blendSpeed * delta));
+
+    // Run both modes, weighted by blend
+    const airWeight = 1 - this.modeBlend;
+    const groundWeight = this.modeBlend;
+
+    if (airWeight > 0.001) {
+      this._updateAir(t, delta, airWeight);
+    }
+    if (groundWeight > 0.001) {
+      this._updateGround(t, delta, groundWeight);
+    }
+
+    // Shared across modes — always run once after blend
+    if (!this.clipHasFingers) {
+      this._applyFingerCurl(t);
+    }
+    if (!this.bypassHeadTracking) {
+      this._applyHeadTracking(delta);
     }
   }
 
@@ -421,11 +441,12 @@ export class IdleLayer {
 
   // ─── Private: air mode ────────────────────────────────────────────────
 
-  private _updateAir(t: number, delta: number): void {
+  private _updateAir(t: number, delta: number, weight = 1): void {
     // 1. Vertical hover bob — applied to VRM scene root (moves entire model)
     if (this.vrm.scene) {
-      const bobOffset = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE
+      const bobRaw = Math.sin(t * HOVER_FREQUENCY * Math.PI * 2) * HOVER_AMPLITUDE
                        + Math.sin(t * HOVER_FREQUENCY_2 * Math.PI * 2) * HOVER_AMPLITUDE_2;
+      const bobOffset = bobRaw * weight;
       this.vrm.scene.position.y = this.baseY + bobOffset;
 
       // Store current bob offset so PropManager can sync prop Y position
@@ -452,70 +473,47 @@ export class IdleLayer {
     // 3. Backward lean on hips — counterbalances tucked legs
     if (this.hips) {
       // VRM 0.x has inverted axes — legBendSign handles this
-      this.hips.rotation.x += -BACKWARD_LEAN * this.legBendSign;
+      this.hips.rotation.x += -BACKWARD_LEAN * this.legBendSign * weight;
     }
 
     // 4. Gentle body tilt — spine leans forward/back
     if (this.spine) {
-      const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE;
+      const tiltX = Math.sin(t * TILT_FREQUENCY * Math.PI * 2) * TILT_AMPLITUDE * weight;
       this.spine.rotation.x += tiltX;
     }
 
     // 4. Slow left/right drift — hips sway
     if (this.hips) {
-      const driftZ = Math.sin(t * DRIFT_FREQUENCY * Math.PI * 2) * DRIFT_AMPLITUDE;
+      const driftZ = Math.sin(t * DRIFT_FREQUENCY * Math.PI * 2) * DRIFT_AMPLITUDE * weight;
       this.hips.rotation.z += driftZ;
     }
 
-    // 6. Leg dangle — relaxed hanging pose
-    this._applyLegDangle(t);
-
-    // 7. Relaxed finger curl + wave (skip if clip has its own finger animation)
-    if (!this.clipHasFingers) {
-      this._applyFingerCurl(t);
-    }
-
-    // 8. Subtle head tracking toward camera
-    if (!this.bypassHeadTracking) {
-      this._applyHeadTracking(delta);
-    }
+    // 6. Leg dangle — relaxed hanging pose (scaled by weight for blend)
+    this._applyLegDangle(t, weight);
   }
 
   // ─── Private: ground mode ─────────────────────────────────────────────
 
-  private _updateGround(t: number, delta: number): void {
-    // Ensure scene Y is at ground level
-    if (this.vrm.scene) {
-      this.vrm.scene.position.y = this.baseY;
-    }
+  private _updateGround(t: number, delta: number, weight = 1): void {
 
     // 1. Breathing — chest subtle rotation oscillation
     if (this.chest) {
-      const breathe = Math.sin(t * BREATHE_FREQUENCY * Math.PI * 2) * BREATHE_AMPLITUDE;
+      const breathe = Math.sin(t * BREATHE_FREQUENCY * Math.PI * 2) * BREATHE_AMPLITUDE * weight;
       this.chest.rotation.x += breathe;
     }
 
     // 2. Torso micro-sway — gentle left/right
     if (this.spine) {
-      const sway = Math.sin(t * SWAY_FREQUENCY * Math.PI * 2) * SWAY_AMPLITUDE;
+      const sway = Math.sin(t * SWAY_FREQUENCY * Math.PI * 2) * SWAY_AMPLITUDE * weight;
       this.spine.rotation.z += sway;
     }
 
     // 3. Weight shift — hips side-to-side translation
     if (this.hips) {
-      const shift = Math.sin(t * SHIFT_FREQUENCY * Math.PI * 2) * SHIFT_AMPLITUDE;
+      const shift = Math.sin(t * SHIFT_FREQUENCY * Math.PI * 2) * SHIFT_AMPLITUDE * weight;
       this.hips.position.x += shift;
     }
 
-    // 4. Relaxed finger curl + wave (skip if clip has its own finger animation)
-    if (!this.clipHasFingers) {
-      this._applyFingerCurl(t);
-    }
-
-    // 5. Subtle head tracking toward camera
-    if (!this.bypassHeadTracking) {
-      this._applyHeadTracking(delta);
-    }
   }
 
   // ─── Private: head tracking ──────────────────────────────────────────
@@ -602,7 +600,7 @@ export class IdleLayer {
    * Sine-driven leg dangle — tuck/droop varies continuously.
    * Each leg on a different phase for natural asymmetry.
    */
-  private _applyLegDangle(t: number): void {
+  private _applyLegDangle(t: number, weight = 1): void {
     const s = this.legBendSign;
 
     // Sine-driven variation — each leg on a different phase
@@ -614,24 +612,24 @@ export class IdleLayer {
     // Base multipliers: left = straighter (1.1), right = more tucked (2.0)
     // Sway adds/subtracts from these
     if (this.leftUpperLeg) {
-      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * (1.1 + leftSway) * s;
+      this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * (1.1 + leftSway) * s * weight;
     }
     if (this.rightUpperLeg) {
-      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * (2.0 + rightSway) * s;
+      this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * (2.0 + rightSway) * s * weight;
     }
 
     if (this.leftLowerLeg) {
-      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.2 + leftSway * 0.8) * s;
+      this.leftLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.2 + leftSway * 0.8) * s * weight;
     }
     if (this.rightLowerLeg) {
-      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.5 + rightSway * 0.8) * s;
+      this.rightLowerLeg.rotation.x += KNEE_BEND_ANGLE * (1.5 + rightSway * 0.8) * s * weight;
     }
 
     if (this.leftFoot) {
-      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * (2.5 + leftSway * 0.5) * s;
+      this.leftFoot.rotation.x += TOE_DROOP_ANGLE * (2.5 + leftSway * 0.5) * s * weight;
     }
     if (this.rightFoot) {
-      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * (1.5 + rightSway * 0.5) * s;
+      this.rightFoot.rotation.x += TOE_DROOP_ANGLE * (1.5 + rightSway * 0.5) * s * weight;
     }
   }
 }
