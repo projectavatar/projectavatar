@@ -540,12 +540,12 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
   // Dreamy, full-body aura — slow drifting, varied radii
   const ORBIT_RADIUS = 0.7;       // wider base orbit
   const ORBIT_RADIUS_VAR = 0.5;   // lots of variation (0.2 – 1.2)
-  const ORBIT_SPEED = 0.08;       // much slower (was 0.3)
-  const ORBIT_SPEED_VAR = 0.06;   // some faster, some glacial
+  const ORBIT_SPEED = 0.025;       // much slower (was 0.3)
+  const ORBIT_SPEED_VAR = 0.02;   // some faster, some glacial
   const VERTICAL_RANGE = 1.4;     // full body height coverage
   const VERTICAL_BOB = 0.08;      // gentle drift up/down
-  const VERTICAL_BOB_FREQ = 0.15; // very slow bob
-  const PULSE_FREQ = 0.4;         // slow global pulse
+  const VERTICAL_BOB_FREQ = 0.05; // very slow bob
+  const PULSE_FREQ = 0.13;         // slow global pulse
   const PULSE_AMOUNT = 0.2;       // subtle
 
   const geo = new THREE.BufferGeometry();
@@ -572,7 +572,7 @@ function createParticleAuraVfx(binding: VfxBinding): VfxInstance {
     orbitPhase[i] = Math.random() * Math.PI * 2;
     verticalOffset[i] = (Math.random() - 0.5) * VERTICAL_RANGE;
     // Wobble — small random drift perpendicular to orbit
-    wobbleFreq[i] = 0.1 + Math.random() * 0.3;
+    wobbleFreq[i] = 0.03 + Math.random() * 0.1;
     wobbleAmp[i] = 0.05 + Math.random() * 0.15;
     wobblePhase[i] = Math.random() * Math.PI * 2;
     // Each particle bobs at its own frequency
