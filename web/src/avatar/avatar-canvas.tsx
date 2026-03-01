@@ -276,10 +276,16 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       document.removeEventListener('mouseleave', onMouseLeave);
 
       const win = getCurrentWindow();
+      let prevScreenX = -1;
+      let prevScreenY = -1;
       const poll = async () => {
         try {
           const [screenX, screenY] = await invoke<[number, number]>('get_cursor_position');
-          if (screenX === -1 && screenY === -1) return; // cursor query failed
+          if (screenX === -1 && screenY === -1) return;
+          // Only update if cursor actually moved
+          if (screenX === prevScreenX && screenY === prevScreenY) return;
+          prevScreenX = screenX;
+          prevScreenY = screenY;
           const pos = await win.outerPosition();
           const size = await win.outerSize();
           const scale = await win.scaleFactor();
