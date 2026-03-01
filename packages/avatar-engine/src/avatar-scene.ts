@@ -139,7 +139,6 @@ export class AvatarScene {
     const ambient = new THREE.AmbientLight(0xffffff, 0.5);
     this.scene.add(ambient);
 
-
     // Optional grid floor
     if (options?.grid) {
       const grid = new THREE.GridHelper(

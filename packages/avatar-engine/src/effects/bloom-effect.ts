@@ -98,13 +98,18 @@ export class BloomEffect {
     // Patch bloom blend material: use custom blending to preserve alpha.
     // Default AdditiveBlending adds to ALL channels including alpha,
     // making transparent areas opaque. Custom blending adds RGB only.
-    const blendMat = (this.bloomPass as any).blendMaterial;
+    // Patch blend material for alpha preservation.
+    // blendMaterial is an internal of UnrealBloomPass — if three.js
+    // removes it, bloom will still work but with opaque backgrounds.
+    const blendMat = (this.bloomPass as any).blendMaterial as THREE.ShaderMaterial | undefined;
     if (blendMat) {
       blendMat.blending = THREE.CustomBlending;
       blendMat.blendSrc = THREE.OneFactor;
       blendMat.blendDst = THREE.OneFactor;
       blendMat.blendSrcAlpha = THREE.ZeroFactor;
       blendMat.blendDstAlpha = THREE.OneFactor;
+    } else {
+      console.warn('[BloomEffect] blendMaterial not found on UnrealBloomPass — alpha transparency may not work');
     }
 
     const outputPass = new OutputPass();

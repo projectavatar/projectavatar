@@ -16,6 +16,7 @@ import { useIdleHide } from '../../web/src/hooks/use-idle-hide.ts';
 const EDGE_SIZE = 10;
 const CORNER_SIZE = 20;
 const BORDER_RADIUS = 12;
+const MIN_WINDOW_SIZE = 100;
 
 type ResizeDir = 'North' | 'South' | 'East' | 'West'
   | 'NorthWest' | 'NorthEast' | 'SouthWest' | 'SouthEast';
@@ -49,6 +50,19 @@ function getCursorForDirection(dir: ResizeDir | null): string {
     case 'NorthEast': case 'SouthWest': return 'nesw-resize';
     default: return 'default';
   }
+}
+
+/** Validate restored bounds — reject offscreen or nonsensical values. */
+function isValidBounds(b: unknown): b is { x: number; y: number; width: number; height: number } {
+  if (!b || typeof b !== 'object') return false;
+  const { x, y, width, height } = b as Record<string, unknown>;
+  return (
+    typeof x === 'number' && typeof y === 'number' &&
+    typeof width === 'number' && typeof height === 'number' &&
+    Number.isFinite(x) && Number.isFinite(y) &&
+    width >= MIN_WINDOW_SIZE && height >= MIN_WINDOW_SIZE &&
+    Math.abs(x) < 10000 && Math.abs(y) < 10000
+  );
 }
 
 // Match gear button style exactly
@@ -85,9 +99,13 @@ export function WindowChrome() {
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Same 1s idle hide as the gear button
   const uiVisible = useIdleHide(1000);
   const visible = uiVisible || resizing;
+
+  // ── Sync initial alwaysOnTop state ──────────────────────────────────
+  useEffect(() => {
+    getCurrentWindow().isAlwaysOnTop().then(setPinned).catch(() => {});
+  }, []);
 
   // ── Edge resize ─────────────────────────────────────────────────────
 
@@ -162,26 +180,28 @@ export function WindowChrome() {
     const STORAGE_KEY = 'window-bounds';
 
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const { x, y, width, height } = JSON.parse(saved);
-        win.setPosition(new PhysicalPosition(x, y)).catch(() => {});
-        win.setSize(new PhysicalSize(width, height)).catch(() => {});
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (isValidBounds(parsed)) {
+          win.setPosition(new PhysicalPosition(parsed.x, parsed.y)).catch(() => {});
+          win.setSize(new PhysicalSize(parsed.width, parsed.height)).catch(() => {});
+        }
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore parse errors */ }
 
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
-    const save = async () => {
+    const save = () => {
       if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(async () => {
-        try {
-          const pos = await win.outerPosition();
-          const size = await win.outerSize();
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            x: pos.x, y: pos.y,
-            width: size.width, height: size.height,
-          }));
-        } catch { /* ignore */ }
+      saveTimer = setTimeout(() => {
+        Promise.all([win.outerPosition(), win.outerSize()])
+          .then(([pos, size]) => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+              x: pos.x, y: pos.y,
+              width: size.width, height: size.height,
+            }));
+          })
+          .catch(() => { /* window may be closed */ });
       }, 200);
     };
 
@@ -189,8 +209,8 @@ export function WindowChrome() {
     const unlistenResize = win.onResized(save);
 
     return () => {
-      unlistenMove.then((fn) => fn());
-      unlistenResize.then((fn) => fn());
+      unlistenMove.then((fn) => fn()).catch(() => {});
+      unlistenResize.then((fn) => fn()).catch(() => {});
       if (saveTimer) clearTimeout(saveTimer);
     };
   }, []);
@@ -253,7 +273,6 @@ export function WindowChrome() {
           userSelect: 'none',
         }}
       >
-        {/* Spacer to balance the right-side buttons */}
         <div style={{ flex: 1, pointerEvents: 'none' }} />
 
         {/* Drag grip handle */}
@@ -296,8 +315,8 @@ export function WindowChrome() {
             onClick={handleClose}
             title="Close"
             style={chromeBtnStyle}
-            onMouseEnter={(e) => { (e.target as HTMLElement).style.background = 'rgba(231, 76, 60, 0.6)'; }}
-            onMouseLeave={(e) => { (e.target as HTMLElement).style.background = chromeBtnStyle.background as string; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(231, 76, 60, 0.6)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = chromeBtnStyle.background as string; }}
           >
             ✕
           </button>

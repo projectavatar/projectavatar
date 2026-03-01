@@ -174,13 +174,7 @@ export function App() {
         )}
 
         {/* StatusBadge always shown — user can see connection state during onboarding */}
-        <div style={{
-          opacity: uiVisible ? 1 : 0,
-          transition: 'opacity 0.3s ease',
-          pointerEvents: uiVisible ? 'auto' : 'none',
-        }}>
-          <StatusBadge />
-        </div>
+        <StatusBadge />
 
         {modelId && (
           <>
