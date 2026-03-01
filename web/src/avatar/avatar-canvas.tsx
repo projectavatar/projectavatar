@@ -212,7 +212,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       }
 
       // Smooth lerp toward goal — eyes follow at a natural pace
-      const speed = 1.5;
+      const speed = 3;
       const t = 1 - Math.exp(-speed * dt);
       lookAtProxy.position.lerp(eyeGoal, t);
     });
@@ -234,7 +234,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       const cam = avatarScene.camera;
       cam.getWorldDirection(_camDir);
       // Plane 10% from camera toward origin
-      _planePos.copy(cam.position).multiplyScalar(0.9);
+      _planePos.copy(cam.position).multiplyScalar(0.1);
       _plane.setFromNormalAndCoplanarPoint(_camDir, _planePos);
       _ndcVec.set(ndcX, ndcY);
       _raycaster.setFromCamera(_ndcVec, cam);
