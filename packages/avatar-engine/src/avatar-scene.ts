@@ -43,7 +43,6 @@ const CAMERA_SAVE_DEBOUNCE = 500; // ms
 
 interface CameraState {
   position: [number, number, number];
-  target: [number, number, number];
 }
 
 function loadCameraState(): CameraState | null {
@@ -51,7 +50,7 @@ function loadCameraState(): CameraState | null {
     const raw = localStorage.getItem(CAMERA_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.position) && Array.isArray(parsed.target)) return parsed;
+    if (Array.isArray(parsed.position)) return parsed;
     return null;
   } catch { return null; }
 }
@@ -149,8 +148,10 @@ export class AvatarScene {
       this.controls.mouseButtons = {
         LEFT: THREE.MOUSE.ROTATE,
         MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.PAN,
+        RIGHT: THREE.MOUSE.ROTATE,
       };
+      // No panning — orbit target must stay on the model
+      this.controls.enablePan = false;
       // Lock vertical rotation in production — no peeking allowed
       if (!options?.dev) {
         // Clamp polar angle to ±22° from equator
@@ -164,7 +165,6 @@ export class AvatarScene {
       const saved = loadCameraState();
       if (saved) {
         this.camera.position.set(...saved.position);
-        this.controls.target.set(...saved.target);
         this.controls.update();
         this.framingEnabled = false;
         this.cameraRestored = true;
@@ -175,10 +175,8 @@ export class AvatarScene {
         if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
         this.cameraSaveTimer = setTimeout(() => {
           const pos = this.camera.position;
-          const tgt = this.controls!.target;
           saveCameraState({
             position: [pos.x, pos.y, pos.z],
-            target: [tgt.x, tgt.y, tgt.z],
           });
           // Once the user manually moves the camera, stop auto-framing
           this.framingEnabled = false;
