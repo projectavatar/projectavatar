@@ -36,6 +36,19 @@ const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
 // Air mode — leg swap
 // Relaxed finger curl — natural resting hand pose
+// Finger wave — subtle sine oscillation on curl
+const FINGER_WAVE_FREQ     = 0.12;   // Hz — slow, dreamy
+const FINGER_WAVE_AMOUNT   = 0.08;   // radians — subtle variation
+const WRIST_WAVE_FREQ      = 0.09;   // Hz — even slower
+const WRIST_WAVE_AMOUNT    = 0.04;   // radians — very subtle
+
+// Phase offset per finger (cascade wave from index → pinky)
+const FINGER_PHASE_INDEX   = 0;
+const FINGER_PHASE_MIDDLE  = 0.4;
+const FINGER_PHASE_RING    = 0.8;
+const FINGER_PHASE_LITTLE  = 1.2;
+const FINGER_PHASE_THUMB   = 0.6;
+
 // Per-finger curl multipliers (index=lightest → pinky=most curled)
 const CURL_INDEX  = 0.6;
 const CURL_MIDDLE = 0.8;
@@ -89,8 +102,11 @@ export class IdleLayer {
 
   private initialized = false;
 
-  // Finger bones
-  private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z' }[] = [];
+  // Finger + wrist bones
+  private leftWrist: THREE.Object3D | null = null;
+  private rightWrist: THREE.Object3D | null = null;
+  private wristRestZ: { left: number; right: number } = { left: 0, right: 0 };
+  private fingerBones: { bone: THREE.Object3D; curl: number; restVal: number; sign: number; axis: 'x' | 'y' | 'z'; phase: number }[] = [];
   private bypassHeadTracking = false;
 
 
@@ -249,8 +265,24 @@ export class IdleLayer {
       let sign = name.startsWith('left') ? -1 : 1;
       if (isThumb) sign = -sign;
       const axis = isThumb ? 'y' as const : 'z' as const;
-      if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis });
+      // Phase offset for wave cascade
+      let phase = 0;
+      const lowerName = name.toLowerCase();
+      if (lowerName.includes('index')) phase = FINGER_PHASE_INDEX;
+      else if (lowerName.includes('middle')) phase = FINGER_PHASE_MIDDLE;
+      else if (lowerName.includes('ring')) phase = FINGER_PHASE_RING;
+      else if (lowerName.includes('little')) phase = FINGER_PHASE_LITTLE;
+      else if (lowerName.includes('thumb')) phase = FINGER_PHASE_THUMB;
+      // Offset left vs right so hands aren't synchronized
+      if (name.startsWith('right')) phase += Math.PI * 0.5;
+      if (bone) this.fingerBones.push({ bone, curl, restVal: bone.rotation[axis], sign, axis, phase });
     }
+
+    // Resolve wrist bones
+    this.leftWrist = h.getNormalizedBoneNode('leftHand' as any) ?? null;
+    this.rightWrist = h.getNormalizedBoneNode('rightHand' as any) ?? null;
+    if (this.leftWrist) this.wristRestZ.left = this.leftWrist.rotation.z;
+    if (this.rightWrist) this.wristRestZ.right = this.rightWrist.rotation.z;
 
     // Detect leg bend direction from bone chain geometry.
     // Compare upper leg and lower leg world Y positions — if the lower leg
@@ -372,8 +404,8 @@ export class IdleLayer {
     // 5. Leg dangle — relaxed hanging pose
     this._applyLegDangle(t);
 
-    // 6. Relaxed finger curl
-    this._applyFingerCurl();
+    // 6. Relaxed finger curl + wave
+    this._applyFingerCurl(t);
 
     // 7. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
@@ -407,8 +439,8 @@ export class IdleLayer {
       this.hips.position.x += shift;
     }
 
-    // 4. Relaxed finger curl
-    this._applyFingerCurl();
+    // 4. Relaxed finger curl + wave
+    this._applyFingerCurl(t);
 
     // 5. Subtle head tracking toward camera
     if (!this.bypassHeadTracking) {
@@ -471,9 +503,20 @@ export class IdleLayer {
   // ─── Private: finger curl ──────────────────────────────────────────
 
   /** Apply a relaxed finger curl — natural resting hand pose. */
-  private _applyFingerCurl(): void {
-    for (const { bone, curl, restVal, sign, axis } of this.fingerBones) {
-      bone.rotation[axis] = restVal + curl * sign * this.legBendSign;
+  private _applyFingerCurl(t: number): void {
+    for (const { bone, curl, restVal, sign, axis, phase } of this.fingerBones) {
+      const wave = Math.sin(t * FINGER_WAVE_FREQ * Math.PI * 2 + phase) * FINGER_WAVE_AMOUNT;
+      bone.rotation[axis] = restVal + (curl + wave) * sign * this.legBendSign;
+    }
+    // Wrist sway
+    const s = this.legBendSign;
+    if (this.leftWrist) {
+      const wave = Math.sin(t * WRIST_WAVE_FREQ * Math.PI * 2) * WRIST_WAVE_AMOUNT;
+      this.leftWrist.rotation.z = this.wristRestZ.left + wave * -s;
+    }
+    if (this.rightWrist) {
+      const wave = Math.sin(t * WRIST_WAVE_FREQ * Math.PI * 2 + Math.PI * 0.7) * WRIST_WAVE_AMOUNT;
+      this.rightWrist.rotation.z = this.wristRestZ.right + wave * s;
     }
   }
 
