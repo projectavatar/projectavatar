@@ -31,14 +31,12 @@ const DEFAULT_FADE_IN = 0.3;
  * Feet get a faster crossfade to minimize foot skating.
  * Short enough that sliding is barely visible, long enough to avoid a hard snap.
  */
-const FEET_FADE_IN = 0.1;
 
 /**
  * Legs (hips + upper/lower leg, excludes feet) get a slower crossfade than the default.
  * Multiplied with the base fade duration to make hip transitions smoother
  * and less jarring — the body should shift weight gradually.
  */
-const LEGS_FADE_MULTIPLIER = 2.0;
 
 // ─── Layer toggles ────────────────────────────────────────────────────────────
 
@@ -401,9 +399,7 @@ export class AnimationController {
         if (sub) {
           // crossFadeTo from matching outgoing action for smooth warped transition
           const outgoing = outgoingByGroup.get(group);
-          let fadeDuration = crossfadeDuration;
-          if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
-          else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
+          const fadeDuration = crossfadeDuration;
 
           if (outgoing && outgoing.length > 0) {
             const outSub = outgoing.shift()!;
@@ -432,9 +428,7 @@ export class AnimationController {
       if (idleEntry) {
         const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
         if (idleSub) {
-          let fadeDuration = crossfadeDuration;
-          if (group === 'feet') fadeDuration = Math.min(crossfadeDuration, FEET_FADE_IN);
-          else if (group === 'legs') fadeDuration = crossfadeDuration * LEGS_FADE_MULTIPLIER;
+          const fadeDuration = crossfadeDuration;
           for (const sub of subs) {
             sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
           }
@@ -523,11 +517,7 @@ export class AnimationController {
     action.setEffectiveWeight(effectiveWeight);
     action.setEffectiveTimeScale(1);
     if (autoPlay) {
-      const baseFade = entry.fadeIn ?? DEFAULT_FADE_IN;
-      let groupFade = baseFade;
-      if (group === 'feet') groupFade = Math.min(baseFade, FEET_FADE_IN);
-      else if (group === 'legs') groupFade = baseFade * LEGS_FADE_MULTIPLIER;
-      action.fadeIn(groupFade);
+      action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
       action.play();
     }
 
