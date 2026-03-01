@@ -190,27 +190,26 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     void initModel();
 
     const cursorTarget = new THREE.Vector3();
-    let eyeBlend = 0;
     let lastCursorMove = 0;
     const EYE_IDLE_TIMEOUT = 5000;
 
-    // Blend eye lookAt between camera and cursor
-    let eyeDebugTimer = 0;
+    // Smooth eye tracking — lerp proxy position toward target each frame
+    const eyeGoal = new THREE.Vector3();
     avatarScene.onUpdate((dt) => {
-      eyeDebugTimer += dt;
       const now = performance.now();
       const cursorActive = lastCursorMove > 0 && (now - lastCursorMove < EYE_IDLE_TIMEOUT);
-      const targetBlend = cursorActive ? 1 : 0;
-      const speed = cursorActive ? 3.0 : 1.5;
-      eyeBlend += (targetBlend - eyeBlend) * (1 - Math.exp(-speed * dt));
-      // Overshoot: eyes look 2x further than cursor target relative to camera
-      // This makes eye movement visible even when head is already turning
-      const eyeTarget = cursorTarget.clone().sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
-      lookAtProxy.position.lerpVectors(avatarScene.camera.position, eyeTarget, eyeBlend);
-      if (eyeDebugTimer > 2) {
-        eyeDebugTimer = 0;
-        console.log('[EyeTrack]', { eyeBlend: eyeBlend.toFixed(3), proxyPos: lookAtProxy.position.toArray().map(n => n.toFixed(2)), cursorTarget: cursorTarget.toArray().map(n => n.toFixed(2)), camPos: avatarScene.camera.position.toArray().map(n => n.toFixed(2)) });
+
+      // Compute goal: cursor target (with 2x overshoot) or camera
+      if (cursorActive) {
+        eyeGoal.copy(cursorTarget).sub(avatarScene.camera.position).multiplyScalar(2).add(avatarScene.camera.position);
+      } else {
+        eyeGoal.copy(avatarScene.camera.position);
       }
+
+      // Smooth lerp toward goal — eyes follow at a natural pace
+      const speed = cursorActive ? 4.0 : 2.0;
+      const t = 1 - Math.exp(-speed * dt);
+      lookAtProxy.position.lerp(eyeGoal, t);
     });
 
     avatarScene.start();
