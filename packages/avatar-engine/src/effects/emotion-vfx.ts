@@ -17,7 +17,8 @@ export type VfxType =
   | 'embers'
   | 'confetti'
   | 'particle-aura'
-  | 'sweat-drops';
+  | 'sweat-drops'
+  | 'warm-dust';
 
 export interface VfxBinding {
   type: VfxType;
@@ -85,6 +86,7 @@ export function createVfx(type: VfxType, binding: VfxBinding): VfxInstance {
     case 'confetti':        return createConfetti(binding);
     case 'particle-aura': return createParticleAuraVfx(binding);
     case 'sweat-drops':    return createSweatDrops(binding);
+    case 'warm-dust':      return createWarmDust(binding);
     default:
       console.warn(`[VFX] Unknown type: ${type}`);
       return createSparkles(binding); // fallback
@@ -734,6 +736,93 @@ function createSweatDrops(binding: VfxBinding): VfxInstance {
         const fadeIn = life < 0.1 ? life * 10 : 1;
         const fadeOut = Math.max(1 - (life - 0.5) * 2, 0);
         alpha.array[i] = currentOpacity * fadeIn * fadeOut;
+      }
+      pos.needsUpdate = true;
+      alpha.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
+}
+
+// ─── Warm Dust ───────────────────────────────────────────────────────────────
+
+function createWarmDust(binding: VfxBinding): VfxInstance {
+  const count = 40;
+  const color = new THREE.Color(binding.color ?? '#ffcc66');
+  const intensity = binding.intensity ?? 1.0;
+  const offsetY = binding.offsetY ?? 0.3;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+
+  const driftX = new Float32Array(count);
+  const driftY = new Float32Array(count);
+  const driftZ = new Float32Array(count);
+  const driftSpeedX = new Float32Array(count);
+  const driftSpeedY = new Float32Array(count);
+  const phaseA = new Float32Array(count);
+  const phaseB = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    driftX[i] = (Math.random() - 0.5) * 1.0;
+    driftY[i] = (Math.random() - 0.5) * 1.4;
+    driftZ[i] = (Math.random() - 0.5) * 0.6;
+    driftSpeedX[i] = 0.02 + Math.random() * 0.05;
+    driftSpeedY[i] = 0.01 + Math.random() * 0.03;
+    phaseA[i] = Math.random() * Math.PI * 2;
+    phaseB[i] = Math.random() * Math.PI * 2;
+    sizes[i] = (0.03 + Math.random() * 0.03) * intensity;
+    // Warm color variation (gold to orange)
+    const warmth = 0.8 + Math.random() * 0.2;
+    colors[i * 3] = color.r * warmth;
+    colors[i * 3 + 1] = color.g * (0.7 + Math.random() * 0.3);
+    colors[i * 3 + 2] = color.b * (0.5 + Math.random() * 0.5);
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: particleVertex,
+    fragmentShader: particleFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.position.y = offsetY;
+  points.frustumCulled = false;
+
+  let currentOpacity = 0;
+
+  return {
+    type: 'warm-dust',
+    object: points,
+    opacity: 0,
+    targetOpacity: 1,
+    setOpacity(o: number) { currentOpacity = o; this.opacity = o; },
+    update(time: number, _delta: number) {
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const alpha = geo.attributes.aAlpha as THREE.BufferAttribute;
+
+      for (let i = 0; i < count; i++) {
+        // Lazy drifting — each particle floats on its own path
+        const sx = Math.sin(time * driftSpeedX[i]! * Math.PI * 2 + phaseA[i]!);
+        const sy = Math.sin(time * driftSpeedY[i]! * Math.PI * 2 + phaseB[i]!);
+
+        pos.array[i * 3] = driftX[i]! + sx * 0.15;
+        pos.array[i * 3 + 1] = driftY[i]! + sy * 0.1;
+        pos.array[i * 3 + 2] = driftZ[i]!;
+
+        // Gentle twinkle
+        const twinkle = 0.3 + 0.7 * Math.pow(Math.sin(time * 0.5 + phaseA[i]! * 4) * 0.5 + 0.5, 2);
+        alpha.array[i] = currentOpacity * twinkle * 0.7;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;

@@ -555,7 +555,6 @@ export class IdleLayer {
   // ─── Private: arm counter-move for props ──────────────────────────────
 
 
-  /**
   // ─── Private: leg dangle (air mode) ───────────────────────────────────
 
   /**

@@ -211,16 +211,19 @@ export function PreviewPanel({
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !modelLoaded) return;
+    let cancelled = false;
 
     if (propId && propTransform) {
       preview.onPropTransformChange = onPropTransformChange;
       preview.showProp(propId, propTransform).catch(err => {
-        console.warn('[PreviewPanel] Failed to show prop:', err);
+        if (!cancelled) console.warn('[PreviewPanel] Failed to show prop:', err);
       });
     } else {
       preview.removeProp();
       preview.onPropTransformChange = undefined;
     }
+
+    return () => { cancelled = true; };
   }, [propId, modelLoaded]);
 
   // Sync prop transform from external changes (number inputs)
@@ -279,15 +282,20 @@ export function PreviewPanel({
   }, [modelUrl, onReady]);
 
   // Reload VFX bindings when clips data changes (e.g. VFX editor edits)
+  const previewEmotionRef = useRef(previewEmotion);
+  previewEmotionRef.current = previewEmotion;
+  const previewActionRef = useRef(previewAction);
+  previewActionRef.current = previewAction;
+
   useEffect(() => {
     const preview = previewRef.current;
     if (!preview || !clipsData) return;
     preview.initVfx(clipsData as ClipsJsonData);
     // Re-apply current state so updated VFX shows immediately
-    preview.setPreviewVfx(previewEmotion ?? null, previewAction ?? null);
-  }, [clipsData, previewEmotion, previewAction]);
+    preview.setPreviewVfx(previewEmotionRef.current ?? null, previewActionRef.current ?? null);
+  }, [clipsData]);
 
-  // VFX preview — emotion or action
+  // VFX preview — emotion or action changes
   useEffect(() => {
     previewRef.current?.setPreviewVfx(previewEmotion ?? null, previewAction ?? null);
   }, [previewEmotion, previewAction]);

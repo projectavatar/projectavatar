@@ -204,6 +204,9 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+    this.vfxManager?.clear();
+    this.vfxManager = null;
+    this.propManager.clear();
   }
 
   private resetIdleTimer(): void {

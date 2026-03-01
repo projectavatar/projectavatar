@@ -13,6 +13,7 @@ const VFX_TYPES = [
   'embers',
   'confetti',
   'sweat-drops',
+  'warm-dust',
 ] as const;
 
 const VFX_COLORS: Record<string, string> = {
@@ -24,6 +25,7 @@ const VFX_COLORS: Record<string, string> = {
   'embers': '#ff6622',
   'confetti': '#ffdd44',
   'sweat-drops': '#88ccee',
+  'warm-dust': '#ffcc66',
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
