@@ -341,6 +341,11 @@ export class AnimationController {
     return this.idleLayer.isHeadTrackingBypassed;
   }
 
+  /** Whether cursor is actively being tracked (not idle, not in dead zone). */
+  get isCursorActive(): boolean {
+    return this.idleLayer.isCursorActive;
+  }
+
   /** Set cursor world-space position for head tracking. */
   setCursorTarget(worldPos: THREE.Vector3 | null): void {
     this.idleLayer.setCursorTarget(worldPos);

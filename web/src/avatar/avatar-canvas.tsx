@@ -207,14 +207,14 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       // Compute goal: cursor target or camera
       // Dead zone: if cursor target is close to camera-to-origin line, look at camera
       // (prevents jitter when cursor crosses directly over the model)
-      if (cursorActive && cursorTarget.distanceTo(avatarScene.camera.position) > 0.5) {
+      if (cursorActive && cursorTarget.distanceTo(avatarScene.camera.position) > 1) {
         eyeGoal.copy(cursorTarget);
       } else {
         eyeGoal.copy(avatarScene.camera.position);
       }
 
       // Smooth lerp toward goal — eyes follow at a natural pace
-      const speed = 0.8;
+      const speed = 1.5;
       const t = 1 - Math.exp(-speed * dt);
       lookAtProxy.position.lerp(eyeGoal, t);
     });
