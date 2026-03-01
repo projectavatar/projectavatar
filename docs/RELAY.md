@@ -150,12 +150,14 @@ Events without `sessionId` are treated as legacy single-session pushes (priority
 
 ## Rate Limits
 
-| Bucket | Key | Window | Limit |
-|--------|-----|--------|-------|
-| `push` | token | — | per-token |
-| `stream` | IP | — | per-IP |
+| Bucket | Key | Limit |
+|--------|-----|-------|
+| `push` | token | 60/minute |
+| `stream` | IP | 10 connections/minute |
 
-Limits are enforced via KV namespace (`RATE_LIMIT_KV`). Exceeded limits return `429` with `Retry-After`.
+Max payload size: 1,024 bytes.
+
+Limits enforced via KV namespace (`RATE_LIMIT_KV`). Exceeded limits return `429` with `Retry-After`.
 
 ---
 

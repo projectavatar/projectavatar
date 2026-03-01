@@ -102,7 +102,7 @@ Fade values by category:
 
 `IdleLayer` adds procedural animation on top of mixer clips:
 
-**Air mode** (default): hover bob (double sine wave), body tilt, backward lean, leg dangle with asymmetric tuck, leg swap every 20-25s, head tracking toward camera/cursor.
+**Air mode** (default): hover bob (double sine wave), body tilt, backward lean, leg dangle with asymmetric tuck, head tracking toward camera/cursor.
 
 **Ground mode**: breathing, torso sway, weight shift. Activates when camera is zoomed in.
 
@@ -138,7 +138,7 @@ Props fade in/out over 0.35s on action transitions. Only one prop active at a ti
 
 Prop models: `packages/web/public/props/` (keyboard.glb, tablet.glb).
 
-**Idle layer counter-movement:** When a prop is active, idle layer applies inverse bob offset to upperArm bones — body floats naturally while hands stay pinned to the prop.
+**Idle layer bob sync:** When a prop is active, PropManager reads `IdleLayer.getBobOffset()` and adjusts the prop's Y position to follow the avatar's hover bob — prop floats with the body instead of staying fixed in space.
 
 ---
 
@@ -157,7 +157,7 @@ Four toggleable effects, all off by default, persisted to localStorage:
 ### Emotion VFX (`VfxManager`)
 Data-driven particle effects per emotion/action, configured in `clips.json`:
 
-Types: `thought-bubbles`, `sparkles`, `hearts`, `rain`, `embers`, `confetti`, `particle-aura`, `sweat-drops`, `warm-dust`
+Engine-supported types: `thought-bubbles`, `sparkles`, `hearts`, `rain`, `embers`, `confetti`, `particle-aura`, `sweat-drops`, `warm-dust`. Not all are actively used in clips.json — types are available for binding via the clip manager.
 
 Each binding has type, color, intensity, and vertical offset.
 
@@ -184,7 +184,7 @@ Each binding has type, color, intensity, and vertical offset.
 - Left-drag anywhere to move window (skip buttons via `data-no-drag`)
 - Right-drag to rotate avatar (OrbitControls)
 - Close (✕) and always-on-top toggle (📌) buttons
-- Auto-hide UI after 5s idle (`useIdleHide` hook)
+- Auto-hide UI after 1s idle (`useIdleHide(1000)`)
 
 ### Desktop-Only Features
 - **Autostart** with OS (macOS LaunchAgent, Windows registry)

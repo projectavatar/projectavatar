@@ -91,7 +91,7 @@ The agent's current activity. Maps to body animation clips.
 
 ### `prop` (optional, default: `"none"`)
 
-A 3D object that appears near the avatar.
+A 3D object positioned in world space, configured per-clip in clips.json.
 
 | Value | Description |
 |-------|-------------|
