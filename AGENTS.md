@@ -13,7 +13,6 @@ Monorepo with independently deployable packages:
 - `packages/web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
 - `packages/desktop/` — **Tauri v2 desktop app**. Wraps `web/` in a native window: transparent, borderless, always-on-top. WindowChrome component adds hover border + resize/drag/rotate controls. Builds for Windows + macOS via GitHub Actions.
 - `packages/clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation blending. Port 5174. Assets served from `packages/web/public/` via shared `publicDir`.
-- `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
 ## Branches
 
@@ -94,7 +93,7 @@ ClipRegistry (avatar-engine) — resolver (resolveClips, getActionDuration, getA
     ↓
 AnimationController (avatar-engine) — runtime playback via Three.js AnimationMixer
     ↓ post-mixer
-TransitionStabilizer (avatar-engine) — soft pins for hips/hands; foot skating handled by crossfade timing
+~~TransitionStabilizer~~ (dead code, not imported) — foot skating handled by crossfade timing
 
 Clip Manager (packages/clip-manager/) — dev UI for editing clips.json (groups, clips, rarity)
     ↓ POST /api/save-clips (Vite dev server)
@@ -173,7 +172,7 @@ OpenClaw loads TypeScript via jiti. The plugin ships `src/*.ts` directly. No `ts
 
 ```bash
 cd packages/openclaw-avatar && npm test   # vitest, 39 tests
-cd packages/relay && npx tsc --noEmit              # type check relay
+cd packages/relay && npm run test                 # vitest, 55 tests + type check
 cd packages/web && npm run build                   # full web build
 cd packages/clip-manager && npm run build          # clip manager build
 npx tsc -p packages/avatar-engine/tsconfig.json --noEmit  # engine type check

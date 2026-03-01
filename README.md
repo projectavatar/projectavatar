@@ -114,7 +114,7 @@ Windows:
 
 **Run:**
 ```bash
-git clone https://github.com/linh-n/projectavatar.git
+git clone https://github.com/projectavatar/projectavatar.git
 cd projectavatar
 npm install
 npm run desktop
@@ -135,7 +135,7 @@ npm run desktop
 The default relay runs at `relay.projectavatar.io`. To run your own:
 
 ```bash
-git clone https://github.com/ragr3t/projectavatar.git
+git clone https://github.com/projectavatar/projectavatar.git
 cd projectavatar/packages/relay
 npm install
 cp wrangler.example.toml wrangler.toml
@@ -163,8 +163,8 @@ See [`docs/RELAY.md`](docs/RELAY.md) for full self-hosting documentation.
 
 ## Features (v1)
 
-- **14 emotions** — idle, thinking, focused, excited, confused, satisfied, concerned, happy, angry, sad, relaxed, surprised, bashful, nervous
-- **28 actions** — idle, talking, typing, nodding, waving, greeting, laughing, pointing, fist_pump, dismissive, plotting, sarcastic, looking_around, shading_eyes, telling_secret, victory, head_shake, relief, cautious_agree, angry_fist, rallying, sad_idle, nervous_look, terrified, scratching_head, cocky, questioning, phone, celebrating
+- **10 emotions** — idle, thinking, excited, confused, happy, angry, sad, surprised, bashful, nervous
+- **12 actions** — idle, talking, typing, nodding, laughing, celebrating, dismissive, searching, nervous, sad, plotting, greeting
 - **World-space props** — GLB models tied to clips (keyboard, tablet), positioned via TransformControls gizmo, 3 material styles (holographic, solid, ghostly), fade in/out transitions
 - **Bundled VRM models** — import your own from VRoid Hub or anywhere
 - **Intensity levels** — low, medium, high — affects animation energy and expression strength
