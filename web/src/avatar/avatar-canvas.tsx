@@ -186,6 +186,20 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     // ── Cursor → head tracking ────────────────────────────────────────
     const cursorTarget = new THREE.Vector3();
+
+    // DEBUG: visible target point + projection plane
+    const debugSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.05, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 }),
+    );
+    const debugPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true, transparent: true, opacity: 0.15 }),
+    );
+    debugPlane.position.z = 2;
+    avatarScene.scene.add(debugSphere);
+    avatarScene.scene.add(debugPlane);
+
     const onMouseMove = (e: MouseEvent) => {
       const ctrl = animControllerRef.current;
       if (!ctrl) return;
@@ -195,11 +209,17 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       cursorTarget.set(ndcX * 3, ndcY * 2, 2);
       cursorTarget.unproject(avatarScene.camera);
       ctrl.setCursorTarget(cursorTarget);
+      // DEBUG: move sphere to cursor target
+      debugSphere.position.copy(cursorTarget);
     };
     window.addEventListener('mousemove', onMouseMove);
 
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
+      avatarScene.scene.remove(debugSphere);
+      avatarScene.scene.remove(debugPlane);
+      debugSphere.geometry.dispose();
+      debugPlane.geometry.dispose();
       cancelled = true;
       onStateMachine?.(null);
       onEffectsManager?.(null);
