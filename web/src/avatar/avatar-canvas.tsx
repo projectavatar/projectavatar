@@ -233,8 +233,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       if (!ctrl) return;
       const cam = avatarScene.camera;
       cam.getWorldDirection(_camDir);
-      // Plane 50% between camera and origin, facing camera direction
-      _planePos.copy(cam.position).multiplyScalar(0.5);
+      // Plane 10% from camera toward origin
+      _planePos.copy(cam.position).multiplyScalar(0.9);
       _plane.setFromNormalAndCoplanarPoint(_camDir, _planePos);
       _ndcVec.set(ndcX, ndcY);
       _raycaster.setFromCamera(_ndcVec, cam);
