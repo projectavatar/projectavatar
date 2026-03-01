@@ -84,7 +84,7 @@
     "idle": {
       "file": "idle.fbx",
       "loop": true,
-      "fadeIn": 0.6,
+      "fadeIn": 0.8,
       "fadeOut": 0.6,
       "category": "idle",
       "energy": "low",
@@ -600,7 +600,7 @@
         {
           "type": "hearts",
           "color": "#ff6688",
-          "intensity": 1.0
+          "intensity": 1
         }
       ]
     },
@@ -648,7 +648,7 @@
         {
           "type": "thought-bubbles",
           "color": "#ffaa44",
-          "intensity": 1.0,
+          "intensity": 1,
           "offsetY": 0.75
         }
       ]
@@ -661,7 +661,7 @@
         {
           "type": "sweat-drops",
           "color": "#88ccee",
-          "intensity": 1.0,
+          "intensity": 1,
           "offsetY": 0.7
         }
       ]
@@ -698,20 +698,20 @@
         {
           "type": "thought-bubbles",
           "color": "#88ccff",
-          "intensity": 1.0,
+          "intensity": 1,
           "offsetY": 0.75
         }
       ]
     },
     "idle": {
-      "weightScale": 1.0,
+      "weightScale": 1,
       "overrides": {},
       "layers": [],
       "vfx": [
         {
           "type": "particle-aura",
           "color": "#4d99ff",
-          "intensity": 1.0,
+          "intensity": 1,
           "offsetY": 0.2
         }
       ]

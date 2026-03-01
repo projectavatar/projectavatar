@@ -278,6 +278,17 @@ export function PreviewPanel({
     });
   }, [modelUrl, onReady]);
 
+  // Reload VFX bindings when clips data changes (e.g. VFX editor edits)
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !clipsData) return;
+    preview.initVfx(clipsData as ClipsJsonData);
+    // Re-apply current emotion so updated VFX shows immediately
+    if (previewEmotion) {
+      preview.setPreviewEmotion(previewEmotion);
+    }
+  }, [clipsData, previewEmotion]);
+
   // VFX emotion preview
   useEffect(() => {
     previewRef.current?.setPreviewEmotion(previewEmotion ?? null);
