@@ -95,7 +95,8 @@
         "legs",
         "feet"
       ],
-      "tags": []
+      "tags": [],
+      "handGesture": "fist"
     },
     "laughing": {
       "file": "laughing.fbx",
@@ -231,6 +232,22 @@
       "fadeIn": 0.4,
       "fadeOut": 0.4,
       "category": "continuous",
+      "energy": "medium",
+      "bodyParts": [
+        "head",
+        "torso",
+        "arms",
+        "legs",
+        "feet"
+      ],
+      "tags": []
+    },
+    "idle-stretch": {
+      "file": "idle-stretch.fbx",
+      "loop": false,
+      "fadeIn": 0.15,
+      "fadeOut": 0.3,
+      "category": "gesture",
       "energy": "medium",
       "bodyParts": [
         "head",

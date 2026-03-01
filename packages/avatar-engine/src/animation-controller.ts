@@ -201,6 +201,14 @@ export class AnimationController {
 
     // Select a random group for this action
     const groupIndex = this.registry.selectGroup(action);
+
+    // Update idle layer based on action properties
+    const bypass = this.registry.shouldBypassHeadTracking(action);
+    this.idleLayer.setBypassHeadTracking(bypass);
+    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
+    const gesture = this.registry.getHandGesture(action, groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
+    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+
     this._playBlendedAction(action, this.currentEmotion, intensity, groupIndex);
   }
 
