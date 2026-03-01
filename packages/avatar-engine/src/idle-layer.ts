@@ -239,7 +239,9 @@ export class IdleLayer {
     ];
     for (const [name, curl] of fingerNames) {
       const bone = h.getNormalizedBoneNode(name as any);
-      const sign = name.startsWith('left') ? -1 : 1;
+      const isThumb = name.toLowerCase().includes('thumb');
+      let sign = name.startsWith('left') ? -1 : 1;
+      if (isThumb) sign = -sign;
       if (bone) this.fingerBones.push({ bone, curl, restZ: bone.rotation.z, sign });
     }
 
