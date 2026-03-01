@@ -747,10 +747,10 @@ function createSweatDrops(binding: VfxBinding): VfxInstance {
 // ─── Warm Dust ───────────────────────────────────────────────────────────────
 
 function createWarmDust(binding: VfxBinding): VfxInstance {
-  const count = 40;
-  const color = new THREE.Color(binding.color ?? '#ffcc66');
+  const count = 80;
+  const color = new THREE.Color(binding.color ?? '#ff88aa');
   const intensity = binding.intensity ?? 1.0;
-  const offsetY = binding.offsetY ?? 0.3;
+  const offsetY = binding.offsetY ?? 0.5;
 
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -767,19 +767,19 @@ function createWarmDust(binding: VfxBinding): VfxInstance {
   const phaseB = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
-    driftX[i] = (Math.random() - 0.5) * 1.0;
+    driftX[i] = (Math.random() - 0.5) * 0.5;
     driftY[i] = (Math.random() - 0.5) * 1.4;
-    driftZ[i] = (Math.random() - 0.5) * 0.6;
+    driftZ[i] = (Math.random() - 0.5) * 0.35;
     driftSpeedX[i] = 0.02 + Math.random() * 0.05;
     driftSpeedY[i] = 0.01 + Math.random() * 0.03;
     phaseA[i] = Math.random() * Math.PI * 2;
     phaseB[i] = Math.random() * Math.PI * 2;
-    sizes[i] = (0.03 + Math.random() * 0.03) * intensity;
-    // Warm color variation (gold to orange)
-    const warmth = 0.8 + Math.random() * 0.2;
+    sizes[i] = (0.03 + Math.random() * 0.04) * intensity;
+    // Pink color variation
+    const warmth = 0.85 + Math.random() * 0.15;
     colors[i * 3] = color.r * warmth;
     colors[i * 3 + 1] = color.g * (0.7 + Math.random() * 0.3);
-    colors[i * 3 + 2] = color.b * (0.5 + Math.random() * 0.5);
+    colors[i * 3 + 2] = color.b * (0.8 + Math.random() * 0.2);
   }
 
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -816,13 +816,13 @@ function createWarmDust(binding: VfxBinding): VfxInstance {
         const sx = Math.sin(time * driftSpeedX[i]! * Math.PI * 2 + phaseA[i]!);
         const sy = Math.sin(time * driftSpeedY[i]! * Math.PI * 2 + phaseB[i]!);
 
-        pos.array[i * 3] = driftX[i]! + sx * 0.15;
-        pos.array[i * 3 + 1] = driftY[i]! + sy * 0.1;
+        pos.array[i * 3] = driftX[i]! + sx * 0.1;
+        pos.array[i * 3 + 1] = driftY[i]! + sy * 0.08;
         pos.array[i * 3 + 2] = driftZ[i]!;
 
         // Gentle twinkle
-        const twinkle = 0.3 + 0.7 * Math.pow(Math.sin(time * 0.5 + phaseA[i]! * 4) * 0.5 + 0.5, 2);
-        alpha.array[i] = currentOpacity * twinkle * 0.7;
+        const twinkle = 0.5 + 0.5 * Math.pow(Math.sin(time * 0.6 + phaseA[i]! * 3) * 0.5 + 0.5, 1.5);
+        alpha.array[i] = currentOpacity * twinkle * 0.9;
       }
       pos.needsUpdate = true;
       alpha.needsUpdate = true;

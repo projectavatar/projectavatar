@@ -25,7 +25,7 @@ const VFX_COLORS: Record<string, string> = {
   'embers': '#ff6622',
   'confetti': '#ffdd44',
   'sweat-drops': '#88ccee',
-  'warm-dust': '#ffcc66',
+  'warm-dust': '#ff88aa',
 };
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

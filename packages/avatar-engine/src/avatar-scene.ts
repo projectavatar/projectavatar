@@ -19,8 +19,6 @@ export interface AvatarSceneOptions {
   gridDivisions?: number;
   /** Enable orbit controls (zoom, rotate, pan). Default: false. */
   orbit?: boolean;
-  /** Disable left-click rotation (for gizmo-heavy UIs like clip-manager). */
-  noLeftClickRotate?: boolean;
   /** Dev mode — unlocks vertical camera rotation. Default: false. */
   dev?: boolean;
 
@@ -165,9 +163,7 @@ export class AvatarScene {
         MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.ROTATE,
       };
-      if (!options?.noLeftClickRotate) {
-        mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-      }
+      // Left-click reserved for future interactions (selection, drag)
       this.controls.mouseButtons = mouseButtons;
       // No panning — orbit target must stay on the model
       this.controls.enablePan = false;
