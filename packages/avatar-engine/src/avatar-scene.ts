@@ -195,6 +195,10 @@ export class AvatarScene {
       });
     }
 
+    // Flush pending camera save on tab close / navigation
+    this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+    window.addEventListener('beforeunload', this.handleBeforeUnload);
+
     this.clock = new THREE.Clock();
 
     // Handle window resize
@@ -271,6 +275,7 @@ export class AvatarScene {
     this.stop();
     if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
     this.controls?.dispose();
+    window.removeEventListener('beforeunload', this.handleBeforeUnload);
     window.removeEventListener('resize', this.handleResize);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.renderer.dispose();
@@ -325,6 +330,18 @@ export class AvatarScene {
   /** Set a resize callback for external compositors. */
   onResize(fn: ((width: number, height: number) => void) | null): void {
     this.onResizeCallback = fn;
+  }
+
+  private handleBeforeUnload(): void {
+    if (this.controls && this.cameraSaveTimer) {
+      clearTimeout(this.cameraSaveTimer);
+      this.cameraSaveTimer = null;
+      saveCameraState({
+        distance: this.controls.getDistance(),
+        azimuthal: this.controls.getAzimuthalAngle(),
+        polar: this.controls.getPolarAngle(),
+      });
+    }
   }
 
   private handleResize(): void {
