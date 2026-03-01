@@ -176,6 +176,8 @@ export class AnimationController {
 
     // Start idle with a random group
     const groupIndex = this.registry.selectGroup('idle');
+    const initGesture = this.registry.getHandGesture('idle', groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
+    this.idleLayer.setHandGesture(initGesture ?? 'relaxed');
     this._playBlendedAction('idle', 'idle', 'medium', groupIndex);
     this._loaded = true;
   }
@@ -221,6 +223,13 @@ export class AnimationController {
     this.currentAction = action;
     this.currentIntensity = intensity;
     this.currentEmotion = emotion;
+
+    const bypass = this.registry.shouldBypassHeadTracking(action);
+    this.idleLayer.setBypassHeadTracking(bypass);
+    if (this.vrm.lookAt) this.vrm.lookAt.autoUpdate = !bypass;
+    const gesture = this.registry.getHandGesture(action, groupIndex) as import('./idle-layer.ts').HandGesture | undefined;
+    this.idleLayer.setHandGesture(gesture ?? 'relaxed');
+
     this._playBlendedAction(action, emotion, intensity, groupIndex);
   }
 
