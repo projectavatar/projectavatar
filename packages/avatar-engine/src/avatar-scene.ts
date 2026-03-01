@@ -21,6 +21,11 @@ export interface AvatarSceneOptions {
   orbit?: boolean;
   /** Dev mode — unlocks vertical camera rotation. Default: false. */
   dev?: boolean;
+  /**
+   * Desktop mode — right-click only for rotation (left-click reserved
+   * for window drag). Scroll zoom still works. Default: false.
+   */
+  desktop?: boolean;
 }
 
 const DEFAULT_GRID_SIZE = 4;
@@ -145,11 +150,9 @@ export class AvatarScene {
       this.controls.target.set(0, 0, 0);
       this.controls.minDistance = 1;
       this.controls.maxDistance = 15;
-      this.controls.mouseButtons = {
-        LEFT: THREE.MOUSE.ROTATE,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.ROTATE,
-      };
+      this.controls.mouseButtons = options?.desktop
+        ? { LEFT: null as any, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+        : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
       // No panning — orbit target must stay on the model
       this.controls.enablePan = false;
       // Lock vertical rotation in production — no peeking allowed

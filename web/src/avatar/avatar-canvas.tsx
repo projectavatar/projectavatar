@@ -76,7 +76,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
+    const isTauri = '__TAURI_INTERNALS__' in window;
+    const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV, desktop: isTauri });
     sceneRef.current  = avatarScene;
     const vrmManager  = new VrmManager(avatarScene.scene);
 
