@@ -96,6 +96,40 @@ Add your avatar directly to a stream:
 
 ---
 
+## Quick Start (Desktop App)
+
+A native desktop app — transparent, borderless, always-on-top. Your avatar floats on your screen.
+
+**Install prerequisites:**
+
+macOS:
+```bash
+xcode-select --install
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Windows:
+- [Build Tools for Visual Studio 2022](https://visualstudio.microsoft.com/visual-cpp-build-tools/) ("Desktop development with C++")
+- [Rust](https://rustup.rs)
+
+**Run:**
+```bash
+git clone https://github.com/linh-n/projectavatar.git
+cd projectavatar
+npm install
+npm run desktop
+```
+
+**Controls:**
+- **Hover** — dashed border appears
+- **Left-drag edges** — resize the window
+- **Left-drag anywhere** — move the window
+- **Right-drag** — rotate the avatar
+- **Scroll** — zoom
+- **Escape** — close
+
+---
+
 ## Quick Start (Self-Hosting the Relay)
 
 The default relay runs at `relay.projectavatar.io`. To run your own:
@@ -165,6 +199,9 @@ project-avatar/
 │   │       ├── body-parts.ts          # Bone ↔ body part mapping (5 groups)
 │   │       └── procedural/            # Idle layer (breathing, sway, drift)
 │   └── openclaw-avatar/      # @projectavatar/openclaw-avatar — OpenClaw plugin
+├── desktop/                   # Tauri v2 desktop app (Windows + macOS)
+│   ├── src/                   # Desktop-specific React shell (WindowChrome)
+│   └── src-tauri/             # Rust backend (transparent, borderless window)
 ├── web/                       # Browser app (Cloudflare Pages → app.projectavatar.io)
 │   └── src/
 │       ├── avatar/

@@ -7,7 +7,8 @@
     "packages/*",
     "relay",
     "web",
-    "clip-manager"
+    "clip-manager",
+    "desktop"
   ],
   "scripts": {
     "dev": "cd web && npm run dev",
@@ -21,7 +22,9 @@
     "version": "changeset version",
     "release": "changeset publish",
     "clips": "cd clip-manager && npm run dev",
-    "clips:gen": "npx tsx scripts/generate-clips-json.ts"
+    "clips:gen": "npx tsx scripts/generate-clips-json.ts",
+    "desktop": "cd desktop && npm run tauri dev",
+    "desktop:build": "cd desktop && npm run tauri build"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

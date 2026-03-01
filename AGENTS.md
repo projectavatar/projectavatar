@@ -11,6 +11,7 @@ Monorepo with independently deployable packages:
 - `packages/openclaw-avatar/` — OpenClaw plugin. TypeScript, loaded via jiti — **no build step**.
 - `relay/` — Cloudflare Worker + Durable Object. Deployed to `relay.projectavatar.io`.
 - `web/` — React + Vite avatar viewer. Deployed to Cloudflare Pages at `app.projectavatar.io`.
+- `desktop/` — **Tauri v2 desktop app**. Wraps `web/` in a native window: transparent, borderless, always-on-top. WindowChrome component adds hover border + resize/drag/rotate controls. Builds for Windows + macOS via GitHub Actions.
 - `clip-manager/` — Dev-only Vite app for managing FBX clips, tags, action/emotion mappings, body part masking, and animation blending. Port 5174. Assets served from `web/public/` via shared `publicDir`.
 - `skill/` — Agent skill layer (prompt template + output filters for non-OpenClaw agents).
 
@@ -70,7 +71,7 @@ Note: per-clip `fadeOut` values in clips.json are metadata only. The actual fade
 - **BlinkController** — random blink + micro-glance.
 - **PropManager** — GLB prop loading + hand bone attachment.
 - **StateMachine** — coordinates all controllers, dispatches avatar events, manages idle timeout.
-- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev }`. Supports custom render callback for postprocessing (bloom).
+- **AvatarScene** — scene, camera, lighting, render loop. Dynamic framing: orbit target lerps body→face based on zoom distance. Vertical orbit locked ±22° in prod (`dev: true` unlocks). Options: `{ grid, orbit, dev, desktop }`. `desktop: true` disables left-click rotation (reserved for window drag in Tauri). Supports custom render callback for postprocessing (bloom).
 - **VrmManager** — normalizes all VRMs to 1.6m height, centers hips at origin (0,0,0). Exposes `bodyCenter` & `faceCenter` for camera framing.
 - **IdleLayer** — procedural idle animation (air mode: hover bob, body tilt, backward lean, leg dangle with asymmetric tuck, finger curl; ground mode: breathing, sway). Runs after mixer.
 - **EffectsManager** — orchestrates toggleable visual effects (particle aura, energy trails, bloom, holographic). All effects gate on `modelReady` and use exponential lerp fade.
@@ -149,6 +150,12 @@ Client → server messages (`WebSocketClientMessage`):
 - `clip-manager/src/preview/preview-panel.tsx` — Preview UI with transport controls, layer toggles, body part masking.
 - `clip-manager/src/components/body-part-picker.tsx` — Toggleable body part chips.
 - `clip-manager/src/state.ts` — useReducer-based state management.
+
+### Desktop App (`desktop/`)
+- `src/desktop-app.tsx` — Wraps web `<App />`, forces transparent theme, suppresses context menu.
+- `src/window-chrome.tsx` — Hover border (dashed, rounded), edge/corner resize, left-drag to move, right-click to rotate.
+- `src-tauri/tauri.conf.json` — Window config: transparent, no decorations, always-on-top.
+- `src-tauri/capabilities/default.json` — Tauri permissions for dragging, resizing, closing.
 
 ### Plugin
 - `packages/openclaw-avatar/src/index.ts` — Registers lifecycle hooks + `/avatar` command.
