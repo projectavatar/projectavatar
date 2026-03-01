@@ -315,7 +315,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           } catch (err) { console.error('[CursorPoll]', err); }
         };
         cursorPollId = setInterval(poll, 50);
-      });
     }).catch(() => {
       // Not in Tauri — web mousemove stays active
     });
