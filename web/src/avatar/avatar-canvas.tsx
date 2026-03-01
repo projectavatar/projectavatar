@@ -263,7 +263,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <canvas ref={canvasRef} style={{
         ...baseCanvasStyle,
-        filter: theme === 'transparent' ? 'drop-shadow(0 0 12px rgba(0, 0, 0, 0.5))' : undefined,
+        filter: theme === 'transparent' ? 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.3))' : undefined,
       }} />
       {!animationsLoaded && (
         <div style={{
