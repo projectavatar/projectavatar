@@ -34,6 +34,10 @@ const DRIFT_FREQUENCY   = 0.15;    // Hz — slowest cycle
 const HEAD_TRACK_INFLUENCE = 0.25;  // 0–1 — how much head biases toward camera
 const HEAD_TRACK_SPEED     = 2.0;   // lerp speed — smooth follow
 
+// Air mode — leg swap
+const LEG_SWAP_INTERVAL  = 8.0;    // seconds — how often legs swap
+const LEG_SWAP_DURATION  = 1.5;    // seconds — crossfade between poses
+
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
 const TOE_DROOP_ANGLE   = 0.14;    // radians — toes pointing slightly down
@@ -67,6 +71,11 @@ export class IdleLayer {
   private head: THREE.Object3D | null = null;
 
   private initialized = false;
+
+  /** Leg swap blend: 0 = left straight/right tucked, 1 = swapped */
+  private legSwapBlend = 0;
+  private legSwapTarget = 0;
+  private legSwapTimer = 0;
 
   /** Rest pose rotations — captured once so we can reset before applying. */
   private restRotations = new Map<THREE.Object3D, THREE.Euler>();
@@ -294,10 +303,24 @@ export class IdleLayer {
       this.hips.rotation.z += driftZ;
     }
 
-    // 5. Leg dangle — relaxed hanging pose
+    // 5. Leg swap — periodically switch which leg is tucked
+    this.legSwapTimer += delta;
+    if (this.legSwapTimer >= LEG_SWAP_INTERVAL) {
+      this.legSwapTimer = 0;
+      this.legSwapTarget = this.legSwapTarget === 0 ? 1 : 0;
+    }
+    // Smooth blend toward target
+    const swapSpeed = 1.0 / LEG_SWAP_DURATION;
+    if (this.legSwapBlend < this.legSwapTarget) {
+      this.legSwapBlend = Math.min(this.legSwapBlend + swapSpeed * delta, 1);
+    } else if (this.legSwapBlend > this.legSwapTarget) {
+      this.legSwapBlend = Math.max(this.legSwapBlend - swapSpeed * delta, 0);
+    }
+
+    // 6. Leg dangle — relaxed hanging pose
     this._applyLegDangle();
 
-    // 6. Subtle head tracking toward camera
+    // 7. Subtle head tracking toward camera
     this._applyHeadTracking(delta);
   }
 
