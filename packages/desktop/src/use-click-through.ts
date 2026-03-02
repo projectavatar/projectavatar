@@ -1,25 +1,24 @@
 /**
  * useClickThrough — transparent click-through for the desktop avatar.
  *
- * Behavior:
- *   1. Default: click-through mode ON, UI hidden.
- *   2. Polls global cursor at 5fps via Tauri \`get_cursor_position\`.
- *   3. Projects cursor to NDC, tests against VRM bounding box.
- *   4. Cursor hits model → disable click-through, show UI (hovered=true).
- *   5. Cursor leaves model → after 1s, re-enable click-through, hide UI.
+ * State machine:
+ *   - Mouse outside window (1s timeout) → click-through ON, UI hidden
+ *   - Mouse inside window but outside hitbox → click-through ON
+ *   - Mouse enters hitbox → "activated" — click-through OFF, chrome visible
+ *   - Once activated, stays active until mouse leaves the window (+ 1s timeout)
  *
  * The avatar-canvas cursor poll (for head/eye tracking) runs independently
  * at the same 5fps rate via the cursorPollMs prop.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
 
 /** Poll interval — 5fps = 200ms. */
 const POLL_MS = 200;
 
-/** Timeout before re-enabling click-through after cursor leaves model (ms). */
-const HIDE_TIMEOUT_MS = 1000;
+/** Timeout before releasing after cursor leaves window (ms). */
+const LEAVE_TIMEOUT_MS = 1000;
 
 /**
  * NDC padding around the projected bounding box.
@@ -42,7 +41,6 @@ async function ensureTauri(): Promise<boolean> {
   try {
     const core = await import('@tauri-apps/api/core');
     const win = await import('@tauri-apps/api/window');
-    // Probe — throws if not in Tauri runtime
     await core.invoke<[number, number] | null>('get_cursor_position');
     _invoke = core.invoke;
     _getCurrentWindow = win.getCurrentWindow as unknown as typeof _getCurrentWindow;
@@ -52,7 +50,7 @@ async function ensureTauri(): Promise<boolean> {
   }
 }
 
-async function setIgnoreCursorEvents(ignore: boolean): Promise<void> {
+async function setIgnoreCursor(ignore: boolean): Promise<void> {
   if (!_invoke) return;
   try {
     await _invoke('set_ignore_cursor_events', { ignore });
@@ -62,7 +60,7 @@ async function setIgnoreCursorEvents(ignore: boolean): Promise<void> {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface ClickThroughState {
-  /** Whether the cursor is over the model (UI should be visible). */
+  /** True when the avatar is "activated" — chrome + UI elements should be visible. */
   hovered: boolean;
 }
 
@@ -70,16 +68,15 @@ export function useClickThrough(
   avatarScene: AvatarScene | null,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
+
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
 
-
-
+  // Internal state refs (avoid re-renders on every poll)
+  const activatedRef = useRef(false);   // hitbox was entered → stays on until window leave
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoveredRef = useRef(false);
-  const clickThroughRef = useRef(true);
 
-  // Reusable THREE objects (avoid GC)
+  // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
   const ndcMinRef = useRef(new THREE.Vector3());
   const ndcMaxRef = useRef(new THREE.Vector3());
@@ -87,40 +84,48 @@ export function useClickThrough(
     Array.from({ length: 8 }, () => new THREE.Vector3()),
   );
 
-  /** Mouse entered the window — capture all events. */
-  const enterWindow = useCallback(() => {
-    if (leaveTimerRef.current) {
-      clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = null;
-    }
-    if (clickThroughRef.current) {
-      clickThroughRef.current = false;
-      void setIgnoreCursorEvents(false);
-    }
-  }, []);
-
-  /** Mouse left the window — start 1s timeout then release. */
-  const leaveWindow = useCallback(() => {
-    if (leaveTimerRef.current) return; // already scheduled
-    leaveTimerRef.current = setTimeout(() => {
-      leaveTimerRef.current = null;
-      clickThroughRef.current = true;
-      hoveredRef.current = false;
-      setHovered(false);
-      void setIgnoreCursorEvents(true);
-    }, HIDE_TIMEOUT_MS);
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
+
+    const deactivate = () => {
+      activatedRef.current = false;
+      setHovered(false);
+      void setIgnoreCursor(true);
+    };
+
+    const activate = () => {
+      // Cancel any pending leave timeout
+      if (leaveTimerRef.current) {
+        clearTimeout(leaveTimerRef.current);
+        leaveTimerRef.current = null;
+      }
+      activatedRef.current = true;
+      setHovered(true);
+      void setIgnoreCursor(false);
+    };
+
+    const scheduleLeave = () => {
+      if (leaveTimerRef.current) return; // already scheduled
+      leaveTimerRef.current = setTimeout(() => {
+        leaveTimerRef.current = null;
+        deactivate();
+      }, LEAVE_TIMEOUT_MS);
+    };
+
+    const cancelLeave = () => {
+      if (leaveTimerRef.current) {
+        clearTimeout(leaveTimerRef.current);
+        leaveTimerRef.current = null;
+      }
+    };
 
     const start = async () => {
       const ok = await ensureTauri();
       if (!ok || cancelled) return;
 
       // Start in click-through mode
-      void setIgnoreCursorEvents(true);
+      void setIgnoreCursor(true);
 
       const win = _getCurrentWindow!();
 
@@ -145,30 +150,33 @@ export function useClickThrough(
           const ndcX = (localX / w) * 2 - 1;
           const ndcY = -((localY / h) * 2 - 1);
 
-          // Check if cursor is inside the window
           const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
 
-          if (insideWindow) {
-            enterWindow();
-
-            // Hit test controls UI visibility (chrome border/buttons)
-            const vrmRoot = findVrmRoot(scene.scene);
-            if (vrmRoot) {
-              const hit = testBboxHit(
-                vrmRoot, scene.camera, ndcX, ndcY,
-                bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
-              );
-              if (hit && !hoveredRef.current) {
-                hoveredRef.current = true;
-                setHovered(true);
-              } else if (!hit && hoveredRef.current) {
-                hoveredRef.current = false;
-                setHovered(false);
-              }
-            }
-          } else {
-            leaveWindow();
+          if (!insideWindow) {
+            // Mouse left window → schedule deactivation
+            scheduleLeave();
+            return;
           }
+
+          // Mouse is inside window — cancel any pending leave
+          cancelLeave();
+
+          // If already activated, stay active (no click-through, chrome visible)
+          if (activatedRef.current) return;
+
+          // Not activated yet — check hitbox
+          const vrmRoot = findVrmRoot(scene.scene);
+          if (!vrmRoot) return;
+
+          const hit = testBboxHit(
+            vrmRoot, scene.camera, ndcX, ndcY,
+            bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
+          );
+
+          if (hit) {
+            activate();
+          }
+          // If not hit and not activated → stay in click-through (default)
         } catch { /* poll error — skip */ }
       };
 
@@ -181,25 +189,18 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-      // Restore normal cursor events on cleanup
-      void setIgnoreCursorEvents(false);
+      void setIgnoreCursor(false);
     };
-  }, [enterWindow, leaveWindow]);
+  }, []);
 
   return { hovered };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Find the VRM root in the Three.js scene.
- * VRM models are added as a Group with visible SkinnedMesh children.
- */
 function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
   for (const child of scene.children) {
-    // VRM scene is typically a Group containing the armature + meshes
     if (child.type === 'Group' && child.visible) {
-      // Check if it has skinned meshes (VRM model indicator)
       let hasSkinned = false;
       child.traverse((obj) => {
         if ((obj as THREE.SkinnedMesh).isSkinnedMesh) hasSkinned = true;
@@ -210,10 +211,6 @@ function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
   return null;
 }
 
-/**
- * Project the object's world-space bounding box to NDC and check if
- * the cursor (ndcX, ndcY) falls within it (with padding).
- */
 const _cubeSize = new THREE.Vector3();
 const _cubeCenter = new THREE.Vector3();
 
@@ -230,8 +227,7 @@ function testBboxHit(
   bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
 
-  // Expand AABB into a cube (longest axis) so the hitbox is
-  // consistent regardless of camera angle.
+  // Expand AABB into a cube so hitbox is consistent from every angle
   const size = bbox.getSize(_cubeSize);
   const maxSide = Math.max(size.x, size.y, size.z);
   const center = bbox.getCenter(_cubeCenter);
