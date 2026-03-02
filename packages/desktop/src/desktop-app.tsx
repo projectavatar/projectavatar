@@ -69,11 +69,11 @@ export function DesktopApp() {
     return () => window.removeEventListener('contextmenu', handler);
   }, []);
 
-  // Cursor: grab on hover
+  // Cursor: grab on hover (but not when settings is open)
   useEffect(() => {
-    document.body.style.cursor = hovered ? 'grab' : 'default';
+    document.body.style.cursor = (hovered && !settingsOpen) ? 'grab' : 'default';
     return () => { document.body.style.cursor = ''; };
-  }, [hovered]);
+  }, [hovered, settingsOpen]);
 
   return (
     <>
