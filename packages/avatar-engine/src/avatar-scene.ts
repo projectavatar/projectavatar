@@ -48,6 +48,9 @@ interface CameraState {
   azimuthal: number;
   /** Polar angle in radians (vertical orbit). */
   polar: number;
+  /** View offset in pixels (pan). */
+  panX?: number;
+  panY?: number;
 }
 
 function loadCameraState(): CameraState | null {
@@ -61,7 +64,10 @@ function loadCameraState(): CameraState | null {
       typeof azimuthal === 'number' && Number.isFinite(azimuthal) &&
       typeof polar === 'number' && Number.isFinite(polar)
     ) {
-      return { distance, azimuthal, polar };
+      const state: CameraState = { distance, azimuthal, polar };
+      if (typeof parsed.panX === 'number' && Number.isFinite(parsed.panX)) state.panX = parsed.panX;
+      if (typeof parsed.panY === 'number' && Number.isFinite(parsed.panY)) state.panY = parsed.panY;
+      return state;
     }
     return null;
   } catch { return null; }
@@ -90,6 +96,17 @@ export class AvatarScene {
   private cameraSaveTimer: ReturnType<typeof setTimeout> | null = null;
   /** Deferred spherical coords — applied once framing points are set. */
   private savedSpherical: CameraState | null = null;
+
+  // ─── View-offset pan ────────────────────────────────────────────────
+  private _panOffsetX = 0; // pixels
+  private _panOffsetY = 0; // pixels
+
+  private _panPointer: { id: number; x: number; y: number } | null = null;
+
+  // Bound handlers
+  private _onPanDown: (e: PointerEvent) => void = () => {};
+  private _onPanMove: (e: PointerEvent) => void = () => {};
+  private _onPanUp: (e: PointerEvent) => void = () => {};
 
   /**
    * Optional custom render function — replaces renderer.render() in tick().
@@ -164,7 +181,7 @@ export class AvatarScene {
       this.controls.minDistance = 1;
       this.controls.maxDistance = 15;
       const mouseButtons: Record<string, THREE.MOUSE> = {
-        MIDDLE: THREE.MOUSE.DOLLY,
+        MIDDLE: -1 as THREE.MOUSE, // reserved for pan
         RIGHT: THREE.MOUSE.ROTATE,
       };
       // Left-click reserved for future interactions (selection, drag)
@@ -180,25 +197,58 @@ export class AvatarScene {
 
       this.controls.update();
 
+      // ── Pan via setViewOffset (left/middle drag) ──
+      this._onPanDown = (e: PointerEvent) => {
+        if (e.pointerType === 'touch') return; // touch reserved for OrbitControls
+        if (e.button !== 0 && e.button !== 1) return;
+        if (this._panPointer) return;
+        e.preventDefault();
+        e.stopImmediatePropagation(); // block OrbitControls
+        this._panPointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        canvas.setPointerCapture(e.pointerId);
+        canvas.addEventListener('pointermove', this._onPanMove);
+        canvas.addEventListener('pointerup', this._onPanUp);
+        canvas.addEventListener('pointercancel', this._onPanUp);
+      };
+      this._onPanMove = (e: PointerEvent) => {
+        if (!this._panPointer || e.pointerId !== this._panPointer.id) return;
+        const dx = e.clientX - this._panPointer.x;
+        const dy = e.clientY - this._panPointer.y;
+        this._panPointer.x = e.clientX;
+        this._panPointer.y = e.clientY;
+        const dpr = this.renderer.getPixelRatio();
+        this._panOffsetX -= dx * dpr;
+        this._panOffsetY -= dy * dpr;
+        this._applyViewOffset();
+      };
+      this._onPanUp = (e: PointerEvent) => {
+        if (!this._panPointer || e.pointerId !== this._panPointer.id) return;
+        canvas.releasePointerCapture(e.pointerId);
+        canvas.removeEventListener('pointermove', this._onPanMove);
+        canvas.removeEventListener('pointerup', this._onPanUp);
+        canvas.removeEventListener('pointercancel', this._onPanUp);
+        this._panPointer = null;
+        this._schedulePanSave();
+      };
+      // Pan handler blocks left/middle from reaching OrbitControls via
+      // stopImmediatePropagation. OrbitControls ignores LEFT (not in mouseButtons)
+      // but MIDDLE needs explicit blocking here.
+      canvas.addEventListener('pointerdown', this._onPanDown);
+
       // Restore saved camera angle/zoom (spherical coordinates).
       // The orbit target is set by dynamic framing after model load —
       // we only persist the viewer's angle and distance, not position.
       const saved = loadCameraState();
       if (saved) {
         this.savedSpherical = saved;
+        if (typeof saved.panX === 'number') this._panOffsetX = saved.panX;
+        if (typeof saved.panY === 'number') this._panOffsetY = saved.panY;
+        this._applyViewOffset();
       }
 
       // Persist camera on change (debounced)
       this.controls.addEventListener('change', () => {
-        if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
-        this.cameraSaveTimer = setTimeout(() => {
-          saveCameraState({
-            distance: this.controls!.getDistance(),
-            azimuthal: this.controls!.getAzimuthalAngle(),
-            polar: this.controls!.getPolarAngle(),
-          });
-          this.cameraSaveTimer = null;
-        }, CAMERA_SAVE_DEBOUNCE);
+        this._schedulePanSave();
       });
 
       // Flush pending camera save on tab close / navigation
@@ -240,6 +290,11 @@ export class AvatarScene {
       this.camera.position.copy(target).add(offset);
       this.controls.update();
       this.savedSpherical = null;
+    }
+
+    // Reapply view offset after controls.update() (it resets the projection)
+    if (this._panOffsetX !== 0 || this._panOffsetY !== 0) {
+      this._applyViewOffset();
     }
   }
 
@@ -292,6 +347,11 @@ export class AvatarScene {
   dispose(): void {
     this.stop();
     if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
+    const cvs = this.renderer.domElement;
+    cvs.removeEventListener('pointerdown', this._onPanDown);
+    cvs.removeEventListener('pointermove', this._onPanMove);
+    cvs.removeEventListener('pointerup', this._onPanUp);
+    cvs.removeEventListener('pointercancel', this._onPanUp);
     this.controls?.dispose();
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     window.removeEventListener('resize', this.handleResize);
@@ -337,6 +397,9 @@ export class AvatarScene {
     this.handleResize();
     this._updateFramingTarget();
     this.controls?.update();
+    // Keep view offset applied — controls.update() may reset projection
+    if (this._panOffsetX !== 0 || this._panOffsetY !== 0) this._applyViewOffset();
+    this._clampPan();
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
@@ -356,11 +419,7 @@ export class AvatarScene {
     if (this.controls && this.cameraSaveTimer) {
       clearTimeout(this.cameraSaveTimer);
       this.cameraSaveTimer = null;
-      saveCameraState({
-        distance: this.controls.getDistance(),
-        azimuthal: this.controls.getAzimuthalAngle(),
-        polar: this.controls.getPolarAngle(),
-      });
+      this._saveCameraAndPan();
     }
   }
 
@@ -372,6 +431,7 @@ export class AvatarScene {
       this.renderer.setSize(width, height, false);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      if (this._panOffsetX !== 0 || this._panOffsetY !== 0) this._applyViewOffset();
       this.onResizeCallback?.(width, height);
     }
   }
@@ -401,5 +461,121 @@ export class AvatarScene {
       clearInterval(this.backgroundIntervalId);
       this.backgroundIntervalId = null;
     }
+  }
+
+  // ─── Pan constants ──────────────────────────────────────────────
+  private static readonly CLAMP_MARGIN_Y = 0.9;
+  private static readonly CLAMP_MARGIN_X = 1;
+
+  // ─── Pan clamping ────────────────────────────────────────────────
+  private _clampRefBone: THREE.Object3D | null = null;
+  private _clampBodyBone: THREE.Object3D | null = null;
+  private _clampNDC = new THREE.Vector3();
+  private _clampWorld = new THREE.Vector3();
+
+  /**
+   * Set reference bones for pan clamping.
+   * @param headBone — projected to NDC; must stay within viewport vertically
+   * @param bodyBone — projected to NDC; must stay ≥50% visible horizontally
+   */
+  setClampBones(headBone: THREE.Object3D | null, bodyBone?: THREE.Object3D | null): void {
+    this._clampRefBone = headBone;
+    this._clampBodyBone = bodyBone ?? headBone;
+  }
+
+  // ─── View-offset pan helpers ──────────────────────────────────────
+
+  /**
+   * Clamp pan offset so the model never fully leaves the viewport.
+   * Strategy: temporarily clear the view offset, project the bone to get
+   * its "zero-offset" NDC position, then compute the maximum allowed
+   * pixel offset from that baseline.
+   */
+  private _clampPan(): void {
+    if (!this._clampRefBone || (this._panOffsetX === 0 && this._panOffsetY === 0)) return;
+
+    const canvas = this.renderer.domElement;
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w === 0 || h === 0) return;
+
+    // Temporarily clear view offset to get the bone's "neutral" NDC position
+    this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+
+    // Project head at zero offset
+    this._clampRefBone.getWorldPosition(this._clampWorld);
+    this._clampNDC.copy(this._clampWorld).project(this.camera);
+    const headBaseY = this._clampNDC.y;
+
+    // Project body bone at zero offset
+    const bodyBone = this._clampBodyBone!;
+    bodyBone.getWorldPosition(this._clampWorld);
+    this._clampNDC.copy(this._clampWorld).project(this.camera);
+    const bodyBaseX = this._clampNDC.x;
+
+    // Restore view offset
+    this._applyViewOffset();
+
+    // Convert NDC margin to pixel offset limits.
+    // View offset shifts the rendered region: offsetX pixels right = model appears to move left.
+    // So: bone NDC = baseNDC - 2 * panOffset / canvasSize
+    // We want the final NDC to be within [-margin, +margin]:
+    //   -margin <= baseNDC - 2*panOffset/size <= +margin
+    //   (baseNDC - margin) * size/2 <= panOffset <= (baseNDC + margin) * size/2
+
+    // Vertical: head stays within viewport
+    // panOffsetY positive = viewport shifts down = model moves up in NDC
+    // So: headNDC_final ≈ headBaseY + 2 * panOffsetY / h
+    const minPanY = (-AvatarScene.CLAMP_MARGIN_Y - headBaseY) * h * 0.5;
+    const maxPanY = ( AvatarScene.CLAMP_MARGIN_Y - headBaseY) * h * 0.5;
+    this._panOffsetY = Math.max(minPanY, Math.min(maxPanY, this._panOffsetY));
+
+    // Horizontal: body stays within viewport
+    // panOffsetX positive = viewport shifts right = model moves left (negative X in NDC)
+    // So: bodyNDC_final ≈ bodyBaseX - 2 * panOffsetX / w
+    const minPanX = (bodyBaseX - AvatarScene.CLAMP_MARGIN_X) * w * -0.5;
+    const maxPanX = (bodyBaseX + AvatarScene.CLAMP_MARGIN_X) * w * -0.5;
+    // min/max may be swapped due to negation
+    const loX = Math.min(minPanX, maxPanX);
+    const hiX = Math.max(minPanX, maxPanX);
+    this._panOffsetX = Math.max(loX, Math.min(hiX, this._panOffsetX));
+
+    // Reapply with clamped values
+    this._applyViewOffset();
+  }
+
+  private _applyViewOffset(): void {
+    const canvas = this.renderer.domElement;
+    const w = canvas.width;
+    const h = canvas.height;
+    this.camera.setViewOffset(w, h, this._panOffsetX, this._panOffsetY, w, h);
+  }
+
+  /** Reset pan offset (double-click or programmatic). */
+  resetPan(): void {
+    this._panOffsetX = 0;
+    this._panOffsetY = 0;
+    this.camera.clearViewOffset();
+    this._schedulePanSave();
+  }
+
+  private _schedulePanSave(): void {
+    if (this.cameraSaveTimer) clearTimeout(this.cameraSaveTimer);
+    this.cameraSaveTimer = setTimeout(() => {
+      this._saveCameraAndPan();
+      this.cameraSaveTimer = null;
+    }, CAMERA_SAVE_DEBOUNCE);
+  }
+
+  private _saveCameraAndPan(): void {
+    if (!this.controls) return;
+    saveCameraState({
+      distance: this.controls.getDistance(),
+      azimuthal: this.controls.getAzimuthalAngle(),
+      polar: this.controls.getPolarAngle(),
+      panX: this._panOffsetX,
+      panY: this._panOffsetY,
+    });
   }
 }
