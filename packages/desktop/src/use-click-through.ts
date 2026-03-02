@@ -197,8 +197,8 @@ export function useClickThrough(
 
 /**
  * Project the VRM bounding box to NDC and test cursor hit.
- * AABB is expanded into a cube (consistent from all angles) with
- * X and Z shrunk by 1.5× to compensate for T-pose width.
+ * Uses the model AABB directly with
+ * X/Z shrunk 30% to compensate for T-pose arm spread.
  */
 function testBboxHit(
   obj: THREE.Object3D,
@@ -215,14 +215,16 @@ function testBboxHit(
   bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
 
-  // Expand into cube, shrink X/Z for T-pose compensation
+  // Shrink X/Z by 30% to compensate for T-pose arm spread.
+  // No cube expansion — use the model's actual AABB height.
   const size = bbox.getSize(cubeSize);
-  const maxSide = Math.max(size.x, size.y, size.z);
   const center = bbox.getCenter(cubeCenter);
-  const half = maxSide / 2;
-  const halfXZ = half / 1.5;
-  bbox.min.set(center.x - halfXZ, center.y - half, center.z - halfXZ);
-  bbox.max.set(center.x + halfXZ, center.y + half, center.z + halfXZ);
+  const shrinkXZ = 0.7;
+  const halfX = (size.x / 2) * shrinkXZ;
+  const halfY = size.y / 2;
+  const halfZ = (size.z / 2) * shrinkXZ;
+  bbox.min.set(center.x - halfX, center.y - halfY, center.z - halfZ);
+  bbox.max.set(center.x + halfX, center.y + halfY, center.z + halfZ);
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
