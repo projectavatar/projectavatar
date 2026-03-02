@@ -44,11 +44,46 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
 }
 
 /// Called by the frontend when it's ready (transparent, rendered).
-/// Shows the window and enables click-through so clicks pass to desktop.
+/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    window.show().map_err(|e| e.to_string())?;
+    // Expand to primary monitor
+    if let Ok(Some(monitor)) = window.primary_monitor() {
+        let size = monitor.size();
+        let pos = monitor.position();
+        let _ = window.set_position(tauri::Position::Physical(
+            tauri::PhysicalPosition { x: pos.x, y: pos.y },
+        ));
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+            width: size.width,
+            height: size.height,
+        }));
+    }
+
+    // Hide from taskbar (after resize so it doesn't flash)
+    let _ = window.set_skip_taskbar(true);
+
+    // Enable click-through
     window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
+
+    // Windows transparency workaround
+    #[cfg(target_os = "windows")]
+    {
+        let size = window.outer_size().unwrap_or(tauri::PhysicalSize {
+            width: 400,
+            height: 600,
+        });
+        if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+            width: size.width + 1,
+            height: size.height + 1,
+        })) {
+            eprintln!("transparency workaround: nudge failed: {e}");
+        }
+        if let Err(e) = window.set_size(tauri::Size::Physical(size)) {
+            eprintln!("transparency workaround: restore failed: {e}");
+        }
+    }
+
     Ok(())
 }
 
@@ -93,40 +128,8 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // ── Expand window to full primary monitor ────────────────────
-            // Window stays hidden (visible: false in config) until frontend
-            // calls `frontend_ready` after rendering.
-            if let Some(window) = app.get_webview_window("main") {
-                if let Ok(Some(monitor)) = window.primary_monitor() {
-                    let size = monitor.size();
-                    let pos = monitor.position();
-                    let _ = window.set_position(tauri::Position::Physical(
-                        tauri::PhysicalPosition { x: pos.x, y: pos.y },
-                    ));
-                    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                        width: size.width,
-                        height: size.height,
-                    }));
-                }
-
-                // Windows transparency workaround (while still hidden — safe)
-                #[cfg(target_os = "windows")]
-                {
-                    let size = window.outer_size().unwrap_or(tauri::PhysicalSize {
-                        width: 400,
-                        height: 600,
-                    });
-                    if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                        width: size.width + 1,
-                        height: size.height + 1,
-                    })) {
-                        eprintln!("transparency workaround: nudge failed: {e}");
-                    }
-                    if let Err(e) = window.set_size(tauri::Size::Physical(size)) {
-                        eprintln!("transparency workaround: restore failed: {e}");
-                    }
-                }
-            }
+            // Window starts at 1×1 (invisible). frontend_ready command
+            // expands it to fullscreen after the webview has rendered.
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -13,15 +13,14 @@
     "windows": [
       {
         "title": "Project Avatar",
-        "width": 400,
-        "height": 600,
+        "width": 1,
+        "height": 1,
         "decorations": false,
         "transparent": true,
         "resizable": false,
         "alwaysOnTop": true,
         "shadow": false,
-        "skipTaskbar": true,
-        "visible": false,
+        "visible": true,
         "backgroundColor": [
           0,
           0,
