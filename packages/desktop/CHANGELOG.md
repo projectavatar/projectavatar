@@ -1,6 +1,11 @@
 # Desktop Changelog
 
 
+## 0.6.2
+
+### Fixed
+- **Idle look reset** — avatar head/eyes now return to forward after 5s of mouse inactivity. The click-through hook was resetting the idle timer every poll even when the cursor hadn't moved.
+
 ## 0.6.1
 
 ### Added
