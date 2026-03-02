@@ -98,6 +98,10 @@ export function useClickThrough(
   const cubeCenterRef = useRef(new THREE.Vector3());
   const prevScreenRef = useRef<[number, number]>([-1, -1]);
 
+  // 3D debug wireframe box
+  const debugBoxRef = useRef<THREE.Box3Helper | null>(null);
+  const debugBboxRef = useRef(new THREE.Box3());
+
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
@@ -149,6 +153,16 @@ export function useClickThrough(
               bboxRef.current, ndcMinRef.current, ndcMaxRef.current,
               cornersRef.current, cubeSizeRef.current, cubeCenterRef.current,
             );
+            // Update 3D debug wireframe
+            if (scene.scene) {
+              if (!debugBoxRef.current) {
+                debugBoxRef.current = new THREE.Box3Helper(debugBboxRef.current, new THREE.Color(0x6c5ce7));
+                scene.scene.add(debugBoxRef.current);
+              }
+              debugBboxRef.current.copy(bboxRef.current);
+              debugBoxRef.current.updateMatrixWorld(true);
+            }
+
             // Expose hitbox NDC for debug overlay
             setHitbox({
               minX: ndcMinRef.current.x,
@@ -187,6 +201,12 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
+      // Remove debug box
+      if (debugBoxRef.current) {
+        debugBoxRef.current.parent?.remove(debugBoxRef.current);
+        debugBoxRef.current.dispose();
+        debugBoxRef.current = null;
+      }
     };
   }, []);
 
