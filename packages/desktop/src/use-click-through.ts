@@ -96,6 +96,7 @@ export function useClickThrough(
   );
   const cubeSizeRef = useRef(new THREE.Vector3());
   const cubeCenterRef = useRef(new THREE.Vector3());
+  const prevScreenRef = useRef<[number, number]>([-1, -1]);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,8 +171,12 @@ export function useClickThrough(
           const ndcX = Math.max(-2, Math.min(2, (localX / w) * 2 - 1));
           const ndcY = Math.max(-2, Math.min(2, -((localY / h) * 2 - 1)));
 
-          // Feed cursor NDC to head/eye tracking (replaces avatar-canvas Tauri poll)
-          onCursorNdcRef.current?.(ndcX, ndcY);
+          // Feed cursor NDC to head/eye tracking only when cursor actually moved
+          const [prevX, prevY] = prevScreenRef.current;
+          if (screenX !== prevX || screenY !== prevY) {
+            prevScreenRef.current = [screenX, screenY];
+            onCursorNdcRef.current?.(ndcX, ndcY);
+          }
 
           const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
 
