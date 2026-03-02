@@ -215,16 +215,19 @@ function testBboxHit(
   bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
 
-  // Shrink X/Z by 30% to compensate for T-pose arm spread.
-  // No cube expansion — use the model's actual AABB height.
+  // Shrink AABB to fit the visible model more tightly:
+  // - X/Z shrunk 30% for T-pose arm spread
+  // - Bottom trimmed 40% (invisible bones/geometry below feet)
+  // - Top kept tight to head
   const size = bbox.getSize(cubeSize);
   const center = bbox.getCenter(cubeCenter);
   const shrinkXZ = 0.7;
   const halfX = (size.x / 2) * shrinkXZ;
-  const halfY = size.y / 2;
   const halfZ = (size.z / 2) * shrinkXZ;
-  bbox.min.set(center.x - halfX, center.y - halfY, center.z - halfZ);
-  bbox.max.set(center.x + halfX, center.y + halfY, center.z + halfZ);
+  // Trim from bottom — keep top (head), raise bottom by 40% of height
+  const trimBottom = size.y * 0.4;
+  bbox.min.set(center.x - halfX, bbox.min.y + trimBottom, center.z - halfZ);
+  bbox.max.set(center.x + halfX, bbox.max.y, center.z + halfZ);
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
