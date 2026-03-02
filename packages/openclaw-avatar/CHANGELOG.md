@@ -1,5 +1,11 @@
 # @projectavatar/openclaw-avatar
 
+## 2.0.1
+
+### Patch Changes
+
+- Fix repository URL on npm (points to projectavatar org)
+
 ## 1.1.2
 
 ### Patch Changes
