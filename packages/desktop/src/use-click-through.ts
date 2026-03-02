@@ -187,7 +187,7 @@ export function useClickThrough(
                   hoverTimerRef.current = setTimeout(() => {
                     hoverTimerRef.current = null;
                     activate();
-                  }, 1000);
+                  }, 500);
                 }
               } else {
                 // Left hitbox or button pressed — cancel hover timer
