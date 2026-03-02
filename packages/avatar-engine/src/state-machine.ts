@@ -162,7 +162,7 @@ export class StateMachine {
     this.animationCtrl.setEmotion(emotionKey);
 
     // Update VFX with blend
-    this.vfxManager?.setBlendState(blend);
+    this.vfxManager?.setBlendState(blend, this.state.action);
 
     // Notify listener
     this.onStateChange?.(this.state);
@@ -175,7 +175,7 @@ export class StateMachine {
   setVfxManager(mgr: VfxManager): void {
     this.vfxManager = mgr;
     // Apply initial state
-    mgr.setBlendState(this.state.blend);
+    mgr.setBlendState(this.state.blend, this.state.action);
   }
 
   /** Set camera for head tracking. */

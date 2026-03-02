@@ -54,17 +54,18 @@ export class VfxManager {
    * Uses dominant emotion for VFX selection.
    * Applies blend color to active VFX instances.
    */
-  setBlendState(blend: ResolvedBlend): void {
+  setBlendState(blend: ResolvedBlend, action?: string): void {
     const emotionKey = blend.dominant ? `emotion:${blend.dominant}` : null;
+    const actionKey = action ? `action:${action}` : null;
 
-    // Select VFX based on dominant emotion
+    // Prefer emotion VFX, fall back to action VFX (e.g. idle aura)
     if (emotionKey && this.bindings.has(emotionKey)) {
       this._transitionTo(emotionKey);
+    } else if (actionKey && this.bindings.has(actionKey)) {
+      this._transitionTo(actionKey);
     } else {
       this._transitionTo(null);
     }
-
-    // Apply blend color to all active VFX
     // (future: also modulate intensity/behavior based on energy)
   }
 

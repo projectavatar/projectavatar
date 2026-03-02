@@ -321,7 +321,15 @@
           ]
         }
       ],
-      "durationOverride": null
+      "durationOverride": null,
+      "vfx": [
+        {
+          "type": "particle-aura",
+          "color": "#4d99ff",
+          "intensity": 1,
+          "offsetY": 0.2
+        }
+      ]
     },
     "talking": {
       "groups": [
@@ -683,19 +691,6 @@
           "color": "#88ccff",
           "intensity": 1,
           "offsetY": 0.75
-        }
-      ]
-    },
-    "idle": {
-      "weightScale": 1,
-      "overrides": {},
-      "layers": [],
-      "vfx": [
-        {
-          "type": "particle-aura",
-          "color": "#4d99ff",
-          "intensity": 1,
-          "offsetY": 0.2
         }
       ]
     }
