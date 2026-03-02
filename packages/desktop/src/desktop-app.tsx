@@ -83,6 +83,7 @@ export function DesktopApp() {
         externalCursorPoll
         onProjectCursor={handleProjectCursor}
         activated={hovered}
+        hideSettings
       />
       <WindowChrome />
       <Updater />

@@ -75,13 +75,15 @@ const connectingPillStyle: React.CSSProperties = {
  * even across WS reconnects. No wsReady state needed; the ref is the source
  * of truth and the warning covers the not-ready case.
  */
-export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor, activated }: {
+export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor, activated, hideSettings }: {
   onScene?: (scene: AvatarScene | null) => void;
   cursorPollMs?: number;
   externalCursorPoll?: boolean;
   onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
   /** Desktop click-through: when true, UI elements stay visible. */
   activated?: boolean;
+  /** Hide the settings gear button (desktop mode — settings in tray). */
+  hideSettings?: boolean;
 } = {}) {
   const token                  = useStore((s) => s.token);
   const modelId                = useStore((s) => s.modelId);
@@ -194,19 +196,21 @@ export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor
 
         {modelId && (
           <>
-            <button
-              style={{
-                ...settingsBtnStyle,
-                opacity: uiVisible ? 1 : 0,
-                transition: 'opacity 0.3s ease, border-color 0.15s',
-                pointerEvents: uiVisible ? 'auto' : 'none',
-              }}
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-              aria-label="Open settings"
-            >
-              ⚙
-            </button>
+            {!hideSettings && (
+              <button
+                style={{
+                  ...settingsBtnStyle,
+                  opacity: uiVisible ? 1 : 0,
+                  transition: 'opacity 0.3s ease, border-color 0.15s',
+                  pointerEvents: uiVisible ? 'auto' : 'none',
+                }}
+                onClick={() => setSettingsOpen(true)}
+                title="Settings"
+                aria-label="Open settings"
+              >
+                ⚙
+              </button>
+            )}
             <SettingsDrawer />
           </>
         )}
