@@ -1,11 +1,14 @@
 /**
  * Desktop wrapper for the web app.
  *
+ * Fullscreen mode — window covers the entire primary monitor.
+ * No window chrome, no border, no resize handles.
+ * Settings and quit are in the system tray.
+ *
  * Click-through state machine:
- * - Mouse outside window (1s) → click-through ON, UI hidden
- * - Mouse inside window, outside hitbox → click-through ON
- * - Mouse hovers hitbox 0.5s → activated — click-through OFF, chrome + UI visible
- * - Stays activated until mouse leaves window (+ 1s timeout)
+ * - Mouse outside avatar hitbox → click-through ON
+ * - Mouse enters avatar hitbox (instant) → click-through OFF, UI visible
+ * - Mouse leaves window for 1s → click-through ON
  *
  * useClickThrough drives both hit-testing AND cursor tracking (single poll).
  */
@@ -20,6 +23,7 @@ import type { AvatarScene } from '@project-avatar/avatar-engine';
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
   const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
 
   // projectCursor ref — set by AvatarCanvas, called by useClickThrough
@@ -45,6 +49,16 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
+  // Bridge: tray "Settings" menu item calls window.__trayOpenSettings()
+  useEffect(() => {
+    (window as any).__trayOpenSettings = () => {
+      setSettingsOpen(true);
+    };
+    return () => {
+      delete (window as any).__trayOpenSettings;
+    };
+  }, [setSettingsOpen]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => e.preventDefault();
     window.addEventListener('contextmenu', handler);
@@ -60,7 +74,7 @@ export function DesktopApp() {
         onProjectCursor={handleProjectCursor}
         activated={hovered}
       />
-      <WindowChrome hovered={hovered} />
+      <WindowChrome />
       <Updater />
     </>
   );

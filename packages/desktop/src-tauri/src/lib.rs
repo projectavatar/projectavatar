@@ -1,5 +1,10 @@
 use mouse_position::mouse_position::Mouse;
 use device_query::{DeviceQuery, DeviceState, MouseState};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    Manager,
+};
 
 #[tauri::command]
 fn get_cursor_position() -> Option<(i32, i32)> {
@@ -53,11 +58,51 @@ pub fn run() {
             is_mouse_button_pressed,
             get_cursor_state,
         ])
-        .setup(|_app| {
-            #[cfg(target_os = "windows")]
-            {
-                use tauri::Manager;
-                if let Some(window) = _app.get_webview_window("main") {
+        .setup(|app| {
+            // ── System tray ──────────────────────────────────────────────
+            let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Project Avatar")
+                .menu(&menu)
+                .on_menu_event(|app_handle, event| {
+                    match event.id.as_ref() {
+                        "settings" => {
+                            if let Some(window) = app_handle.get_webview_window("main") {
+                                let _ = window.eval("window.__trayOpenSettings?.()");
+                            }
+                        }
+                        "quit" => {
+                            app_handle.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
+            // ── Expand window to full primary monitor ────────────────────
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = window.primary_monitor() {
+                    let size = monitor.size();
+                    let pos = monitor.position();
+                    let _ = window.set_position(tauri::Position::Physical(
+                        tauri::PhysicalPosition { x: pos.x, y: pos.y },
+                    ));
+                    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                        width: size.width,
+                        height: size.height,
+                    }));
+                }
+
+                // Show window after positioning (avoids flash at default size)
+                let _ = window.show();
+
+                // Windows transparency workaround
+                #[cfg(target_os = "windows")]
+                {
                     let size = window.outer_size().unwrap_or(tauri::PhysicalSize {
                         width: 400,
                         height: 600,

@@ -1,6 +1,26 @@
 # Desktop Changelog
 
 
+## 0.7.0
+
+### Added
+- **Fullscreen mode** — Window expands to fill the entire primary monitor on launch. No more manual resizing.
+- **System tray** — App icon lives in the system tray with Settings and Quit menu items. No more taskbar icon.
+- **Tray → Settings bridge** — "Settings" tray menu opens the settings drawer inside the app.
+
+### Changed
+- **Instant hover activation** — Removed the 0.5s hover delay on the avatar hitbox. Pan and rotate immediately on hover.
+- **No window chrome** — Removed all visible chrome: drag grip, pin button, close button, dashed border, resize handles. The window is now fully invisible.
+- **Skip taskbar** — Window no longer appears in the taskbar / dock. Only the tray icon is visible.
+- **Window starts hidden** — Positioned and sized before becoming visible, preventing flash at default 400×600 size.
+
+### Removed
+- Edge/corner resize handles (window is fullscreen, not resizable)
+- Drag grip handle (window is fullscreen, not movable)
+- Pin/close buttons (quit via tray; always-on-top is always on)
+- Dashed border overlay
+- Window bounds persistence (always fullscreen)
+
 ## 0.6.3
 
 ### Added

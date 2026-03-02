@@ -1,12 +1,11 @@
 /**
  * useClickThrough — transparent click-through for the desktop avatar.
  *
- * State machine:
- *   - Mouse outside window (1s timeout) → click-through ON, UI hidden
- *   - Mouse inside window but outside hitbox → click-through ON
- *   - Mouse hovers hitbox for 0.5s (no button pressed) → "activated"
+ * State machine (fullscreen mode):
+ *   - Mouse outside avatar hitbox → click-through ON
+ *   - Mouse enters avatar hitbox (no button pressed) → immediate activation
  *   - Activated: click-through OFF, chrome visible
- *   - Once activated, stays active until mouse leaves the window (+ 1s timeout)
+ *   - Mouse leaves window for 1s → deactivate
  *
  * Also drives cursor tracking for head/eye follow at the same 5fps rate,
  * replacing the Tauri cursor poll in avatar-canvas (single poll, no duplication).
@@ -20,9 +19,6 @@ export const CURSOR_POLL_MS = 200;
 
 /** Timeout before releasing after cursor leaves window (ms). */
 const LEAVE_TIMEOUT_MS = 1000;
-
-/** Hover time on hitbox before activating (ms). */
-const HOVER_ACTIVATE_MS = 500;
 
 // ─── Tauri interop (lazy-loaded) ──────────────────────────────────────────────
 
@@ -65,7 +61,7 @@ async function setIgnoreCursor(invoke: InvokeFn, ignore: boolean): Promise<void>
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface ClickThroughState {
-  /** True when the avatar is "activated" — chrome + UI elements should be visible. */
+  /** True when the avatar is "activated" — UI elements should be visible. */
   hovered: boolean;
 }
 
@@ -85,7 +81,6 @@ export function useClickThrough(
   // State refs (avoid re-renders on every poll)
   const activatedRef = useRef(false);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
@@ -130,13 +125,6 @@ export function useClickThrough(
       if (leaveTimerRef.current) {
         clearTimeout(leaveTimerRef.current);
         leaveTimerRef.current = null;
-      }
-    };
-
-    const cancelHover = () => {
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = null;
       }
     };
 
@@ -191,24 +179,13 @@ export function useClickThrough(
             );
           }
 
-          // State machine
+          // State machine — instant activation, no hover delay
           if (!insideWindow) {
-            cancelHover();
             scheduleLeave(invoke);
           } else {
             cancelLeave();
-            if (!activatedRef.current) {
-              if (hit && !buttonPressed) {
-                // Start hover timer (only if not already counting)
-                if (!hoverTimerRef.current) {
-                  hoverTimerRef.current = setTimeout(() => {
-                    hoverTimerRef.current = null;
-                    activate(invoke);
-                  }, HOVER_ACTIVATE_MS);
-                }
-              } else {
-                cancelHover();
-              }
+            if (!activatedRef.current && hit && !buttonPressed) {
+              activate(invoke);
             }
           }
         } catch { /* poll error — skip */ }
@@ -223,7 +200,6 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
     };
   }, []);
