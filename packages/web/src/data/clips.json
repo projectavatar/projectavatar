@@ -594,19 +594,24 @@
     }
   },
   "emotions": {
-    "happy": {
+    "joy": {
       "weightScale": 1.1,
       "overrides": {},
       "layers": [],
       "vfx": [
         {
+          "type": "sparkles",
+          "color": "#ffee66",
+          "intensity": 1.2
+        },
+        {
           "type": "warm-dust",
           "color": "#ff88aa",
-          "intensity": 1
+          "intensity": 0.6
         }
       ]
     },
-    "sad": {
+    "sadness": {
       "weightScale": 0.7,
       "overrides": {},
       "layers": [],
@@ -618,7 +623,7 @@
         }
       ]
     },
-    "angry": {
+    "anger": {
       "weightScale": 1.15,
       "overrides": {},
       "layers": [],
@@ -630,32 +635,7 @@
         }
       ]
     },
-    "excited": {
-      "weightScale": 1.2,
-      "overrides": {},
-      "layers": [],
-      "vfx": [
-        {
-          "type": "sparkles",
-          "color": "#ffee66",
-          "intensity": 1.2
-        }
-      ]
-    },
-    "confused": {
-      "weightScale": 1,
-      "overrides": {},
-      "layers": [],
-      "vfx": [
-        {
-          "type": "thought-bubbles",
-          "color": "#ffaa44",
-          "intensity": 1,
-          "offsetY": 0.75
-        }
-      ]
-    },
-    "nervous": {
+    "fear": {
       "weightScale": 0.85,
       "overrides": {},
       "layers": [],
@@ -668,7 +648,7 @@
         }
       ]
     },
-    "surprised": {
+    "surprise": {
       "weightScale": 1.1,
       "overrides": {},
       "layers": [],
@@ -680,20 +660,21 @@
         }
       ]
     },
-    "bashful": {
-      "weightScale": 1,
+    "disgust": {
+      "weightScale": 0.9,
       "overrides": {},
       "layers": [],
       "vfx": [
         {
-          "type": "hearts",
-          "color": "#ffaacc",
-          "intensity": 0.6
+          "type": "thought-bubbles",
+          "color": "#66aa44",
+          "intensity": 0.8,
+          "offsetY": 0.5
         }
       ]
     },
-    "thinking": {
-      "weightScale": 1,
+    "interest": {
+      "weightScale": 1.0,
       "overrides": {},
       "layers": [],
       "vfx": [
