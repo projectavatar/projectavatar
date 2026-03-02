@@ -55,9 +55,19 @@ async function setIgnoreCursor(invoke: InvokeFn, ignore: boolean): Promise<void>
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
+/** NDC bounding box for the avatar hitbox (debug visualization). */
+export interface HitboxNdc {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 export interface ClickThroughState {
   /** True when the avatar is "activated" — UI elements should be visible. */
   hovered: boolean;
+  /** NDC bounds of the avatar hitbox (updated every poll). */
+  hitbox: HitboxNdc | null;
 }
 
 export function useClickThrough(
@@ -66,6 +76,7 @@ export function useClickThrough(
   onCursorNdc?: (ndcX: number, ndcY: number) => void,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
+  const [hitbox, setHitbox] = useState<HitboxNdc | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
@@ -138,6 +149,13 @@ export function useClickThrough(
               bboxRef.current, ndcMinRef.current, ndcMaxRef.current,
               cornersRef.current, cubeSizeRef.current, cubeCenterRef.current,
             );
+            // Expose hitbox NDC for debug overlay
+            setHitbox({
+              minX: ndcMinRef.current.x,
+              minY: ndcMinRef.current.y,
+              maxX: ndcMaxRef.current.x,
+              maxY: ndcMaxRef.current.y,
+            });
           }
 
           // Fullscreen state machine:
@@ -172,7 +190,7 @@ export function useClickThrough(
     };
   }, []);
 
-  return { hovered };
+  return { hovered, hitbox };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
