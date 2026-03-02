@@ -83,6 +83,7 @@ const LEG_SWAY_AMOUNT_2 = 0.025;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
+const KNEE_INWARD_ANGLE = -0.08;    // radians — upper leg inward Z rotation to keep knees together
 const TOE_DROOP_ANGLE   = 0.349;    // radians — toes pointing slightly down
 
 // Ground mode
@@ -172,6 +173,15 @@ export class IdleLayer {
   /** Get current mode. */
   getMode(): IdleMode {
     return this.mode;
+  }
+
+  /**
+   * Current air↔ground blend factor.
+   * 0 = fully air, 1 = fully ground. Smoothly interpolated.
+   * Used by AnimationController to dynamically adjust leg clip weights.
+   */
+  getModeBlend(): number {
+    return this.modeBlend;
   }
 
   /** Current bob offset in meters — PropManager uses this to sync prop Y. */
@@ -613,9 +623,13 @@ export class IdleLayer {
     // Sway adds/subtracts from these
     if (this.leftUpperLeg) {
       this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * (1.1 + leftSway) * s * weight;
+      // Rotate inward to keep knees together (not splayed)
+      this.leftUpperLeg.rotation.z += KNEE_INWARD_ANGLE * s * weight;
     }
     if (this.rightUpperLeg) {
       this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * (2.0 + rightSway) * s * weight;
+      // Rotate inward to keep knees together (not splayed)
+      this.rightUpperLeg.rotation.z += -KNEE_INWARD_ANGLE * s * weight;
     }
 
     if (this.leftLowerLeg) {
