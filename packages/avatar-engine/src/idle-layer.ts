@@ -83,7 +83,7 @@ const LEG_SWAY_AMOUNT_2 = 0.025;   // secondary (subtler)
 
 // Air mode — leg dangle
 const KNEE_BEND_ANGLE   = 0.15;    // radians — base knee bend
-const KNEE_INWARD_ANGLE = -0.08;    // radians — upper leg inward Z rotation to keep knees together
+const KNEE_INWARD_ANGLE = 0.08;     // radians — upper leg inward Z rotation to keep knees together
 const TOE_DROOP_ANGLE   = 0.349;    // radians — toes pointing slightly down
 
 // Ground mode
@@ -624,12 +624,12 @@ export class IdleLayer {
     if (this.leftUpperLeg) {
       this.leftUpperLeg.rotation.x += KNEE_BEND_ANGLE * (1.1 + leftSway) * s * weight;
       // Rotate inward to keep knees together (not splayed)
-      this.leftUpperLeg.rotation.z += KNEE_INWARD_ANGLE * (1 + leftSway * 0.3) * s * weight;
+      this.leftUpperLeg.rotation.z += -KNEE_INWARD_ANGLE * (1 + leftSway * 0.3) * s * weight;
     }
     if (this.rightUpperLeg) {
       this.rightUpperLeg.rotation.x += KNEE_BEND_ANGLE * (2.0 + rightSway) * s * weight;
       // Rotate inward to keep knees together (not splayed)
-      this.rightUpperLeg.rotation.z += -KNEE_INWARD_ANGLE * (1 + rightSway * 0.3) * s * weight;
+      this.rightUpperLeg.rotation.z += KNEE_INWARD_ANGLE * (1 + rightSway * 0.3) * s * weight;
     }
 
     if (this.leftLowerLeg) {
