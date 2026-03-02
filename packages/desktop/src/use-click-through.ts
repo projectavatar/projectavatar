@@ -78,6 +78,7 @@ export function useClickThrough(
   // Internal state refs (avoid re-renders on every poll)
   const activatedRef = useRef(false);   // hitbox was entered → stays on until window leave
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
@@ -198,11 +199,30 @@ export function useClickThrough(
 
           // State machine
           if (!insideWindow) {
+            // Cancel hover timer if mouse left window
+            if (hoverTimerRef.current) {
+              clearTimeout(hoverTimerRef.current);
+              hoverTimerRef.current = null;
+            }
             scheduleLeave();
           } else {
             cancelLeave();
-            if (!activatedRef.current && hit) {
-              activate();
+            if (!activatedRef.current) {
+              if (hit) {
+                // Start 1s hover timer to activate
+                if (!hoverTimerRef.current) {
+                  hoverTimerRef.current = setTimeout(() => {
+                    hoverTimerRef.current = null;
+                    activate();
+                  }, 1000);
+                }
+              } else {
+                // Left hitbox before 1s — cancel
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = null;
+                }
+              }
             }
           }
         } catch { /* poll error — skip */ }
@@ -217,6 +237,7 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       if (boxHelperRef.current) {
         boxHelperRef.current.removeFromParent();
         boxHelperRef.current.dispose();
