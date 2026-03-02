@@ -4,11 +4,10 @@
  * DESIGN PRINCIPLE: Less is more.
  *
  * The agent's own `avatar_signal` tool calls are the PRIMARY source of truth
- * for avatar state. This map only covers HIGH-SIGNAL tools — actions that
- * represent meaningful state transitions. Routine tools (Read, Write, Edit,
- * web_search, etc.) are intentionally absent to prevent visual jitter.
- *
+ * for avatar state. This map only covers HIGH-SIGNAL tools.
  * Unknown tools return null (no fallback signal).
+ *
+ * v2: Uses EmotionBlend format instead of single emotion strings.
  */
 
 import type { AvatarSignal } from './types.js';
@@ -20,37 +19,30 @@ type ToolRule = {
 };
 
 export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
-  // ── Shell — high-signal, agent is running something important ────────────
-  // No after (success): agent's avatar_signal before the reply provides the beat.
   exec: {
-    before:     { emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'high' },
-    afterError: { emotion: 'confused', action: 'nervous', intensity: 'high' },
+    before:     { emotions: { interest: 'high' }, action: 'typing', prop: 'keyboard', intensity: 'high' },
+    afterError: { emotions: { fear: 'medium', surprise: 'low' }, action: 'nervous', intensity: 'high' },
   },
 
-  // ── Browser — agent is actively navigating ───────────────────────────────
-  // No after (success): same rationale as exec — agent signals intent in its reply.
   browser: {
-    before:     { emotion: 'thinking', action: 'searching', prop: 'magnifying_glass' },
-    afterError: { emotion: 'confused', action: 'dismissive' },
+    before:     { emotions: { interest: 'high' }, action: 'searching', prop: 'magnifying_glass' },
+    afterError: { emotions: { fear: 'medium', surprise: 'low' }, action: 'dismissive' },
   },
 
-  // ── TTS — agent is speaking ──────────────────────────────────────────────
   tts: {
-    before:     { emotion: 'excited', action: 'talking' },
-    after:      { emotion: 'happy',   action: 'greeting' },
+    before:     { emotions: { joy: 'medium' }, action: 'talking' },
+    after:      { emotions: { joy: 'high' }, action: 'greeting' },
   },
 
-  // ── Sub-agents — noteworthy orchestration ────────────────────────────────
   sessions_spawn: {
-    before:     { emotion: 'excited', action: 'typing', prop: 'keyboard' },
-    after:      { emotion: 'happy',   action: 'celebrating' },
+    before:     { emotions: { joy: 'medium', interest: 'low' }, action: 'typing', prop: 'keyboard' },
+    after:      { emotions: { joy: 'high' }, action: 'celebrating' },
   },
 
-  // ── Gateway — system-level action ────────────────────────────────────────
   gateway: {
-    before:     { emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'high' },
-    after:      { emotion: 'happy',    action: 'celebrating' },
-    afterError: { emotion: 'confused', action: 'nervous', intensity: 'high' },
+    before:     { emotions: { interest: 'high' }, action: 'typing', prop: 'keyboard', intensity: 'high' },
+    after:      { emotions: { joy: 'high' }, action: 'celebrating' },
+    afterError: { emotions: { fear: 'medium', surprise: 'low' }, action: 'nervous', intensity: 'high' },
   },
 };
 

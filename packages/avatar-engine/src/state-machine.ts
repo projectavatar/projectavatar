@@ -1,33 +1,61 @@
 import { DEFAULTS } from '@project-avatar/shared';
-import type { AvatarEvent, Emotion, Action, Intensity } from '@project-avatar/shared';
+import type { AvatarEvent, Action, Intensity, EmotionBlend, PrimaryEmotion } from '@project-avatar/shared';
 import type { ExpressionController } from './expression-controller.ts';
 import type { AnimationController } from './animation-controller.ts';
 import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
 import type { VfxManager } from './effects/vfx-manager.ts';
+import { resolveBlend, NEUTRAL_BLEND } from './emotion-blend.ts';
+import type { ResolvedBlend } from './emotion-blend.ts';
 
 /**
  * Avatar state machine coordinating all subsystems.
  *
- * Receives AvatarEvents from the WebSocket client and dispatches
- * to expression, animation, blink, and prop controllers.
+ * Receives AvatarEvents (emotion blend format) from the WebSocket client
+ * and dispatches to expression, animation, blink, prop, and VFX controllers.
  * Returns to idle after a configurable timeout of no events.
  *
- * Animation is hybrid: FBX clips (via AnimationMixer) provide the base motion,
- * procedural idle layer adds organic noise on top, and ExpressionController
- * handles blend shapes + additive head offset.
+ * The emotion blend drives all layers:
+ *   - Face: VRM blend shapes via ExpressionController
+ *   - Body: action inference from dominant emotion (or explicit action)
+ *   - Idle: energy modulates procedural animation
+ *   - VFX: color + intensity from blend
  */
 
+// ─── Action inference from dominant emotion ───────────────────────────────────
+
+const EMOTION_ACTION_MAP: Record<PrimaryEmotion, { low: Action; high: Action }> = {
+  joy:      { low: 'nodding',     high: 'celebrating' },
+  sadness:  { low: 'sad',         high: 'sad'         },
+  anger:    { low: 'dismissive',  high: 'dismissive'  },
+  fear:     { low: 'nervous',     high: 'nervous'     },
+  surprise: { low: 'idle',        high: 'idle'        },  // future: startled clip
+  interest: { low: 'idle',        high: 'idle'        },  // future: lean forward clip
+  disgust:  { low: 'idle',        high: 'idle'        },  // future: recoil clip
+};
+
+function inferAction(blend: ResolvedBlend): Action {
+  if (!blend.dominant) return 'idle';
+  const entry = EMOTION_ACTION_MAP[blend.dominant];
+  return blend.maxWeight >= 0.6 ? entry.high : entry.low;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
 interface AvatarState {
-  emotion: Emotion;
+  emotions: EmotionBlend;
+  blend: ResolvedBlend;
   action: Action;
   intensity: Intensity;
   lastEventTime: number;
 }
 
+const EMPTY_BLEND: EmotionBlend = {};
+
 const DEFAULT_STATE: AvatarState = {
-  emotion: 'idle',
+  emotions: EMPTY_BLEND,
+  blend: { ...NEUTRAL_BLEND },
   action: 'idle',
   intensity: 'medium',
   lastEventTime: 0,
@@ -36,16 +64,20 @@ const DEFAULT_STATE: AvatarState = {
 /** Event log entry for dev panel. */
 export interface EventLogEntry {
   timestamp: number;
-  emotion: Emotion;
+  emotions: EmotionBlend;
   action: Action;
   intensity?: Intensity;
+  color?: string;
+  dominant?: PrimaryEmotion | null;
   source: 'relay' | 'dev-panel' | 'system';
 }
 
 const MAX_LOG_ENTRIES = 50;
 
+// ─── State Machine ────────────────────────────────────────────────────────────
+
 export class StateMachine {
-  private state: AvatarState = { ...DEFAULT_STATE };
+  private state: AvatarState = { ...DEFAULT_STATE, blend: { ...NEUTRAL_BLEND } };
   private expressionCtrl: ExpressionController;
   private animationCtrl: AnimationController;
   private blinkCtrl: BlinkController;
@@ -78,10 +110,10 @@ export class StateMachine {
     this.idleTimeoutMs = opts?.idleTimeoutMs ?? DEFAULTS.idleTimeoutMs;
     this.onStateChange = opts?.onStateChange;
 
-    // When a non-looping animation finishes, return to idle
+    // When a non-looping animation finishes, return to idle action
     this.animationCtrl.onActionFinished = () => {
       this.state.action = 'idle';
-      this.animationCtrl.playAction('idle', this.state.intensity, this.state.emotion);
+      this.animationCtrl.playAction('idle', this.state.intensity);
       this.onStateChange?.(this.state);
     };
 
@@ -102,35 +134,35 @@ export class StateMachine {
 
     this.state.lastEventTime = Date.now();
 
-    // Log the event
-    this._logEvent(event, source);
+    // Resolve the emotion blend
+    const blend = resolveBlend(event.emotions, event.color);
+    this.state.emotions = event.emotions;
+    this.state.blend = blend;
 
-    // Update intensity first (used by subsequent updates)
+    // Log the event
+    this._logEvent(event, source, blend);
+
+    // Update intensity
     if (event.intensity && event.intensity !== prev.intensity) {
       this.state.intensity = event.intensity;
     }
 
-    // Update emotion
-    if (event.emotion && event.emotion !== prev.emotion) {
-      this.state.emotion = event.emotion;
-      this.expressionCtrl.setEmotion(event.emotion, this.state.intensity);
-      // Notify animation controller — emotion may change clip selection
-      this.animationCtrl.setEmotion(event.emotion);
+    // Update face — expression controller handles multi-primary blend shapes
+    this.expressionCtrl.setEmotionBlend(blend);
+
+    // Update body action — explicit action takes priority, otherwise infer
+    const action = event.action !== 'idle' ? event.action : inferAction(blend);
+    if (action !== prev.action) {
+      this.state.action = action;
+      this.animationCtrl.playAction(action, this.state.intensity);
     }
 
-    // Update action
-    if (event.action && event.action !== prev.action) {
-      this.state.action = event.action;
-      this.animationCtrl.playAction(event.action, this.state.intensity, this.state.emotion);
-    }
+    // Notify animation controller of emotion change (for clip overrides)
+    const emotionKey = blend.dominant ?? 'idle';
+    this.animationCtrl.setEmotion(emotionKey);
 
-    // Props are now driven by clip selection (via AnimationController.onPropChange).
-    // The event.prop field from avatar_signal is ignored — props are tied to clips.
-
-    // Update VFX based on current emotion + action
-    if (event.emotion || event.action) {
-      this.vfxManager?.setState(this.state.emotion, this.state.action);
-    }
+    // Update VFX with blend
+    this.vfxManager?.setBlendState(blend);
 
     // Notify listener
     this.onStateChange?.(this.state);
@@ -139,38 +171,34 @@ export class StateMachine {
     this.resetIdleTimer();
   }
 
-  /** Set camera for head tracking. */
   /** Set VFX manager (optional, added post-construction). */
   setVfxManager(mgr: VfxManager): void {
     this.vfxManager = mgr;
-    // Apply initial state so idle VFX shows on load
-    mgr.setState(this.state.emotion, this.state.action);
+    // Apply initial state
+    mgr.setBlendState(this.state.blend);
   }
 
+  /** Set camera for head tracking. */
   setCamera(camera: import('three').Camera): void {
     this.animationCtrl.setCamera(camera);
   }
 
-  /**
-   * Set a layer toggle. Delegates to the appropriate controller.
-   */
+  /** Set a layer toggle. */
   setLayer(layer: keyof LayerState, enabled: boolean): void {
     this.animationCtrl.setLayer(layer, enabled);
   }
 
-  /**
-   * Get current layer state.
-   */
+  /** Get current layer state. */
   get layerState(): Readonly<LayerState> {
     return this.animationCtrl.layers;
   }
 
   /**
-   * Update all subsystems. Call every frame with delta time.
+   * Update all subsystems. Call every frame.
    *
    * Order matters:
    * 1. AnimationController: mixer ticks FBX clips, then idle layer adds noise
-   * 2. ExpressionController: blend shapes + additive head offset (on top of mixer)
+   * 2. ExpressionController: blend shapes (on top of mixer)
    * 3. BlinkController: blink + micro-glance (expression-level, last)
    */
   update(delta: number): void {
@@ -193,9 +221,7 @@ export class StateMachine {
     }
   }
 
-  /**
-   * Get info about currently active animation clips.
-   */
+  /** Get info about currently active animation clips. */
   getActiveClips(): ActiveClipInfo[] {
     return this.animationCtrl.getActiveClips();
   }
@@ -216,16 +242,18 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
     }
     this.idleTimer = setTimeout(() => {
-      this.handleEvent({ emotion: 'idle', action: 'idle', prop: 'none' }, 'system');
+      this.handleEvent({ emotions: {}, action: 'idle', prop: 'none' }, 'system');
     }, this.idleTimeoutMs);
   }
 
-  private _logEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' | 'system'): void {
+  private _logEvent(event: AvatarEvent, source: 'relay' | 'dev-panel' | 'system', blend: ResolvedBlend): void {
     this.eventLog.unshift({
       timestamp: Date.now(),
-      emotion: event.emotion,
+      emotions: event.emotions,
       action: event.action,
       intensity: event.intensity,
+      color: event.color,
+      dominant: blend.dominant,
       source,
     });
     if (this.eventLog.length > MAX_LOG_ENTRIES) {

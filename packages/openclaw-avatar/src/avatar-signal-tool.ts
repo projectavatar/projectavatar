@@ -1,26 +1,27 @@
 /**
  * Avatar signal tool — always registered.
  *
- * The agent calls this to set avatar emotion/action. Tool calls are
+ * The agent calls this to set avatar emotions/action. Tool calls are
  * invisible to the user on Discord (no output shown), so the avatar
  * reacts silently. Works with streaming — no output filtering needed.
  *
- * The agent can send:
- *  - Both emotion + action (full state change)
- *  - Emotion only (face change, body keeps current action)
- *  - Action only (body change, face keeps current emotion)
- *
- * This flexibility lets the agent update one axis without fighting the other.
+ * The agent sends:
+ *  - emotions: dict of primary emotions → word intensities (required for expression change)
+ *  - action: body animation (optional, overrides inferred action)
+ *  - color: CSS color name for VFX override (optional)
+ *  - intensity: action intensity scaling (optional)
+ *  - prop: hand prop (optional)
  */
 
 import type { AvatarStateMachine } from './state-machine.js';
-import type { Emotion, Action, Prop, Intensity } from './types.js';
-import { EMOTIONS, ACTIONS, PROPS, INTENSITIES } from './types.js';
+import type { Action, Prop, Intensity, PrimaryEmotion, WordIntensity, EmotionBlend } from './types.js';
+import { PRIMARY_EMOTIONS, WORD_INTENSITIES, ACTIONS, PROPS, INTENSITIES } from './types.js';
 
-const EMOTION_SET   = new Set<string>(EMOTIONS);
-const ACTION_SET    = new Set<string>(ACTIONS);
-const PROP_SET      = new Set<string>(PROPS);
-const INTENSITY_SET = new Set<string>(INTENSITIES);
+const PRIMARY_SET     = new Set<string>(PRIMARY_EMOTIONS);
+const WORD_INT_SET    = new Set<string>(WORD_INTENSITIES);
+const ACTION_SET      = new Set<string>(ACTIONS);
+const PROP_SET        = new Set<string>(PROPS);
+const INTENSITY_SET   = new Set<string>(INTENSITIES);
 
 export function createAvatarTool(stateMachine: AvatarStateMachine) {
   return {
@@ -31,15 +32,25 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
       required: [] as string[],
       additionalProperties: false,
       properties: {
-        emotion: {
-          type: 'string',
-          enum: [...EMOTIONS],
-          description: 'Facial expression: ' + EMOTIONS.join(', '),
+        emotions: {
+          type: 'object',
+          description: `Primary emotion blend. Keys: ${PRIMARY_EMOTIONS.join(', ')}. Values: ${WORD_INTENSITIES.join(', ')}.`,
+          additionalProperties: false,
+          properties: Object.fromEntries(
+            PRIMARY_EMOTIONS.map((e) => [e, {
+              type: 'string',
+              enum: [...WORD_INTENSITIES],
+            }]),
+          ),
         },
         action: {
           type: 'string',
           enum: [...ACTIONS],
           description: 'Body animation: ' + ACTIONS.join(', '),
+        },
+        color: {
+          type: 'string',
+          description: 'Optional CSS color name for VFX override (e.g. hotpink, coral, midnightblue).',
         },
         prop: {
           type: 'string',
@@ -54,26 +65,43 @@ export function createAvatarTool(stateMachine: AvatarStateMachine) {
       },
     },
     async execute(_toolCallId: string, params: Record<string, unknown>): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-      const emotion   = params.emotion   as string | undefined;
-      const action    = params.action    as string | undefined;
-      const prop      = params.prop      as string | undefined;
-      const intensity = params.intensity as string | undefined;
+      const rawEmotions = params.emotions as Record<string, unknown> | undefined;
+      const action      = params.action    as string | undefined;
+      const color       = params.color     as string | undefined;
+      const prop        = params.prop      as string | undefined;
+      const intensity   = params.intensity as string | undefined;
 
-      // Build a partial signal — only include valid fields
+      // Build the signal
       const signal: Record<string, unknown> = {};
       let hasValidField = false;
 
-      if (emotion && EMOTION_SET.has(emotion)) {
-        signal.emotion = emotion as Emotion;
-        hasValidField = true;
+      // Parse emotions dict — validate each key/value pair
+      if (rawEmotions && typeof rawEmotions === 'object') {
+        const emotions: EmotionBlend = {};
+        for (const [key, value] of Object.entries(rawEmotions)) {
+          if (PRIMARY_SET.has(key) && typeof value === 'string' && WORD_INT_SET.has(value)) {
+            emotions[key as PrimaryEmotion] = value as WordIntensity;
+          }
+        }
+        if (Object.keys(emotions).length > 0) {
+          signal.emotions = emotions;
+          hasValidField = true;
+        }
       }
+
       if (action && ACTION_SET.has(action)) {
         signal.action = action as Action;
         hasValidField = true;
       }
+
+      if (color && typeof color === 'string') {
+        signal.color = color;
+      }
+
       if (prop && PROP_SET.has(prop)) {
         signal.prop = prop as Prop;
       }
+
       if (intensity && INTENSITY_SET.has(intensity)) {
         signal.intensity = intensity as Intensity;
       }

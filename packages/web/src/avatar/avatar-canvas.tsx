@@ -152,7 +152,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         new PropManager(avatarScene.scene, assetResolver ?? undefined),
         {
           onStateChange: (state) => setAvatarState({
-            emotion: state.emotion, action: state.action,
+            emotions: state.emotions, action: state.action,
             intensity: state.intensity,
           }),
         },

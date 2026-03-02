@@ -102,7 +102,7 @@ const plugin: OpenClawPluginDefinition = {
     api.on('message_received', (_event, ctx) => {
       const session = deriveSessionMeta(ctx as Record<string, unknown>);
       // Emotion-only signal: let the agent's avatar_signal pick the action
-      sm.transition({ emotion: 'thinking' }, session);
+      sm.transition({ emotions: { interest: 'medium' } }, session);
     });
 
     api.on('before_tool_call', (event, ctx) => {
@@ -131,7 +131,7 @@ const plugin: OpenClawPluginDefinition = {
       // Only signal on error — success is handled by the agent's final avatar_signal
       if (!event.success) {
         sm.transition(
-          { emotion: 'nervous', action: 'dismissive', prop: 'none', intensity: 'high' },
+          { emotions: { fear: 'medium' }, action: 'dismissive', prop: 'none', intensity: 'high' },
           session,
         );
       }

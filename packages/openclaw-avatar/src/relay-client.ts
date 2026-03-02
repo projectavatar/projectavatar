@@ -1,59 +1,40 @@
 /**
  * Relay client — HTTP POST to the relay server.
  *
- * The plugin runs server-side inside the OpenClaw gateway. No persistent
- * WebSocket connection is needed — each avatar event is a single fire-and-forget
- * HTTP POST. Simpler, cheaper, and no lifecycle to manage.
- *
- * Failure strategy: FIRE AND FORGET.
- * If the relay is down, pushes are silently dropped. The avatar freezes in its
- * last known state until the relay recovers and the next event arrives. This is
- * intentional — avatar state is cosmetic and must never impact agent performance.
- * There is no retry queue, no backpressure, no circuit breaker. If you need
- * guaranteed delivery, you need a different architecture.
- *
- * Statelessness: This client holds NO persistent state — no keep-alive agent,
- * no connection pool, no retry timers. Each push() call is fully self-contained.
- * No cleanup or teardown is required on session end.
- *
- * Critical: this must NEVER throw or block.
+ * Fire-and-forget. See module header for design rationale.
+ * v2: EmotionBlend format — emotions dict + optional color override.
  */
 
 import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './types.js';
-import { EMOTIONS, ACTIONS, PROPS, INTENSITIES, IDLE_EVENT } from './types.js';
+import { PRIMARY_EMOTIONS, WORD_INTENSITIES, ACTIONS, PROPS, INTENSITIES, IDLE_EVENT } from './types.js';
 
-// Re-export SessionMeta so callers that imported it from relay-client.ts continue to work.
 export type { SessionMeta } from './types.js';
 
-// Derived from the canonical arrays — never duplicated.
-const EMOTION_SET   = new Set<string>(EMOTIONS);
-const ACTION_SET    = new Set<string>(ACTIONS);
-const PROP_SET      = new Set<string>(PROPS);
-const INTENSITY_SET = new Set<string>(INTENSITIES);
+const PRIMARY_SET     = new Set<string>(PRIMARY_EMOTIONS);
+const WORD_INT_SET    = new Set<string>(WORD_INTENSITIES);
+const ACTION_SET      = new Set<string>(ACTIONS);
+const PROP_SET        = new Set<string>(PROPS);
+const INTENSITY_SET   = new Set<string>(INTENSITIES);
 
 function isValidEvent(event: AvatarEvent): boolean {
-  if (!EMOTION_SET.has(event.emotion) || !ACTION_SET.has(event.action)) return false;
+  // Validate emotions dict
+  if (typeof event.emotions !== 'object' || event.emotions === null) return false;
+  for (const [key, value] of Object.entries(event.emotions)) {
+    if (!PRIMARY_SET.has(key)) return false;
+    if (typeof value !== 'string' || !WORD_INT_SET.has(value)) return false;
+  }
+  if (!ACTION_SET.has(event.action)) return false;
   if (event.prop !== undefined && !PROP_SET.has(event.prop)) return false;
   if (event.intensity !== undefined && !INTENSITY_SET.has(event.intensity)) return false;
+  if (event.color !== undefined && typeof event.color !== 'string') return false;
   return true;
 }
 
 export type RelayClient = {
-  /**
-   * Push an avatar signal to the relay. Fire-and-forget: never throws, never blocks.
-   * Invalid events are silently dropped. Network failures are silently swallowed.
-   *
-   * @param signal  The state delta to apply (merged with current to form a full event)
-   * @param current The last known full event (used as base for partial signal merging)
-   * @param session Optional session metadata for multi-session arbitration.
-   *                If omitted, the relay treats the push as a legacy single-session push.
-   */
   push: (signal: AvatarSignal, current?: AvatarEvent, session?: SessionMeta) => void;
 };
 
 export function createRelayClient(cfg: PluginConfig, token: string): RelayClient {
-  // Trailing slash is stripped during config validation, but guard here too
-  // in case createRelayClient is called directly in tests with a raw URL.
   const baseUrl = cfg.relayUrl.replace(/\/+$/, '');
   const pushUrl = `${baseUrl}/push/${encodeURIComponent(token)}`;
 
@@ -62,36 +43,33 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
     current: AvatarEvent  = IDLE_EVENT,
     session?: SessionMeta,
   ): void {
-    // Merge signal onto current state to get a complete event
     const event: AvatarEvent = {
-      emotion:   signal.emotion   ?? current.emotion,
+      emotions:  signal.emotions  ?? { ...current.emotions },
       action:    signal.action    ?? current.action,
       prop:      signal.prop      ?? current.prop,
       intensity: signal.intensity ?? current.intensity,
+      color:     signal.color     ?? current.color,
     };
 
     if (!isValidEvent(event)) {
-      return; // Silently drop invalid events — state machine should never produce these
+      return;
     }
 
-    // Attach session metadata if provided — enables relay arbitration
     if (session !== undefined) {
       event.sessionId = session.sessionId;
       event.priority  = session.priority;
     }
 
-    // Fire and forget — see failure strategy in module header
     void (async () => {
       try {
         await fetch(pushUrl, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify(event),
-          // AbortSignal.timeout is Node 17.3+; safe for OpenClaw's Node 18+ requirement
           signal:  AbortSignal.timeout(5_000),
         });
       } catch {
-        // Non-critical. Avatar is cosmetic — never surface relay errors to the user.
+        // Non-critical. Avatar is cosmetic.
       }
     })();
   }

@@ -8,72 +8,70 @@
  * If the schema changes there, update the arrays here to match.
  */
 
-// ── Canonical value arrays — single source of truth ─────────────────────────
-// Derive union types AND runtime validation sets from these.
-// Never duplicate these values elsewhere.
+// ── Primary emotions ────────────────────────────────────────────────────────
+export const PRIMARY_EMOTIONS = ['joy', 'sadness', 'anger', 'fear', 'surprise', 'disgust', 'interest'] as const;
+export type PrimaryEmotion = typeof PRIMARY_EMOTIONS[number];
 
-export const EMOTIONS    = ['idle', 'thinking', 'excited', 'confused', 'happy', 'angry', 'sad', 'surprised', 'bashful', 'nervous'] as const;
-export const ACTIONS     = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
-export const PROPS       = ['none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll'] as const;
+// ── Word intensities ────────────────────────────────────────────────────────
+export const WORD_INTENSITIES = ['subtle', 'low', 'medium', 'high'] as const;
+export type WordIntensity = typeof WORD_INTENSITIES[number];
+
+/** Emotion blend — partial map of primary emotions to word intensities. */
+export type EmotionBlend = Partial<Record<PrimaryEmotion, WordIntensity>>;
+
+// ── Actions ─────────────────────────────────────────────────────────────────
+export const ACTIONS = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
+export type Action = typeof ACTIONS[number];
+
+// ── Props ───────────────────────────────────────────────────────────────────
+export const PROPS = ['none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll'] as const;
+export type Prop = typeof PROPS[number];
+
+// ── Intensities ─────────────────────────────────────────────────────────────
 export const INTENSITIES = ['low', 'medium', 'high'] as const;
-
-export type Emotion   = typeof EMOTIONS[number];
-export type Action    = typeof ACTIONS[number];
-export type Prop      = typeof PROPS[number];
 export type Intensity = typeof INTENSITIES[number];
 
 /**
  * One-shot actions — these play once and should not be interrupted quickly.
  * They get a longer cooldown to prevent rapid cancellation.
- *
- * Note on chaining: if a deferred signal carries a one-shot action (e.g.
- * dismissive deferred during a celebrating hold), it will start its own
- * cooldown when it fires. Total hold can reach 2x oneShotCooldownMs.
- * This is by design — both dramatic actions should play out fully.
  */
 export const ONE_SHOT_ACTIONS: ReadonlySet<string> = new Set([
   'celebrating', 'greeting', 'laughing', 'dismissive',
 ]);
 
 export interface AvatarEvent {
-  emotion:   Emotion;
-  action:    Action;
-  prop?:     Prop;
+  emotions:   EmotionBlend;
+  action:     Action;
+  prop?:      Prop;
   intensity?: Intensity;
+  color?:     string;
   /** Opaque session identifier for relay multi-session arbitration. */
   sessionId?: string;
   /** Session priority (lower = higher). Defaults to 0 in relay when absent. */
-  priority?: number;
+  priority?:  number;
 }
 
 /** A partial update — only the display fields. sessionId/priority are relay concerns. */
-export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotion' | 'action' | 'prop' | 'intensity'>>;
+export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotions' | 'action' | 'prop' | 'intensity' | 'color'>>;
 
 /**
  * Session metadata attached to each relay push.
- * Enables the relay to perform multi-session arbitration — suppressing
- * lower-priority sessions while a higher-priority session is active.
  */
 export interface SessionMeta {
-  /** Opaque identifier derived from OpenClaw sessionKey. */
   sessionId: string;
-  /**
-   * Priority for relay arbitration. Lower = higher priority.
-   * 0 = main/interactive, 1 = sub-agent, 2+ = background.
-   */
   priority: number;
 }
 
 export const DEFAULT_APP_URL = 'https://app.projectavatar.io';
 
 export interface PluginConfig {
-  relayUrl:         string;
-  appUrl:           string;
-  enabled:          boolean;
-  idleTimeoutMs:    number;
-  emotionCooldownMs: number;
-  actionCooldownMs:  number;
-  oneShotCooldownMs: number;
+  relayUrl:           string;
+  appUrl:             string;
+  enabled:            boolean;
+  idleTimeoutMs:      number;
+  emotionCooldownMs:  number;
+  actionCooldownMs:   number;
+  oneShotCooldownMs:  number;
 }
 
 export const DEFAULT_CONFIG: PluginConfig = {
@@ -87,7 +85,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
 };
 
 export const IDLE_EVENT: AvatarEvent = {
-  emotion:   'idle',
+  emotions:  {},
   action:    'idle',
   prop:      'none',
   intensity: 'medium',
@@ -100,8 +98,7 @@ export interface ChannelStateResponse {
 }
 
 /**
- * Runtime config validation. Returns errors + sanitized config.
- * Invalid fields are stripped (fall back to DEFAULT_CONFIG when spread).
+ * Runtime config validation.
  */
 export function validatePluginConfig(
   raw: unknown,

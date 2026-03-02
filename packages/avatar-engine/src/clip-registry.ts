@@ -9,7 +9,7 @@
  * For looping actions (idle), the animation controller re-rolls a new
  * group after each cycle completes.
  */
-import type { Action, Emotion, Intensity } from '@project-avatar/shared';
+import type { Action, Intensity } from '@project-avatar/shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,7 +178,7 @@ export class ClipRegistry {
    */
   resolveClips(
     action: Action,
-    emotion: Emotion,
+    emotion: string,
     intensity: Intensity,
     groupIndex: number = 0,
   ): ResolvedClips {

@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
-import type { Action, Emotion, Intensity } from '@project-avatar/shared';
+import type { Action, Intensity } from '@project-avatar/shared';
 import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry, ClipPropBinding } from './clip-registry.ts';
@@ -104,7 +104,7 @@ export class AnimationController {
   private clipCache = new Map<string, THREE.AnimationClip>();
   private assetResolver: AssetResolver | null = null;
   private currentAction: Action = 'idle';
-  private currentEmotion: Emotion = 'idle';
+  private currentEmotion: string = 'idle';
   private currentIntensity: Intensity = 'medium';
 
   /** Currently selected animation group index for the active action. */
@@ -200,7 +200,7 @@ export class AnimationController {
   /**
    * Play an action with the given intensity, influenced by current emotion.
    */
-  playAction(action: Action, intensity: Intensity = 'medium', emotion?: Emotion, force?: boolean): void {
+  playAction(action: Action, intensity: Intensity = 'medium', emotion?: string, force?: boolean): void {
     if (emotion !== undefined) {
       this.currentEmotion = emotion;
     }
@@ -229,7 +229,7 @@ export class AnimationController {
    * Play an action with a specific group index (used by clip manager preview).
    * Bypasses random selection to preview a specific animation group.
    */
-  playActionWithGroup(action: Action, intensity: Intensity = 'medium', emotion: Emotion = 'idle', groupIndex: number): void {
+  playActionWithGroup(action: Action, intensity: Intensity = 'medium', emotion: string = 'idle', groupIndex: number): void {
     this.currentAction = action;
     this.currentIntensity = intensity;
     this.currentEmotion = emotion;
@@ -243,7 +243,7 @@ export class AnimationController {
    * Update the current emotion. May change the active clip if the emotion
    * has overrides for the current action.
    */
-  setEmotion(emotion: Emotion): void {
+  setEmotion(emotion: string): void {
     if (emotion === this.currentEmotion) return;
     this.currentEmotion = emotion;
     // Re-resolve with current group (emotion change shouldn't re-roll the group)
@@ -401,7 +401,7 @@ export class AnimationController {
    */
   private _playBlendedAction(
     action: Action,
-    emotion: Emotion,
+    emotion: string,
     intensity: Intensity,
     groupIndex: number,
   ): void {

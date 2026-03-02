@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ACTIONS, EMOTIONS, INTENSITIES } from '@project-avatar/shared';
-import type { Action, Emotion, Intensity } from '@project-avatar/shared';
+import { ACTIONS, PRIMARY_EMOTIONS, INTENSITIES } from '@project-avatar/shared';
+import type { Action, PrimaryEmotion, WordIntensity, Intensity, EmotionBlend } from '@project-avatar/shared';
 import { useStore } from '../state/store.ts';
 import { LAYER_LABELS } from '@project-avatar/avatar-engine';
 import type { StateMachine, LayerState, ActiveClipInfo } from '@project-avatar/avatar-engine';
@@ -171,8 +171,13 @@ const stateValueStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
-// ─── Layer Labels ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function formatBlend(emotions: EmotionBlend): string {
+  const entries = Object.entries(emotions);
+  if (entries.length === 0) return 'neutral';
+  return entries.map(([e, w]) => `${e}:${w}`).join(' + ');
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -185,11 +190,12 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   const setDevPanelOpen = useStore((s) => s.setDevPanelOpen);
   const avatar = useStore((s) => s.avatar);
 
-  const [selectedEmotion, setSelectedEmotion] = useState<Emotion>('idle');
+  // Emotion blend state — each primary can be toggled with a word intensity
+  const [emotionBlend, setEmotionBlend] = useState<EmotionBlend>({});
   const [selectedAction, setSelectedAction] = useState<Action>('idle');
   const [selectedIntensity, setSelectedIntensity] = useState<Intensity>('medium');
   const [eventLogVersion, setEventLogVersion] = useState(0);
-  void eventLogVersion; // triggers re-render on event log update
+  void eventLogVersion;
   const [layers, setLayers] = useState<LayerState>({
     fbxClips: true,
     expressions: true,
@@ -198,12 +204,9 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
   });
 
   const logRef = useRef<HTMLDivElement>(null);
-
-  // Active clips state — polled every frame via rAF
   const [activeClips, setActiveClips] = useState<ActiveClipInfo[]>([]);
   const clipsPollRef = useRef<number>(0);
 
-  // Poll active clips at ~10fps (every 6 frames) for performance
   useEffect(() => {
     if (!stateMachine || !devPanelOpen) return;
     let frameCount = 0;
@@ -218,23 +221,21 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
     return () => cancelAnimationFrame(clipsPollRef.current);
   }, [stateMachine, devPanelOpen]);
 
-  // Subscribe to event log updates
   useEffect(() => {
     if (!stateMachine) return;
     stateMachine.onEventLog = () => setEventLogVersion((v) => v + 1);
-    // Sync initial layer state
     setLayers({ ...stateMachine.layerState });
-    return () => { stateMachine.onEventLog = undefined; };  // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { stateMachine.onEventLog = undefined; };
   }, [stateMachine]);
 
   const handleSend = useCallback(() => {
     if (!stateMachine) return;
     stateMachine.handleEvent({
-      emotion: selectedEmotion,
+      emotions: emotionBlend,
       action: selectedAction,
       intensity: selectedIntensity,
     }, 'dev-panel');
-  }, [stateMachine, selectedEmotion, selectedAction, selectedIntensity]);
+  }, [stateMachine, emotionBlend, selectedAction, selectedIntensity]);
 
   const handleLayerToggle = useCallback((layer: keyof LayerState) => {
     if (!stateMachine) return;
@@ -243,11 +244,25 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
     setLayers((prev) => ({ ...prev, [layer]: newValue }));
   }, [stateMachine, layers]);
 
+  // Toggle a primary emotion's intensity (cycle: off → subtle → low → medium → high → off)
+  const cycleEmotion = useCallback((emotion: PrimaryEmotion) => {
+    setEmotionBlend((prev) => {
+      const current = prev[emotion];
+      const cycle: (WordIntensity | undefined)[] = [undefined, 'subtle', 'low', 'medium', 'high'];
+      const idx = current ? cycle.indexOf(current) : 0;
+      const next = cycle[(idx + 1) % cycle.length];
+      if (next === undefined) {
+        const { [emotion]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [emotion]: next };
+    });
+  }, []);
+
   // Keyboard shortcut: backtick to toggle
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        // Don't toggle if user is typing in an input
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
         e.preventDefault();
         setDevPanelOpen(!devPanelOpen);
@@ -274,8 +289,8 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
           <div style={sectionTitleStyle}>Current State</div>
           <div style={currentStateStyle}>
             <div style={stateRowStyle}>
-              <span style={stateLabelStyle}>emotion</span>
-              <span style={stateValueStyle}>{avatar.emotion}</span>
+              <span style={stateLabelStyle}>emotions</span>
+              <span style={stateValueStyle}>{formatBlend(avatar.emotions)}</span>
             </div>
             <div style={stateRowStyle}>
               <span style={stateLabelStyle}>action</span>
@@ -285,7 +300,6 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
               <span style={stateLabelStyle}>intensity</span>
               <span style={stateValueStyle}>{avatar.intensity}</span>
             </div>
-
           </div>
         </div>
 
@@ -302,7 +316,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
               padding: "5px 8px",
               marginBottom: 3,
               borderRadius: 4,
-              border: `1px solid ${"var(--color-border)"}`,
+              border: "1px solid var(--color-border)",
               background: "transparent",
               fontSize: 10,
             }}>
@@ -315,7 +329,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
                   whiteSpace: "nowrap",
                   maxWidth: 180,
                 }} title={clip.name}>
-                  {" "}{clip.name.replace(".fbx", "")}
+                  {clip.name.replace(".fbx", "")}
                 </span>
                 <span style={{ color: "var(--color-text-muted)", flexShrink: 0 }}>
                   {clip.isLooping ? "🔁" : "⏹"}
@@ -326,7 +340,6 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
                 <span>ts:{clip.timeScale.toFixed(2)}</span>
                 <span>{clip.time.toFixed(1)}s / {clip.duration.toFixed(1)}s</span>
               </div>
-              {/* Weight bar */}
               <div style={{
                 marginTop: 3,
                 height: 2,
@@ -345,22 +358,36 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
             </div>
           ))}
         </div>
-        {/* Send Event */}
+
+        {/* Emotion Blend */}
         <div style={sectionStyle}>
-          <div style={sectionTitleStyle}>Emotion</div>
+          <div style={sectionTitleStyle}>Emotions (click to cycle intensity)</div>
           <div style={gridStyle}>
-            {EMOTIONS.map((e) => (
-              <button
-                key={e}
-                style={chipStyle(selectedEmotion === e)}
-                onClick={() => setSelectedEmotion(e)}
-              >
-                {e}
-              </button>
-            ))}
+            {PRIMARY_EMOTIONS.map((e) => {
+              const intensity = emotionBlend[e];
+              return (
+                <button
+                  key={e}
+                  style={{
+                    ...chipStyle(!!intensity),
+                    minWidth: 60,
+                  }}
+                  onClick={() => cycleEmotion(e)}
+                  title={intensity ? `${e}: ${intensity}` : `${e}: off`}
+                >
+                  {e}{intensity ? ` (${intensity.charAt(0)})` : ''}
+                </button>
+              );
+            })}
           </div>
+          {Object.keys(emotionBlend).length > 0 && (
+            <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-text-muted)' }}>
+              {formatBlend(emotionBlend)}
+            </div>
+          )}
         </div>
 
+        {/* Action */}
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>Action</div>
           <div style={gridStyle}>
@@ -376,6 +403,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
           </div>
         </div>
 
+        {/* Intensity */}
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>Intensity</div>
           <div style={gridStyle}>
@@ -429,9 +457,12 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
                 <span style={logTimeStyle}>
                   {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
-                <span>{entry.emotion}/{entry.action}</span>
+                <span>{formatBlend(entry.emotions)}/{entry.action}</span>
                 {entry.intensity && entry.intensity !== 'medium' && (
                   <span style={{ marginLeft: 4, opacity: 0.6 }}>({entry.intensity})</span>
+                )}
+                {entry.dominant && (
+                  <span style={{ marginLeft: 4, opacity: 0.4 }}>→{entry.dominant}</span>
                 )}
                 <span style={{ marginLeft: 6, opacity: 0.4 }}>
                   {entry.source === 'dev-panel' ? '⚡' : entry.source === 'system' ? '⏱' : '📡'}

@@ -2,19 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { validateAvatarEvent } from '../../shared/src/schema.js';
 
 describe('validateAvatarEvent', () => {
-  const valid = { emotion: 'thinking', action: 'typing' };
+  const valid = { emotions: { interest: 'high' }, action: 'typing' };
 
-  it('accepts a minimal valid event (emotion + action only)', () => {
+  it('accepts a minimal valid event (emotions + action only)', () => {
     expect(validateAvatarEvent(valid)).toEqual({ ok: true });
+  });
+
+  it('accepts an empty emotions blend', () => {
+    expect(validateAvatarEvent({ emotions: {}, action: 'idle' })).toEqual({ ok: true });
   });
 
   it('accepts a fully specified event', () => {
     expect(
       validateAvatarEvent({
-        emotion: 'excited',
+        emotions: { joy: 'high', surprise: 'low' },
         action: 'celebrating',
         prop: 'scroll',
         intensity: 'high',
+        color: 'hotpink',
       }),
     ).toEqual({ ok: true });
   });
@@ -29,151 +34,139 @@ describe('validateAvatarEvent', () => {
     expect(validateAvatarEvent(42)).toMatchObject({ ok: false });
   });
 
-  it('rejects missing emotion with a "required" message', () => {
+  it('rejects missing emotions with a "required" message', () => {
     const r = validateAvatarEvent({ action: 'typing' });
     expect(r).toMatchObject({ ok: false });
     if (!r.ok) expect(r.error).toMatch(/required/i);
   });
 
   it('rejects missing action with a "required" message', () => {
-    const r = validateAvatarEvent({ emotion: 'thinking' });
+    const r = validateAvatarEvent({ emotions: {} });
     expect(r).toMatchObject({ ok: false });
     if (!r.ok) expect(r.error).toMatch(/required/i);
   });
 
-  it('rejects explicit undefined emotion with a "required" message', () => {
-    const r = validateAvatarEvent({ emotion: undefined, action: 'typing' });
-    expect(r).toMatchObject({ ok: false });
-    if (!r.ok) expect(r.error).toMatch(/required/i);
+  it('rejects non-object emotions', () => {
+    expect(validateAvatarEvent({ emotions: 'happy', action: 'idle' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotions: null, action: 'idle' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotions: ['joy'], action: 'idle' })).toMatchObject({ ok: false });
   });
 
-  it('rejects unknown emotion with an "invalid" message', () => {
-    const r = validateAvatarEvent({ emotion: 'furious', action: 'typing' });
+  it('rejects unknown emotion key', () => {
+    const r = validateAvatarEvent({ emotions: { happy: 'high' }, action: 'idle' });
     expect(r).toMatchObject({ ok: false });
-    if (!r.ok) expect(r.error).toMatch(/invalid emotion/i);
+    if (!r.ok) expect(r.error).toMatch(/invalid emotion key/i);
+  });
+
+  it('rejects invalid word intensity value', () => {
+    const r = validateAvatarEvent({ emotions: { joy: 'extreme' }, action: 'idle' });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/invalid intensity/i);
   });
 
   it('rejects unknown action', () => {
-    expect(validateAvatarEvent({ emotion: 'thinking', action: 'dancing' })).toMatchObject({ ok: false });
+    expect(validateAvatarEvent({ emotions: {}, action: 'dancing' })).toMatchObject({ ok: false });
   });
 
   it('rejects unknown prop', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', prop: 'lightsaber' }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', prop: 'lightsaber' }),
     ).toMatchObject({ ok: false });
   });
 
   it('rejects unknown intensity', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', intensity: 'extreme' }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', intensity: 'extreme' }),
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects extra fields (additionalProperties: false)', () => {
+  it('rejects extra fields', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', foo: 'bar' }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', foo: 'bar' }),
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects non-string emotion (falsy value edge case)', () => {
-    expect(validateAvatarEvent({ emotion: 0, action: 'typing' })).toMatchObject({ ok: false });
-    expect(validateAvatarEvent({ emotion: false, action: 'typing' })).toMatchObject({ ok: false });
-    expect(validateAvatarEvent({ emotion: '', action: 'typing' })).toMatchObject({ ok: false });
+  it('accepts all valid primary emotions', () => {
+    const primaries = ['joy', 'sadness', 'anger', 'fear', 'surprise', 'disgust', 'interest'];
+    for (const emotion of primaries) {
+      expect(validateAvatarEvent({ emotions: { [emotion]: 'medium' }, action: 'idle' })).toEqual({ ok: true });
+    }
   });
 
-  it('rejects non-string action (falsy value edge case)', () => {
-    expect(validateAvatarEvent({ emotion: 'thinking', action: 0 })).toMatchObject({ ok: false });
-    expect(validateAvatarEvent({ emotion: 'thinking', action: '' })).toMatchObject({ ok: false });
-  });
-
-  it('accepts all valid emotions', () => {
-    const emotions = ['idle', 'thinking', 'excited', 'confused', 'happy', 'angry', 'sad', 'surprised', 'bashful', 'nervous'];
-    for (const emotion of emotions) {
-      expect(validateAvatarEvent({ emotion, action: 'talking' })).toEqual({ ok: true });
+  it('accepts all valid word intensities', () => {
+    for (const intensity of ['subtle', 'low', 'medium', 'high']) {
+      expect(validateAvatarEvent({ emotions: { joy: intensity }, action: 'idle' })).toEqual({ ok: true });
     }
   });
 
   it('accepts all valid actions', () => {
     const actions = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'];
     for (const action of actions) {
-      expect(validateAvatarEvent({ emotion: 'idle', action })).toEqual({ ok: true });
+      expect(validateAvatarEvent({ emotions: {}, action })).toEqual({ ok: true });
     }
   });
 
   it('accepts all valid props', () => {
     const props = ['none', 'keyboard', 'magnifying_glass', 'coffee_cup', 'book', 'phone', 'scroll'];
     for (const prop of props) {
-      expect(validateAvatarEvent({ emotion: 'idle', action: 'idle', prop })).toEqual({ ok: true });
+      expect(validateAvatarEvent({ emotions: {}, action: 'idle', prop })).toEqual({ ok: true });
     }
   });
 
-  it('accepts all valid intensities', () => {
-    for (const intensity of ['low', 'medium', 'high']) {
-      expect(validateAvatarEvent({ emotion: 'idle', action: 'idle', intensity })).toEqual({ ok: true });
-    }
+  it('prop is optional', () => {
+    expect(validateAvatarEvent({ emotions: {}, action: 'idle', prop: undefined })).toEqual({ ok: true });
   });
 
-  it('prop is optional — undefined is fine', () => {
-    expect(validateAvatarEvent({ emotion: 'idle', action: 'idle', prop: undefined })).toEqual({ ok: true });
+  it('accepts color field', () => {
+    expect(
+      validateAvatarEvent({ emotions: { joy: 'high' }, action: 'idle', color: 'coral' }),
+    ).toEqual({ ok: true });
   });
 
-  // ── sessionId and priority validation ─────────────────────────────────────
+  it('rejects non-string color', () => {
+    expect(
+      validateAvatarEvent({ emotions: {}, action: 'idle', color: 42 }),
+    ).toMatchObject({ ok: false });
+  });
+
+  // ── sessionId and priority ────────────────────────────────────────────────
 
   it('accepts event with valid sessionId', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'agent:main:discord:channel-1' }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', sessionId: 'agent:main:discord:channel-1' }),
     ).toEqual({ ok: true });
   });
 
-  it('accepts event with valid priority 0', () => {
+  it('accepts event with valid priority', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', priority: 0 }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', sessionId: 'sess', priority: 0 }),
     ).toEqual({ ok: true });
-  });
-
-  it('accepts event with valid priority > 0', () => {
-    expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', priority: 2 }),
-    ).toEqual({ ok: true });
-  });
-
-  it('accepts event with sessionId but no priority (priority is optional)', () => {
-    expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess' }),
-    ).toEqual({ ok: true });
-  });
-
-  it('accepts event with neither sessionId nor priority (legacy single-session)', () => {
-    expect(validateAvatarEvent({ emotion: 'thinking', action: 'typing' })).toEqual({ ok: true });
   });
 
   it('rejects non-string sessionId', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 42 }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', sessionId: 42 }),
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects priority: -1 (negative)', () => {
+  it('rejects negative priority', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: -1 }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', priority: -1 }),
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects priority: 1.5 (non-integer)', () => {
+  it('rejects unknown extra fields alongside sessionId', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: 1.5 }),
+      validateAvatarEvent({ emotions: {}, action: 'typing', sessionId: 'sess', foo: 'bar' }),
     ).toMatchObject({ ok: false });
   });
 
-  it('rejects priority: "high" (non-number)', () => {
+  it('accepts multi-primary blend', () => {
     expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', priority: 'high' }),
-    ).toMatchObject({ ok: false });
-  });
-
-  it('still rejects truly unknown extra fields alongside sessionId/priority', () => {
-    expect(
-      validateAvatarEvent({ emotion: 'thinking', action: 'typing', sessionId: 'sess', foo: 'bar' }),
-    ).toMatchObject({ ok: false });
+      validateAvatarEvent({
+        emotions: { joy: 'high', fear: 'low', interest: 'medium' },
+        action: 'idle',
+      }),
+    ).toEqual({ ok: true });
   });
 });

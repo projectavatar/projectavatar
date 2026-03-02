@@ -97,15 +97,12 @@ function resolveWinner(sessions: Map<string, SessionEntry>, now: number): string
  * use for them and they bloat every WS frame. Clients only need the display fields.
  */
 function toClientEvent(event: AvatarEvent): AvatarEvent {
-  // Explicitly construct the client event rather than using spread + cast.
-  // The cast `{ ...rest } as AvatarEvent` would suppress a type error but hide
-  // the fact that Omit<AvatarEvent, 'sessionId'|'priority'> != AvatarEvent.
-  // Explicit construction is unambiguous and requires no suppression.
   const clean: AvatarEvent = {
-    emotion:   event.emotion,
+    emotions:  event.emotions,
     action:    event.action,
     prop:      event.prop,
     intensity: event.intensity,
+    color:     event.color,
   };
   return clean;
 }
