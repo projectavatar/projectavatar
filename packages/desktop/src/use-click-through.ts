@@ -101,9 +101,12 @@ export function useClickThrough(
   const hoveredRef = useRef(false);
 
   // Reusable THREE objects (avoid GC)
+  const bboxRef = useRef(new THREE.Box3());
   const ndcMinRef = useRef(new THREE.Vector3());
   const ndcMaxRef = useRef(new THREE.Vector3());
-  const boneWorldPos = useRef(new THREE.Vector3());
+  const cornersRef = useRef<THREE.Vector3[]>(
+    Array.from({ length: 8 }, () => new THREE.Vector3()),
+  );
 
   const enterModel = useCallback(() => {
     if (hideTimerRef.current) {
@@ -167,9 +170,9 @@ export function useClickThrough(
           const vrmRoot = findVrmRoot(scene.scene);
           if (!vrmRoot) return;
 
-          const hit = testBoneHit(
+          const hit = testBboxHit(
             vrmRoot, scene.camera, ndcX, ndcY,
-            ndcMinRef.current, ndcMaxRef.current, boneWorldPos.current,
+            bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
           );
 
           // Update debug bbox overlay
@@ -219,26 +222,14 @@ export function useClickThrough(
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * VRM humanoid bone names used for hit-testing.
- * These trace the visible silhouette of the body — head top, shoulders,
- * hands, hips, and feet — giving a tight hitbox regardless of camera angle.
- */
-const HIT_BONES = [
-  'head',
-  'leftShoulder', 'rightShoulder',
-  'leftHand', 'rightHand',
-  'leftUpperLeg', 'rightUpperLeg',
-  'leftFoot', 'rightFoot',
-] as const;
-
-/**
- * Find the VRM instance in the Three.js scene.
- * Looks for the first visible Group child that has a 'humanoid' property
- * (attached by @pixiv/three-vrm on the VRM scene root).
+ * Find the VRM root in the Three.js scene.
+ * VRM models are added as a Group with visible SkinnedMesh children.
  */
 function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
   for (const child of scene.children) {
+    // VRM scene is typically a Group containing the armature + meshes
     if (child.type === 'Group' && child.visible) {
+      // Check if it has skinned meshes (VRM model indicator)
       let hasSkinned = false;
       child.traverse((obj) => {
         if ((obj as THREE.SkinnedMesh).isSkinnedMesh) hasSkinned = true;
@@ -250,97 +241,40 @@ function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
 }
 
 /**
- * Walk up from the VRM scene root to find the VRM instance.
- * The VRM humanoid is stored on the scene's userData by @pixiv/three-vrm.
+ * Project the object's world-space bounding box to NDC and check if
+ * the cursor (ndcX, ndcY) falls within it (with padding).
  */
-function getHumanoid(obj: THREE.Object3D): {
-  getNormalizedBoneNode(name: string): THREE.Object3D | null;
-} | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vrm = (obj as any)?.userData?.vrm;
-  return vrm?.humanoid ?? null;
-}
-
-/**
- * Project key body bones to NDC and check if the cursor falls within
- * the resulting screen-space rectangle (with padding).
- *
- * Unlike a full AABB, this ignores depth — it only considers the
- * projected positions of bones that define the visible silhouette.
- */
-function testBoneHit(
-  vrmRoot: THREE.Object3D,
-  camera: THREE.PerspectiveCamera,
-  ndcX: number,
-  ndcY: number,
-  ndcMin: THREE.Vector3,
-  ndcMax: THREE.Vector3,
-  worldPos: THREE.Vector3,
-): boolean {
-  const humanoid = getHumanoid(vrmRoot);
-  if (!humanoid) {
-    // Fallback: no humanoid data — use a simple AABB
-    return testFallbackBbox(vrmRoot, camera, ndcX, ndcY, ndcMin, ndcMax);
-  }
-
-  ndcMin.set(Infinity, Infinity, 0);
-  ndcMax.set(-Infinity, -Infinity, 0);
-
-  let projected = 0;
-  for (const boneName of HIT_BONES) {
-    const bone = humanoid.getNormalizedBoneNode(boneName);
-    if (!bone) continue;
-
-    bone.getWorldPosition(worldPos);
-    worldPos.project(camera);
-
-    ndcMin.x = Math.min(ndcMin.x, worldPos.x);
-    ndcMin.y = Math.min(ndcMin.y, worldPos.y);
-    ndcMax.x = Math.max(ndcMax.x, worldPos.x);
-    ndcMax.y = Math.max(ndcMax.y, worldPos.y);
-    projected++;
-  }
-
-  if (projected < 3) return false; // not enough bones
-
-  ndcMin.x -= BBOX_PADDING_NDC;
-  ndcMin.y -= BBOX_PADDING_NDC;
-  ndcMax.x += BBOX_PADDING_NDC;
-  ndcMax.y += BBOX_PADDING_NDC;
-
-  return ndcX >= ndcMin.x && ndcX <= ndcMax.x && ndcY >= ndcMin.y && ndcY <= ndcMax.y;
-}
-
-/** Simple AABB fallback when VRM humanoid is unavailable. */
-function testFallbackBbox(
+function testBboxHit(
   obj: THREE.Object3D,
   camera: THREE.PerspectiveCamera,
   ndcX: number,
   ndcY: number,
+  bbox: THREE.Box3,
   ndcMin: THREE.Vector3,
   ndcMax: THREE.Vector3,
+  corners: THREE.Vector3[],
 ): boolean {
-  const bbox = new THREE.Box3().setFromObject(obj);
-  const corners = [
-    new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.min.z),
-    new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.min.z),
-    new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.min.z),
-    new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.min.z),
-    new THREE.Vector3(bbox.min.x, bbox.min.y, bbox.max.z),
-    new THREE.Vector3(bbox.min.x, bbox.max.y, bbox.max.z),
-    new THREE.Vector3(bbox.max.x, bbox.min.y, bbox.max.z),
-    new THREE.Vector3(bbox.max.x, bbox.max.y, bbox.max.z),
-  ];
+  bbox.setFromObject(obj);
+
+  const { min, max } = bbox;
+  corners[0].set(min.x, min.y, min.z);
+  corners[1].set(min.x, min.y, max.z);
+  corners[2].set(min.x, max.y, min.z);
+  corners[3].set(min.x, max.y, max.z);
+  corners[4].set(max.x, min.y, min.z);
+  corners[5].set(max.x, min.y, max.z);
+  corners[6].set(max.x, max.y, min.z);
+  corners[7].set(max.x, max.y, max.z);
 
   ndcMin.set(Infinity, Infinity, 0);
   ndcMax.set(-Infinity, -Infinity, 0);
 
-  for (const c of corners) {
-    c.project(camera);
-    ndcMin.x = Math.min(ndcMin.x, c.x);
-    ndcMin.y = Math.min(ndcMin.y, c.y);
-    ndcMax.x = Math.max(ndcMax.x, c.x);
-    ndcMax.y = Math.max(ndcMax.y, c.y);
+  for (const corner of corners) {
+    corner.project(camera);
+    ndcMin.x = Math.min(ndcMin.x, corner.x);
+    ndcMin.y = Math.min(ndcMin.y, corner.y);
+    ndcMax.x = Math.max(ndcMax.x, corner.x);
+    ndcMax.y = Math.max(ndcMax.y, corner.y);
   }
 
   ndcMin.x -= BBOX_PADDING_NDC;
