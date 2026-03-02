@@ -1,6 +1,29 @@
 # Desktop Changelog
 
 
+## 0.6.1
+
+### Added
+- **Click-through on transparent areas** — window passes clicks to apps behind it. Hover the avatar for 0.5s to activate; chrome, settings, and status pill appear. Leave the window for 1s to deactivate. (#70)
+- **Drag protection** — holding a mouse button (dragging files/windows past the avatar) prevents accidental activation.
+- **Dual-color border** — dashed white + black outline visible on both dark and light backgrounds.
+
+### Changed
+- **Single cursor poll** — hit-testing and head/eye tracking share one 5fps IPC call (`get_cursor_state`), eliminating duplicate polling.
+- **Hitbox shape** — AABB expanded to cube for consistent feel from all angles, X/Z shrunk 1.5× for T-pose compensation.
+
+### Technical
+- New Rust commands: `set_ignore_cursor_events`, `get_cursor_state`, `is_mouse_button_pressed`
+- `device_query` crate for cross-platform mouse button detection
+- `DeviceState` cached with `LazyLock`
+- VRM root exposed via `AvatarScene.vrmRoot`
+- `AvatarCanvas`: `onScene`, `cursorPollMs`, `externalCursorPoll`, `onProjectCursor` props
+- `App`: `activated` prop forces UI visible in desktop mode
+
+## 0.6.0
+
+*Version bump only — no user-facing changes.*
+
 ## 0.5.0
 
 ### Added
