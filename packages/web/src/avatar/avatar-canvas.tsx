@@ -217,6 +217,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           avatarScene.setVrmRoot(vrm.scene);
           // Dynamic framing: zoomed out → body center, zoomed in → face
           avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
+          // Set clamp bones: head for vertical, hips for horizontal
+          const headBone = vrm.humanoid?.getNormalizedBoneNode('head') ?? null;
+          const hipsBone = vrm.humanoid?.getNormalizedBoneNode('hips') ?? null;
+          avatarScene.setClampBones(headBone, hipsBone);
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;
@@ -246,14 +250,33 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // Smooth eye tracking + zoom-aware idle mode — runs every frame.
     // Cleaned up via avatarScene.dispose() which clears all update callbacks.
     const eyeGoal = new THREE.Vector3();
-    const ZOOM_GROUND_THRESHOLD = 3; // switch to ground mode when zoomed in closer than this
+    const _kneeWorldPos = new THREE.Vector3();
+    const _kneeNDC = new THREE.Vector3();
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
 
-      // Switch idle mode based on zoom distance
+      // Switch idle mode based on knee visibility.
+      // If either knee is above the bottom of the viewport → ground mode.
+      // If both knees are below the viewport → air mode.
       if (ctrl) {
-        const dist = avatarScene.camera.position.length();
-        const wantGround = dist < ZOOM_GROUND_THRESHOLD;
+        const vrm = vrmManager.vrm;
+        const humanoid = vrm?.humanoid;
+        let kneeVisible = false;
+        if (humanoid) {
+          for (const side of ['left', 'right'] as const) {
+            const knee = humanoid.getNormalizedBoneNode(side === 'left' ? 'leftLowerLeg' : 'rightLowerLeg');
+            const foot = humanoid.getNormalizedBoneNode(side === 'left' ? 'leftFoot' : 'rightFoot');
+            if (knee && foot) {
+              knee.getWorldPosition(_kneeWorldPos);
+              foot.getWorldPosition(_kneeNDC);
+              // Midpoint between knee and foot
+              _kneeWorldPos.lerp(_kneeNDC, 0.5);
+              _kneeNDC.copy(_kneeWorldPos).project(avatarScene.camera);
+              if (_kneeNDC.y > -1) { kneeVisible = true; break; }
+            }
+          }
+        }
+        const wantGround = !kneeVisible;
         const currentMode = ctrl.getIdleMode();
         if (wantGround && currentMode === 'air') {
           ctrl.setIdleMode('ground');
