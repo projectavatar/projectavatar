@@ -43,6 +43,15 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
+/// Called by the frontend when it's ready (transparent, rendered).
+/// Shows the window and enables click-through so clicks pass to desktop.
+#[tauri::command]
+fn frontend_ready(window: tauri::Window) -> Result<(), String> {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -57,6 +66,7 @@ pub fn run() {
             set_ignore_cursor_events,
             is_mouse_button_pressed,
             get_cursor_state,
+            frontend_ready,
         ])
         .setup(|app| {
             // ── System tray ──────────────────────────────────────────────
@@ -84,6 +94,8 @@ pub fn run() {
                 .build(app)?;
 
             // ── Expand window to full primary monitor ────────────────────
+            // Window stays hidden (visible: false in config) until frontend
+            // calls `frontend_ready` after rendering.
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.primary_monitor() {
                     let size = monitor.size();
@@ -97,10 +109,7 @@ pub fn run() {
                     }));
                 }
 
-                // Show window after positioning (avoids flash at default size)
-                let _ = window.show();
-
-                // Windows transparency workaround
+                // Windows transparency workaround (while still hidden — safe)
                 #[cfg(target_os = "windows")]
                 {
                     let size = window.outer_size().unwrap_or(tauri::PhysicalSize {

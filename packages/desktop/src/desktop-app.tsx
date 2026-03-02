@@ -5,12 +5,15 @@
  * No window chrome, no border, no resize handles.
  * Settings and quit are in the system tray.
  *
- * Click-through state machine:
- * - Mouse outside avatar hitbox → click-through ON
- * - Mouse enters avatar hitbox (instant) → click-through OFF, UI visible
- * - Mouse leaves window for 1s → click-through ON
+ * Startup sequence:
+ * 1. Rust setup: positions + sizes window to primary monitor (stays hidden)
+ * 2. Frontend mounts, renders transparent canvas
+ * 3. Frontend calls `frontend_ready` → Rust shows window + enables click-through
+ * 4. useClickThrough poll takes over hit-testing
  *
- * useClickThrough drives both hit-testing AND cursor tracking (single poll).
+ * Click-through state machine (fullscreen):
+ * - Mouse on avatar hitbox → click-through OFF (interact with avatar)
+ * - Mouse off avatar hitbox → click-through ON (interact with desktop)
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { App } from '../../web/src/app.tsx';
@@ -48,6 +51,25 @@ export function DesktopApp() {
     setTheme('transparent');
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
+
+  // Signal Rust that frontend is ready — show window + enable click-through
+  useEffect(() => {
+    let cancelled = false;
+    const signal = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        // Small delay to ensure the first frame has rendered transparent
+        await new Promise((r) => setTimeout(r, 100));
+        if (!cancelled) {
+          await invoke('frontend_ready');
+        }
+      } catch {
+        // Not in Tauri runtime — ignore
+      }
+    };
+    void signal();
+    return () => { cancelled = true; };
+  }, []);
 
   // Bridge: tray "Settings" menu item calls window.__trayOpenSettings()
   useEffect(() => {
