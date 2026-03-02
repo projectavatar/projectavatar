@@ -68,50 +68,23 @@ export function DesktopApp() {
     return () => window.removeEventListener('contextmenu', handler);
   }, []);
 
-  // Cursor: grab on hover, default otherwise
+  // Cursor: grab on hover
   useEffect(() => {
     document.body.style.cursor = hovered ? 'grab' : 'default';
     return () => { document.body.style.cursor = ''; };
   }, [hovered]);
 
-  // Grabbing cursor while mouse is held
-  useEffect(() => {
-    if (!hovered) return;
-    const onDown = () => { document.body.style.cursor = 'grabbing'; };
-    const onUp = () => { document.body.style.cursor = 'grab'; };
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [hovered]);
-
   return (
     <>
-      <div style={{
-        width: '100%',
-        height: '100%',
-        animation: hovered ? 'avatar-pulse 2s ease-in-out infinite' : 'none',
-        opacity: hovered ? 1 : 0.92,
-        transition: 'opacity 0.3s ease',
-      }}>
-        <App
-          onScene={handleScene}
-          cursorPollMs={CURSOR_POLL_MS}
-          externalCursorPoll
-          onProjectCursor={handleProjectCursor}
-          activated={hovered}
-        />
-      </div>
+      <App
+        onScene={handleScene}
+        cursorPollMs={CURSOR_POLL_MS}
+        externalCursorPoll
+        onProjectCursor={handleProjectCursor}
+        activated={hovered}
+      />
       <WindowChrome />
       <Updater />
-      <style>{`
-        @keyframes avatar-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.95; }
-        }
-      `}</style>
     </>
   );
 }
