@@ -612,7 +612,7 @@ export class AnimationController {
         // Lerp between dampened (air) and full (ground) weight
         const airWeight = sub.baseWeight * AIR_LEG_WEIGHT;
         const groundWeight = sub.baseWeight;
-        const targetWeight = airWeight + (groundWeight - airWeight) * blend;
+        const targetWeight = THREE.MathUtils.lerp(airWeight, groundWeight, blend);
         sub.action.setEffectiveWeight(targetWeight);
       }
     }

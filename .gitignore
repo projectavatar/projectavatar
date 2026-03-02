@@ -4,3 +4,4 @@ dist/
 .vite/
 *.local
 .env
+tsconfig.tsbuildinfo
