@@ -62,12 +62,15 @@ async function setIgnoreCursor(ignore: boolean): Promise<void> {
 export interface ClickThroughState {
   /** True when the avatar is "activated" — chrome + UI elements should be visible. */
   hovered: boolean;
+  /** Debug 2D hitbox in CSS % coordinates. */
+  debugBbox: { left: number; top: number; width: number; height: number; hit: boolean } | null;
 }
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
+  const [debugBbox, setDebugBbox] = useState<{ left: number; top: number; width: number; height: number; hit: boolean } | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
@@ -158,29 +161,16 @@ export function useClickThrough(
 
           const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
 
-          if (!insideWindow) {
-            // Mouse left window → schedule deactivation
-            scheduleLeave();
-            return;
-          }
-
-          // Mouse is inside window — cancel any pending leave
-          cancelLeave();
-
-          // If already activated, stay active (no click-through, chrome visible)
-          if (activatedRef.current) return;
-
-          // Not activated yet — check hitbox
+          // Always compute hitbox + update debug visuals
           const vrmRoot = findVrmRoot(scene.scene);
-          if (!vrmRoot) return;
+          let hit = false;
+          if (vrmRoot) {
+            hit = testBboxHit(
+              vrmRoot, scene.camera, ndcX, ndcY,
+              bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
+            );
 
-          const hit = testBboxHit(
-            vrmRoot, scene.camera, ndcX, ndcY,
-            bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
-          );
-
-          // Debug 3D wireframe
-          if (scene) {
+            // Debug 3D wireframe — always visible
             if (!boxHelperRef.current) {
               const helper = new THREE.Box3Helper(bboxRef.current, new THREE.Color(0x00ff88));
               const mat = helper.material as THREE.LineBasicMaterial;
@@ -195,12 +185,26 @@ export function useClickThrough(
             (boxHelperRef.current.material as THREE.LineBasicMaterial).color.setHex(
               hit ? 0x00ff88 : 0xff4444,
             );
+
+            // Debug 2D overlay
+            const nMin = ndcMinRef.current;
+            const nMax = ndcMaxRef.current;
+            const left   = ((nMin.x + 1) / 2) * 100;
+            const right  = ((nMax.x + 1) / 2) * 100;
+            const top    = ((1 - nMax.y) / 2) * 100;
+            const bottom = ((1 - nMin.y) / 2) * 100;
+            setDebugBbox({ left, top, width: right - left, height: bottom - top, hit });
           }
 
-          if (hit) {
-            activate();
+          // State machine
+          if (!insideWindow) {
+            scheduleLeave();
+          } else {
+            cancelLeave();
+            if (!activatedRef.current && hit) {
+              activate();
+            }
           }
-          // If not hit and not activated → stay in click-through (default)
         } catch { /* poll error — skip */ }
       };
 
@@ -222,7 +226,7 @@ export function useClickThrough(
     };
   }, []);
 
-  return { hovered };
+  return { hovered, debugBbox };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
