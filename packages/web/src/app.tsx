@@ -75,9 +75,11 @@ const connectingPillStyle: React.CSSProperties = {
  * even across WS reconnects. No wsReady state needed; the ref is the source
  * of truth and the warning covers the not-ready case.
  */
-export function App({ onScene, cursorPollMs, activated }: {
+export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor, activated }: {
   onScene?: (scene: AvatarScene | null) => void;
   cursorPollMs?: number;
+  externalCursorPoll?: boolean;
+  onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
   /** Desktop click-through: when true, UI elements stay visible. */
   activated?: boolean;
 } = {}) {
@@ -171,7 +173,7 @@ export function App({ onScene, cursorPollMs, activated }: {
   return (
     <WsContext.Provider value={wsContextValue}>
       <div style={avatarContainerStyle}>
-        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} onScene={onScene} cursorPollMs={cursorPollMs} renderScale={renderScale} />
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} onScene={onScene} cursorPollMs={cursorPollMs} externalCursorPoll={externalCursorPoll} onProjectCursor={onProjectCursor} renderScale={renderScale} />
 
         {showPicker && <ModelPickerOverlay />}
 

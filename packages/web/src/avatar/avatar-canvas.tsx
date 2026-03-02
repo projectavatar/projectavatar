@@ -52,7 +52,7 @@ const clipRegistry = new ClipRegistry(clipsData as unknown as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, onScene, cursorPollMs, renderScale = 2 }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, onScene, cursorPollMs, externalCursorPoll, onProjectCursor, renderScale = 2 }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
   onStateMachine?: (sm: StateMachine | null) => void;
   onEffectsManager?: (em: EffectsManager | null) => void;
@@ -60,6 +60,10 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
   onScene?: (scene: AvatarScene | null) => void;
   /** Override Tauri cursor poll interval in ms (default: 32). */
   cursorPollMs?: number;
+  /** When true, skip built-in Tauri cursor polling (external consumer drives it). */
+  externalCursorPoll?: boolean;
+  /** Callback to receive the projectCursor function for external cursor input. */
+  onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
@@ -210,6 +214,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           });
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
+          avatarScene.setVrmRoot(vrm.scene);
           // Dynamic framing: zoomed out → body center, zoomed in → face
           avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
           setupControllers(vrm);
@@ -304,6 +309,9 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       }
     };
 
+    // Expose projectCursor to external consumers
+    onProjectCursor?.(projectCursor);
+
     const onMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       projectCursor(
@@ -323,8 +331,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseleave', onMouseLeave);
 
-    // Try Tauri global cursor — probe with real invoke before committing
-    import('@tauri-apps/api/core').then(async ({ invoke }) => {
+    // Try Tauri global cursor — skip if external consumer handles it
+    if (!externalCursorPoll) import('@tauri-apps/api/core').then(async ({ invoke }) => {
       if (cancelled) return;
       try {
         await invoke<[number, number] | null>('get_cursor_position');
@@ -368,6 +376,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       document.removeEventListener('mouseleave', onMouseLeave);
       avatarScene.scene.remove(lookAtProxy);
       cancelled = true;
+      onProjectCursor?.(null);
       onScene?.(null);
       onStateMachine?.(null);
       onEffectsManager?.(null);
@@ -381,7 +390,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       assetResolverRef.current = null;
       sceneRef.current = null;
     };
-  }, [modelUrl, assetBaseUrl, setAvatarState]);
+  }, [modelUrl, assetBaseUrl, setAvatarState]); // onScene, cursorPollMs, externalCursorPoll, onProjectCursor intentionally excluded — they are consumed once during setup; adding them would re-create the entire scene
 
   // Sync render scale (pixel ratio)
   useEffect(() => {

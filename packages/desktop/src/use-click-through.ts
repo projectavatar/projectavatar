@@ -4,56 +4,61 @@
  * State machine:
  *   - Mouse outside window (1s timeout) → click-through ON, UI hidden
  *   - Mouse inside window but outside hitbox → click-through ON
- *   - Mouse enters hitbox → "activated" — click-through OFF, chrome visible
+ *   - Mouse hovers hitbox for 0.5s (no button pressed) → "activated"
+ *   - Activated: click-through OFF, chrome visible
  *   - Once activated, stays active until mouse leaves the window (+ 1s timeout)
  *
- * The avatar-canvas cursor poll (for head/eye tracking) runs independently
- * at the same 5fps rate via the cursorPollMs prop.
+ * Also drives cursor tracking for head/eye follow at the same 5fps rate,
+ * replacing the Tauri cursor poll in avatar-canvas (single poll, no duplication).
  */
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
 
-/** Poll interval — 5fps = 200ms. */
-const POLL_MS = 200;
+/** Poll interval — 5fps = 200ms. Shared with avatar-canvas via cursorPollMs. */
+export const CURSOR_POLL_MS = 200;
 
 /** Timeout before releasing after cursor leaves window (ms). */
 const LEAVE_TIMEOUT_MS = 1000;
 
-/**
- * NDC padding around the projected bounding box.
- * Ensures the hit area covers chrome buttons and border.
- */
-const BBOX_PADDING_NDC = 0;
+/** Hover time on hitbox before activating (ms). */
+const HOVER_ACTIVATE_MS = 500;
 
 // ─── Tauri interop (lazy-loaded) ──────────────────────────────────────────────
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-let _invoke: InvokeFn | null = null;
-let _getCurrentWindow: (() => {
-  outerPosition(): Promise<{ x: number; y: number }>;
-  outerSize(): Promise<{ width: number; height: number }>;
-  scaleFactor(): Promise<number>;
-}) | null = null;
 
-async function ensureTauri(): Promise<boolean> {
-  if (_invoke) return true;
+interface TauriContext {
+  invoke: InvokeFn;
+  win: {
+    outerPosition(): Promise<{ x: number; y: number }>;
+    outerSize(): Promise<{ width: number; height: number }>;
+    scaleFactor(): Promise<number>;
+  };
+}
+
+let _tauri: TauriContext | null = null;
+
+async function ensureTauri(): Promise<TauriContext | null> {
+  if (_tauri) return _tauri;
   try {
     const core = await import('@tauri-apps/api/core');
     const win = await import('@tauri-apps/api/window');
-    await core.invoke<[number, number] | null>('get_cursor_position');
-    _invoke = core.invoke;
-    _getCurrentWindow = win.getCurrentWindow as unknown as typeof _getCurrentWindow;
-    return true;
+    // Probe — throws if not in Tauri runtime
+    await core.invoke<unknown>('get_cursor_state');
+    _tauri = {
+      invoke: core.invoke,
+      win: win.getCurrentWindow() as unknown as TauriContext['win'],
+    };
+    return _tauri;
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function setIgnoreCursor(ignore: boolean): Promise<void> {
-  if (!_invoke) return;
+async function setIgnoreCursor(invoke: InvokeFn, ignore: boolean): Promise<void> {
   try {
-    await _invoke('set_ignore_cursor_events', { ignore });
+    await invoke('set_ignore_cursor_events', { ignore });
   } catch { /* best effort */ }
 }
 
@@ -66,14 +71,19 @@ export interface ClickThroughState {
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
+  /** Callback to project cursor NDC for head/eye tracking. */
+  onCursorNdc?: (ndcX: number, ndcY: number) => void,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
 
-  // Internal state refs (avoid re-renders on every poll)
-  const activatedRef = useRef(false);   // hitbox was entered → stays on until window leave
+  const onCursorNdcRef = useRef(onCursorNdc);
+  onCursorNdcRef.current = onCursorNdc;
+
+  // State refs (avoid re-renders on every poll)
+  const activatedRef = useRef(false);
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,33 +94,34 @@ export function useClickThrough(
   const cornersRef = useRef<THREE.Vector3[]>(
     Array.from({ length: 8 }, () => new THREE.Vector3()),
   );
+  const cubeSizeRef = useRef(new THREE.Vector3());
+  const cubeCenterRef = useRef(new THREE.Vector3());
 
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
 
-    const deactivate = () => {
+    const deactivate = (invoke: InvokeFn) => {
       activatedRef.current = false;
       setHovered(false);
-      void setIgnoreCursor(true);
+      void setIgnoreCursor(invoke, true);
     };
 
-    const activate = () => {
-      // Cancel any pending leave timeout
+    const activate = (invoke: InvokeFn) => {
       if (leaveTimerRef.current) {
         clearTimeout(leaveTimerRef.current);
         leaveTimerRef.current = null;
       }
       activatedRef.current = true;
       setHovered(true);
-      void setIgnoreCursor(false);
+      void setIgnoreCursor(invoke, false);
     };
 
-    const scheduleLeave = () => {
-      if (leaveTimerRef.current) return; // already scheduled
+    const scheduleLeave = (invoke: InvokeFn) => {
+      if (leaveTimerRef.current) return;
       leaveTimerRef.current = setTimeout(() => {
         leaveTimerRef.current = null;
-        deactivate();
+        deactivate(invoke);
       }, LEAVE_TIMEOUT_MS);
     };
 
@@ -121,25 +132,33 @@ export function useClickThrough(
       }
     };
 
+    const cancelHover = () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
+    };
+
     const start = async () => {
-      const ok = await ensureTauri();
-      if (!ok || cancelled) return;
+      const tauri = await ensureTauri();
+      if (!tauri || cancelled) return;
+
+      const { invoke, win } = tauri;
 
       // Start in click-through mode
-      void setIgnoreCursor(true);
-
-      const win = _getCurrentWindow!();
+      void setIgnoreCursor(invoke, true);
 
       const poll = async () => {
-        if (cancelled || !_invoke) return;
+        if (cancelled) return;
         const scene = sceneRef.current;
         if (!scene) return;
 
         try {
-          const pos = await (_invoke as InvokeFn)('get_cursor_position') as [number, number] | null;
-          if (!pos || cancelled) return;
+          // Single IPC: cursor position + button state
+          const state = await invoke('get_cursor_state') as [number, number, boolean] | null;
+          if (!state || cancelled) return;
 
-          const [screenX, screenY] = pos;
+          const [screenX, screenY, buttonPressed] = state;
           const winPos = await win.outerPosition();
           const winSize = await win.outerSize();
           const scale = await win.scaleFactor();
@@ -148,60 +167,49 @@ export function useClickThrough(
           const h = winSize.height / scale;
           const localX = (screenX - winPos.x) / scale;
           const localY = (screenY - winPos.y) / scale;
-          const ndcX = (localX / w) * 2 - 1;
-          const ndcY = -((localY / h) * 2 - 1);
+          const ndcX = Math.max(-2, Math.min(2, (localX / w) * 2 - 1));
+          const ndcY = Math.max(-2, Math.min(2, -((localY / h) * 2 - 1)));
+
+          // Feed cursor NDC to head/eye tracking (replaces avatar-canvas Tauri poll)
+          onCursorNdcRef.current?.(ndcX, ndcY);
 
           const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
 
-          // Always compute hitbox + update debug visuals
-          const vrmRoot = findVrmRoot(scene.scene);
+          // Hit test against VRM bounding box
+          const vrmRoot = scene.vrmRoot;
           let hit = false;
           if (vrmRoot) {
             hit = testBboxHit(
               vrmRoot, scene.camera, ndcX, ndcY,
-              bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
+              bboxRef.current, ndcMinRef.current, ndcMaxRef.current,
+              cornersRef.current, cubeSizeRef.current, cubeCenterRef.current,
             );
-
           }
 
           // State machine
           if (!insideWindow) {
-            // Cancel hover timer if mouse left window
-            if (hoverTimerRef.current) {
-              clearTimeout(hoverTimerRef.current);
-              hoverTimerRef.current = null;
-            }
-            scheduleLeave();
+            cancelHover();
+            scheduleLeave(invoke);
           } else {
             cancelLeave();
             if (!activatedRef.current) {
-              // Check if a mouse button is pressed (user dragging something)
-              let buttonPressed = false;
-              try {
-                buttonPressed = await (_invoke as InvokeFn)('is_mouse_button_pressed') as boolean;
-              } catch { /* ignore */ }
-
               if (hit && !buttonPressed) {
-                // Start 1s hover timer to activate (only if not dragging)
+                // Start hover timer (only if not already counting)
                 if (!hoverTimerRef.current) {
                   hoverTimerRef.current = setTimeout(() => {
                     hoverTimerRef.current = null;
-                    activate();
-                  }, 500);
+                    activate(invoke);
+                  }, HOVER_ACTIVATE_MS);
                 }
               } else {
-                // Left hitbox or button pressed — cancel hover timer
-                if (hoverTimerRef.current) {
-                  clearTimeout(hoverTimerRef.current);
-                  hoverTimerRef.current = null;
-                }
+                cancelHover();
               }
             }
           }
         } catch { /* poll error — skip */ }
       };
 
-      pollId = setInterval(poll, POLL_MS);
+      pollId = setInterval(poll, CURSOR_POLL_MS);
     };
 
     void start();
@@ -211,7 +219,7 @@ export function useClickThrough(
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-      void setIgnoreCursor(false);
+      void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
     };
   }, []);
 
@@ -220,22 +228,11 @@ export function useClickThrough(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
-  for (const child of scene.children) {
-    if (child.type === 'Group' && child.visible) {
-      let hasSkinned = false;
-      child.traverse((obj) => {
-        if ((obj as THREE.SkinnedMesh).isSkinnedMesh) hasSkinned = true;
-      });
-      if (hasSkinned) return child;
-    }
-  }
-  return null;
-}
-
-const _cubeSize = new THREE.Vector3();
-const _cubeCenter = new THREE.Vector3();
-
+/**
+ * Project the VRM bounding box to NDC and test cursor hit.
+ * AABB is expanded into a cube (consistent from all angles) with
+ * X and Z shrunk by 1.5× to compensate for T-pose width.
+ */
 function testBboxHit(
   obj: THREE.Object3D,
   camera: THREE.PerspectiveCamera,
@@ -245,15 +242,16 @@ function testBboxHit(
   ndcMin: THREE.Vector3,
   ndcMax: THREE.Vector3,
   corners: THREE.Vector3[],
+  cubeSize: THREE.Vector3,
+  cubeCenter: THREE.Vector3,
 ): boolean {
   bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
 
-  // Expand AABB into a cube so hitbox is consistent from every angle,
-  // but shrink X by 1.5 to compensate for T-pose width inflation.
-  const size = bbox.getSize(_cubeSize);
+  // Expand into cube, shrink X/Z for T-pose compensation
+  const size = bbox.getSize(cubeSize);
   const maxSide = Math.max(size.x, size.y, size.z);
-  const center = bbox.getCenter(_cubeCenter);
+  const center = bbox.getCenter(cubeCenter);
   const half = maxSide / 2;
   const halfXZ = half / 1.5;
   bbox.min.set(center.x - halfXZ, center.y - half, center.z - halfXZ);
@@ -279,11 +277,6 @@ function testBboxHit(
     ndcMax.x = Math.max(ndcMax.x, corner.x);
     ndcMax.y = Math.max(ndcMax.y, corner.y);
   }
-
-  ndcMin.x -= BBOX_PADDING_NDC;
-  ndcMin.y -= BBOX_PADDING_NDC;
-  ndcMax.x += BBOX_PADDING_NDC;
-  ndcMax.y += BBOX_PADDING_NDC;
 
   return ndcX >= ndcMin.x && ndcX <= ndcMax.x && ndcY >= ndcMin.y && ndcY <= ndcMax.y;
 }

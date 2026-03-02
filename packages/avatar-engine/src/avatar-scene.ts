@@ -79,6 +79,9 @@ export class AvatarScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly clock: THREE.Clock;
 
+  /** VRM model root — set after model load for external consumers (e.g. hit-testing). */
+  private _vrmRoot: THREE.Object3D | null = null;
+
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -273,6 +276,16 @@ export class AvatarScene {
       this.animationFrameId = null;
     }
     this.stopBackgroundRenderer();
+  }
+
+  /** Get the VRM model root (set via setVrmRoot after model load). */
+  get vrmRoot(): THREE.Object3D | null {
+    return this._vrmRoot;
+  }
+
+  /** Set the VRM model root for external consumers. */
+  setVrmRoot(root: THREE.Object3D | null): void {
+    this._vrmRoot = root;
   }
 
   /** Full cleanup — call when unmounting. */
