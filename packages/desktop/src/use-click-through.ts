@@ -3,7 +3,7 @@
  *
  * Behavior:
  *   1. Default: click-through mode ON, UI hidden.
- *   2. Polls global cursor at 5fps via Tauri `get_cursor_position`.
+ *   2. Polls global cursor at 5fps via Tauri \`get_cursor_position\`.
  *   3. Projects cursor to NDC, tests against VRM bounding box.
  *   4. Cursor hits model → disable click-through, show UI (hovered=true).
  *   5. Cursor leaves model → after 1s, re-enable click-through, hide UI.
@@ -59,20 +59,43 @@ async function setIgnoreCursorEvents(ignore: boolean): Promise<void> {
   } catch { /* best effort */ }
 }
 
+// ─── Debug overlay rect (NDC → CSS %) ────────────────────────────────────────
+
+export interface DebugBbox {
+  /** CSS left % (0–100) */
+  left: number;
+  /** CSS top % (0–100) */
+  top: number;
+  /** CSS width % (0–100) */
+  width: number;
+  /** CSS height % (0–100) */
+  height: number;
+  /** Whether cursor is inside */
+  hit: boolean;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface ClickThroughState {
   /** Whether the cursor is over the model (UI should be visible). */
   hovered: boolean;
+  /** Debug bounding box in CSS % coordinates (only updated when debug=true). */
+  debugBbox: DebugBbox | null;
 }
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
+  /** Enable debug overlay data. */
+  debug = false,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
+  const [debugBbox, setDebugBbox] = useState<DebugBbox | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
+
+  const debugRef = useRef(debug);
+  debugRef.current = debug;
 
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoveredRef = useRef(false);
@@ -152,6 +175,25 @@ export function useClickThrough(
             bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
           );
 
+          // Update debug bbox overlay
+          if (debugRef.current) {
+            const nMin = ndcMinRef.current;
+            const nMax = ndcMaxRef.current;
+            // NDC (-1..1) → CSS % (0..100)
+            const left   = ((nMin.x + 1) / 2) * 100;
+            const right  = ((nMax.x + 1) / 2) * 100;
+            // NDC Y is flipped vs CSS (NDC +1 = top, CSS 0% = top)
+            const top    = ((1 - nMax.y) / 2) * 100;
+            const bottom = ((1 - nMin.y) / 2) * 100;
+            setDebugBbox({
+              left,
+              top,
+              width: right - left,
+              height: bottom - top,
+              hit,
+            });
+          }
+
           if (hit) {
             enterModel();
           } else {
@@ -174,7 +216,7 @@ export function useClickThrough(
     };
   }, [enterModel, leaveModel]);
 
-  return { hovered };
+  return { hovered, debugBbox: debug ? debugBbox : null };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

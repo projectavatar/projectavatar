@@ -16,10 +16,14 @@ import { useStore } from '../../web/src/state/store.ts';
 import { WindowChrome } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 import { useClickThrough } from './use-click-through.ts';
+import { DebugHitbox } from './debug-hitbox.tsx';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
 
 /** Cursor poll rate for desktop — 5fps for both tracking and hit-testing. */
 const CURSOR_POLL_MS = 200;
+
+/** Enable hitbox debug overlay — set to true during development. */
+const DEBUG_HITBOX = import.meta.env.DEV;
 
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
@@ -27,7 +31,7 @@ export function DesktopApp() {
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
 
   // Click-through: polls cursor at 5fps, tests against VRM bounding box
-  const { hovered } = useClickThrough(avatarScene);
+  const { hovered, debugBbox } = useClickThrough(avatarScene, DEBUG_HITBOX);
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
@@ -52,6 +56,7 @@ export function DesktopApp() {
       <App onScene={handleScene} cursorPollMs={CURSOR_POLL_MS} />
       <WindowChrome hovered={hovered} />
       <Updater />
+      {DEBUG_HITBOX && <DebugHitbox bbox={debugBbox} />}
     </>
   );
 }
