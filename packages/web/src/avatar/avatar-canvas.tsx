@@ -205,6 +205,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const initModel = async () => {
       if (modelUrl) {
         try {
+          setAnimationsLoaded(false);
           setLoadingState({ label: 'loading model', progress: 0, done: false });
           const resolvedModelUrl = assetResolver
             ? await assetResolver.resolve(modelUrl)

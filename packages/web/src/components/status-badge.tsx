@@ -3,8 +3,8 @@ import type { ConnectionState } from '../state/store.ts';
 
 const badgeStyle: React.CSSProperties = {
   position: 'fixed',
-  bottom: 12,
-  left: 12,
+  top: 12,
+  right: 12,
   display: 'flex',
   alignItems: 'center',
   gap: 10,

@@ -1,18 +1,10 @@
 /**
- * Desktop wrapper for the web app.
- *
- * Click-through state machine:
- * - Mouse outside window (1s) → click-through ON, UI hidden
- * - Mouse inside window, outside hitbox → click-through ON
- * - Mouse hovers hitbox 0.5s → activated — click-through OFF, chrome + UI visible
- * - Stays activated until mouse leaves window (+ 1s timeout)
- *
- * useClickThrough drives both hit-testing AND cursor tracking (single poll).
+ * Desktop wrapper for the web app — fullscreen mode.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { App } from '../../web/src/app.tsx';
 import { useStore } from '../../web/src/state/store.ts';
-import { WindowChrome } from './window-chrome.tsx';
+import { useEscapeClose } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 import { useClickThrough, CURSOR_POLL_MS } from './use-click-through.ts';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
@@ -20,9 +12,10 @@ import type { AvatarScene } from '@project-avatar/avatar-engine';
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
   const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
+  const settingsOpen = useStore((s) => s.settingsOpen);
+  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
 
-  // projectCursor ref — set by AvatarCanvas, called by useClickThrough
   const projectCursorRef = useRef<((ndcX: number, ndcY: number) => void) | null>(null);
 
   const handleProjectCursor = useCallback((fn: ((ndcX: number, ndcY: number) => void) | null) => {
@@ -33,8 +26,7 @@ export function DesktopApp() {
     projectCursorRef.current?.(ndcX, ndcY);
   }, []);
 
-  // Click-through: single 5fps poll drives both hit-testing and cursor tracking
-  const { hovered } = useClickThrough(avatarScene, handleCursorNdc);
+  const { hovered } = useClickThrough(avatarScene, handleCursorNdc, settingsOpen);
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
@@ -45,11 +37,50 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
+  // Signal Rust that frontend is ready — expand 1×1 window to fullscreen.
+  // The 200ms delay ensures:
+  // 1. First transparent frame is rendered (no flash)
+  // 2. useClickThrough hook has initialized and set click-through ON
+  useEffect(() => {
+    let cancelled = false;
+    const signal = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await new Promise((r) => setTimeout(r, 200));
+        if (!cancelled) {
+          await invoke('frontend_ready');
+        }
+      } catch { /* Not in Tauri runtime */ }
+    };
+    void signal();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Listen for tray "Settings" menu event from Rust
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('tray-open-settings', () => {
+        setSettingsOpen(true);
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => { /* Not in Tauri runtime */ });
+    return () => { unlisten?.(); };
+  }, [setSettingsOpen]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => e.preventDefault();
     window.addEventListener('contextmenu', handler);
     return () => window.removeEventListener('contextmenu', handler);
   }, []);
+
+  // Double-tap Escape to close
+  useEscapeClose();
+
+  // Cursor: grab on hover (but not when settings is open)
+  useEffect(() => {
+    document.body.style.cursor = (hovered && !settingsOpen) ? 'grab' : 'default';
+    return () => { document.body.style.cursor = ''; };
+  }, [hovered, settingsOpen]);
 
   return (
     <>
@@ -59,8 +90,8 @@ export function DesktopApp() {
         externalCursorPoll
         onProjectCursor={handleProjectCursor}
         activated={hovered}
+        hideSettings
       />
-      <WindowChrome hovered={hovered} />
       <Updater />
     </>
   );

@@ -1,7 +1,7 @@
 /**
- * LoadingOverlay — minimal progress bar for asset loading.
+ * LoadingOverlay — top-positioned progress bar for asset loading.
  *
- * Centered at the bottom of the viewport. Shows current phase label
+ * Positioned at the top of the viewport. Shows current phase label
  * and a smooth animated progress bar. Fades out when complete.
  */
 import { useEffect, useState } from 'react';
@@ -35,52 +35,54 @@ export function LoadingOverlay({ state }: { state: LoadingState }) {
   return (
     <div style={{
       position: 'absolute',
-      bottom: 32,
+      top: 12,
       left: '50%',
       transform: 'translateX(-50%)',
       display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
-      gap: 6,
+      gap: 10,
+      padding: '6px 14px',
+      background: 'rgba(10, 10, 15, 0.85)',
+      backdropFilter: 'blur(8px)',
+      border: '1px solid var(--color-border, rgba(255,255,255,0.1))',
+      borderRadius: 20,
       opacity: state.done ? 0 : 1,
       transition: `opacity ${FADE_OUT_MS}ms ease`,
       pointerEvents: 'none',
       zIndex: 10,
     }}>
       {/* Label */}
-      <div style={{
-        color: 'rgba(255, 255, 255, 0.7)',
+      <span style={{
+        color: 'rgba(232, 232, 240, 0.8)',
         fontSize: 11,
         fontFamily: 'var(--font-mono, monospace)',
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
+        letterSpacing: '0.03em',
+        whiteSpace: 'nowrap',
       }}>
         {state.label}{pct != null ? ` ${pct}%` : ''}
-      </div>
+      </span>
 
       {/* Progress bar track */}
       <div style={{
-        width: 180,
+        width: 120,
         height: 3,
         borderRadius: 2,
         background: 'rgba(255, 255, 255, 0.1)',
         overflow: 'hidden',
+        flexShrink: 0,
       }}>
-        {/* Fill */}
         <div style={{
           height: '100%',
           borderRadius: 2,
-          background: 'rgba(255, 255, 255, 0.6)',
+          background: 'var(--color-accent, #6c5ce7)',
           transition: 'width 0.15s ease-out',
           width: pct != null ? `${pct}%` : '30%',
-          // Indeterminate: shimmer animation
           ...(pct == null ? {
             animation: 'loading-shimmer 1.2s ease-in-out infinite',
           } : {}),
         }} />
       </div>
 
-      {/* Keyframes for indeterminate mode */}
       <style>{`
         @keyframes loading-shimmer {
           0%   { transform: translateX(-100%); width: 30%; }
