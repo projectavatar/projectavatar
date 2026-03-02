@@ -1,11 +1,9 @@
 /**
- * useClickThrough — transparent click-through for the desktop avatar.
+ * useClickThrough — transparent click-through for the fullscreen desktop avatar.
  *
- * State machine (fullscreen mode):
- *   - Mouse outside avatar hitbox → click-through ON
- *   - Mouse enters avatar hitbox (no button pressed) → immediate activation
- *   - Activated: click-through OFF, chrome visible
- *   - Mouse leaves window for 1s → deactivate
+ * State machine (fullscreen):
+ *   - Mouse on avatar hitbox (no button pressed) → click-through OFF (interact with avatar)
+ *   - Mouse outside avatar hitbox → click-through ON immediately (interact with desktop)
  *
  * Also drives cursor tracking for head/eye follow at the same 5fps rate,
  * replacing the Tauri cursor poll in avatar-canvas (single poll, no duplication).
@@ -16,9 +14,6 @@ import type { AvatarScene } from '@project-avatar/avatar-engine';
 
 /** Poll interval — 5fps = 200ms. Shared with avatar-canvas via cursorPollMs. */
 export const CURSOR_POLL_MS = 200;
-
-/** Timeout before releasing after cursor leaves window (ms). */
-const LEAVE_TIMEOUT_MS = 1000;
 
 // ─── Tauri interop (lazy-loaded) ──────────────────────────────────────────────
 
@@ -78,9 +73,8 @@ export function useClickThrough(
   const onCursorNdcRef = useRef(onCursorNdc);
   onCursorNdcRef.current = onCursorNdc;
 
-  // State refs (avoid re-renders on every poll)
+  // State ref (avoid re-renders on every poll)
   const activatedRef = useRef(false);
-  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
@@ -96,37 +90,6 @@ export function useClickThrough(
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
-
-    const deactivate = (invoke: InvokeFn) => {
-      activatedRef.current = false;
-      setHovered(false);
-      void setIgnoreCursor(invoke, true);
-    };
-
-    const activate = (invoke: InvokeFn) => {
-      if (leaveTimerRef.current) {
-        clearTimeout(leaveTimerRef.current);
-        leaveTimerRef.current = null;
-      }
-      activatedRef.current = true;
-      setHovered(true);
-      void setIgnoreCursor(invoke, false);
-    };
-
-    const scheduleLeave = (invoke: InvokeFn) => {
-      if (leaveTimerRef.current) return;
-      leaveTimerRef.current = setTimeout(() => {
-        leaveTimerRef.current = null;
-        deactivate(invoke);
-      }, LEAVE_TIMEOUT_MS);
-    };
-
-    const cancelLeave = () => {
-      if (leaveTimerRef.current) {
-        clearTimeout(leaveTimerRef.current);
-        leaveTimerRef.current = null;
-      }
-    };
 
     const start = async () => {
       const tauri = await ensureTauri();
@@ -166,8 +129,6 @@ export function useClickThrough(
             onCursorNdcRef.current?.(ndcX, ndcY);
           }
 
-          const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
-
           // Hit test against VRM bounding box
           const vrmRoot = scene.vrmRoot;
           let hit = false;
@@ -179,13 +140,21 @@ export function useClickThrough(
             );
           }
 
-          // State machine — instant activation, no hover delay
-          if (!insideWindow) {
-            scheduleLeave(invoke);
-          } else {
-            cancelLeave();
-            if (!activatedRef.current && hit && !buttonPressed) {
-              activate(invoke);
+          // Fullscreen state machine:
+          // On hitbox + no button → activate (can interact with avatar)
+          // Off hitbox → deactivate immediately (clicks pass to desktop)
+          if (hit && !buttonPressed) {
+            if (!activatedRef.current) {
+              activatedRef.current = true;
+              setHovered(true);
+              void setIgnoreCursor(invoke, false);
+            }
+          } else if (!hit && !buttonPressed) {
+            // Only release when no button is held (don't drop mid-drag)
+            if (activatedRef.current) {
+              activatedRef.current = false;
+              setHovered(false);
+              void setIgnoreCursor(invoke, true);
             }
           }
         } catch { /* poll error — skip */ }
@@ -199,7 +168,6 @@ export function useClickThrough(
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
-      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
     };
   }, []);
