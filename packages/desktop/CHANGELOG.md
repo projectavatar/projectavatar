@@ -1,6 +1,17 @@
 # Desktop Changelog
 
 
+## 0.6.3
+
+### Added
+- **Pan/move avatar** — Left or middle-click drag to reposition the avatar in the viewport. Position persisted across sessions. (#66)
+- **Boundary clamping** — Avatar can never be dragged fully off-screen. Head stays within viewport vertically, body stays at least 50% visible horizontally.
+- **Smart air/ground mode** — Idle mode now switches based on leg visibility instead of zoom distance. Mid-shin visible = air mode (dangling), mid-shin off-screen = ground mode (standing). Works with both zoom and pan.
+
+### Changed
+- **Middle mouse** reserved for pan — no longer triggers OrbitControls dolly.
+- **Touch input** passes through to OrbitControls rotation (pan is mouse-only).
+
 ## 0.6.2
 
 ### Fixed
