@@ -3,7 +3,7 @@ use device_query::{DeviceQuery, DeviceState, MouseState};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    AppHandle, Manager,
 };
 
 #[tauri::command]
@@ -68,11 +68,11 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Project Avatar")
                 .menu(&menu)
-                .on_menu_event(|app_handle, event| {
+                .on_menu_event(|app_handle: &AppHandle, event| {
                     match event.id.as_ref() {
                         "settings" => {
                             if let Some(window) = app_handle.get_webview_window("main") {
-                                let _ = window.eval("window.__trayOpenSettings?.()");
+                                let _ = window.eval_script("window.__trayOpenSettings?.()");
                             }
                         }
                         "quit" => {
