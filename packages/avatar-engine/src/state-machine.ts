@@ -6,7 +6,7 @@ import type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 import type { BlinkController } from './blink-controller.ts';
 import type { PropManager } from './prop-manager.ts';
 import type { VfxManager } from './effects/vfx-manager.ts';
-import { resolveBlend, NEUTRAL_BLEND } from './emotion-blend.ts';
+import { resolveBlend, EmotionDecay } from './emotion-blend.ts';
 import type { ResolvedBlend } from './emotion-blend.ts';
 
 /**
@@ -14,13 +14,10 @@ import type { ResolvedBlend } from './emotion-blend.ts';
  *
  * Receives AvatarEvents (emotion blend format) from the WebSocket client
  * and dispatches to expression, animation, blink, prop, and VFX controllers.
- * Returns to idle after a configurable timeout of no events.
  *
- * The emotion blend drives all layers:
- *   - Face: VRM blend shapes via ExpressionController
- *   - Body: action inference from dominant emotion (or explicit action)
- *   - Idle: energy modulates procedural animation
- *   - VFX: color + intensity from blend
+ * Emotion decay: after the idle timeout, emotions don't snap to zero —
+ * they decay gradually toward a neutral baseline ({ joy: 0.1, interest: 0.1 }).
+ * The avatar is never truly blank.
  */
 
 // ─── Action inference from dominant emotion ───────────────────────────────────
@@ -30,9 +27,9 @@ const EMOTION_ACTION_MAP: Record<PrimaryEmotion, { low: Action; high: Action }> 
   sadness:  { low: 'sad',         high: 'sad'         },
   anger:    { low: 'dismissive',  high: 'dismissive'  },
   fear:     { low: 'nervous',     high: 'nervous'     },
-  surprise: { low: 'idle',        high: 'idle'        },  // future: startled clip
-  interest: { low: 'idle',        high: 'idle'        },  // future: lean forward clip
-  disgust:  { low: 'idle',        high: 'idle'        },  // future: recoil clip
+  surprise: { low: 'idle',        high: 'idle'        },
+  interest: { low: 'idle',        high: 'idle'        },
+  disgust:  { low: 'idle',        high: 'idle'        },
 };
 
 function inferAction(blend: ResolvedBlend): Action {
@@ -53,14 +50,6 @@ interface AvatarState {
 
 const EMPTY_BLEND: EmotionBlend = {};
 
-const DEFAULT_STATE: AvatarState = {
-  emotions: EMPTY_BLEND,
-  blend: { ...NEUTRAL_BLEND },
-  action: 'idle',
-  intensity: 'medium',
-  lastEventTime: 0,
-};
-
 /** Event log entry for dev panel. */
 export interface EventLogEntry {
   timestamp: number;
@@ -77,7 +66,7 @@ const MAX_LOG_ENTRIES = 50;
 // ─── State Machine ────────────────────────────────────────────────────────────
 
 export class StateMachine {
-  private state: AvatarState = { ...DEFAULT_STATE, blend: { ...NEUTRAL_BLEND } };
+  private state: AvatarState;
   private expressionCtrl: ExpressionController;
   private animationCtrl: AnimationController;
   private blinkCtrl: BlinkController;
@@ -86,6 +75,9 @@ export class StateMachine {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimeoutMs: number;
   private onStateChange?: (state: Readonly<AvatarState>) => void;
+
+  /** Emotion decay — smooth interpolation toward neutral. */
+  private decay: EmotionDecay;
 
   /** Event log — most recent events for dev panel inspection. */
   readonly eventLog: EventLogEntry[] = [];
@@ -110,6 +102,16 @@ export class StateMachine {
     this.idleTimeoutMs = opts?.idleTimeoutMs ?? DEFAULTS.idleTimeoutMs;
     this.onStateChange = opts?.onStateChange;
 
+    // Initialize decay and state
+    this.decay = new EmotionDecay();
+    this.state = {
+      emotions: EMPTY_BLEND,
+      blend: this.decay.blend,
+      action: 'idle',
+      intensity: 'medium',
+      lastEventTime: 0,
+    };
+
     // When a non-looping animation finishes, return to idle action
     this.animationCtrl.onActionFinished = () => {
       this.state.action = 'idle';
@@ -133,11 +135,14 @@ export class StateMachine {
     const prev = { ...this.state };
 
     this.state.lastEventTime = Date.now();
+    this.state.emotions = event.emotions;
 
     // Resolve the emotion blend
     const blend = resolveBlend(event.emotions, event.color);
-    this.state.emotions = event.emotions;
     this.state.blend = blend;
+
+    // Set as decay target — weights will interpolate toward this
+    this.decay.setTarget(blend, event.color);
 
     // Log the event
     this._logEvent(event, source, blend);
@@ -147,11 +152,11 @@ export class StateMachine {
       this.state.intensity = event.intensity;
     }
 
-    // Update face — expression controller handles multi-primary blend shapes
-    this.expressionCtrl.setEmotionBlend(blend);
+    // Update face — expression controller reads from decay's blend each frame
+    // (initial snap handled by decay's fast interpolation)
 
-    // Update body action — explicit action takes priority, otherwise infer
-    const action = event.action !== 'idle' ? event.action : inferAction(blend);
+    // Update body action — explicit non-idle action takes priority, otherwise infer
+    const action = event.action;
     if (action !== prev.action) {
       this.state.action = action;
       this.animationCtrl.playAction(action, this.state.intensity);
@@ -161,7 +166,7 @@ export class StateMachine {
     const emotionKey = blend.dominant ?? 'idle';
     this.animationCtrl.setEmotion(emotionKey);
 
-    // Update VFX with blend
+    // VFX updated each frame via decay blend — initial dispatch for action fallback
     this.vfxManager?.setBlendState(blend, this.state.action);
 
     // Notify listener
@@ -174,8 +179,7 @@ export class StateMachine {
   /** Set VFX manager (optional, added post-construction). */
   setVfxManager(mgr: VfxManager): void {
     this.vfxManager = mgr;
-    // Apply initial state
-    mgr.setBlendState(this.state.blend, this.state.action);
+    mgr.setBlendState(this.decay.blend, this.state.action);
   }
 
   /** Set camera for head tracking. */
@@ -196,22 +200,46 @@ export class StateMachine {
   /**
    * Update all subsystems. Call every frame.
    *
-   * Order matters:
-   * 1. AnimationController: mixer ticks FBX clips, then idle layer adds noise
-   * 2. ExpressionController: blend shapes (on top of mixer)
-   * 3. BlinkController: blink + micro-glance (expression-level, last)
+   * Order:
+   * 1. EmotionDecay: interpolate weights toward target/neutral
+   * 2. AnimationController: mixer ticks FBX clips, idle layer adds noise
+   * 3. ExpressionController: blend shapes from decayed blend
+   * 4. VFX: update with decayed blend
+   * 5. BlinkController: blink + micro-glance (last)
    */
   update(delta: number): void {
+    // Tick emotion decay — updates blend weights smoothly
+    const blendChanged = this.decay.update(delta);
+
+    if (blendChanged) {
+      const blend = this.decay.blend;
+      this.state.blend = blend;
+
+      // Update face from decayed blend
+      this.expressionCtrl.setEmotionBlend(blend);
+
+      // Update VFX color/selection from decayed blend
+      this.vfxManager?.setBlendState(blend, this.state.action);
+
+      // If decaying and dominant changed, update action inference
+      if (this.decay.isDecaying) {
+        const inferredAction = inferAction(blend);
+        if (inferredAction !== this.state.action) {
+          this.state.action = inferredAction;
+          this.animationCtrl.playAction(inferredAction, this.state.intensity);
+        }
+        const emotionKey = blend.dominant ?? 'idle';
+        this.animationCtrl.setEmotion(emotionKey);
+      }
+    }
+
     this.animationCtrl.update(delta);
 
-    // Prop fade animations — pass bob offset so props track the idle layer bob
     const bobOffset = this.animationCtrl.getIdleBobOffset();
     this.propManager.update(delta, bobOffset);
 
-    // VFX animations
     this.vfxManager?.update(delta);
 
-    // Expression layers respect toggles
     const layers = this.animationCtrl.layers;
     if (layers.expressions) {
       this.expressionCtrl.update(delta, layers.expressions);
@@ -242,7 +270,12 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
     }
     this.idleTimer = setTimeout(() => {
-      this.handleEvent({ emotions: {}, action: 'idle', prop: 'none' }, 'system');
+      // Don't snap to idle — start decay. Body action goes to idle immediately,
+      // but emotions decay gradually toward neutral baseline.
+      this.state.action = 'idle';
+      this.animationCtrl.playAction('idle', this.state.intensity);
+      this.decay.startDecay();
+      this.onStateChange?.(this.state);
     }, this.idleTimeoutMs);
   }
 

@@ -69,22 +69,6 @@ export class VfxManager {
     // (future: also modulate intensity/behavior based on energy)
   }
 
-  /**
-   * Legacy: set emotion+action combo.
-   * Emotion VFX takes priority, falls back to action VFX.
-   */
-  setState(emotion: string | null, action: string | null): void {
-    const emotionKey = emotion ? `emotion:${emotion}` : null;
-    const actionKey = action ? `action:${action}` : null;
-
-    if (emotionKey && this.bindings.has(emotionKey)) {
-      this._transitionTo(emotionKey);
-    } else if (actionKey && this.bindings.has(actionKey)) {
-      this._transitionTo(actionKey);
-    } else {
-      this._transitionTo(null);
-    }
-  }
 
   private _transitionTo(key: string | null): void {
     if (key === this.currentKey) return;

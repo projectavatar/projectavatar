@@ -20,6 +20,7 @@ import {
   BlinkController,
   ClipRegistry,
   VfxManager,
+  createNeutralBlend,
   loadMixamoAnimation,
   loadVRMAAnimation,
 } from '@project-avatar/avatar-engine';
@@ -349,8 +350,8 @@ export class ClipPreview {
   }
 
   /** Set the preview VFX state — emotion and/or action. */
-  setPreviewVfx(emotion: string | null, action: string | null): void {
-    this.vfxManager?.setState(emotion, action);
+  setPreviewVfx(_emotion: string | null, action: string | null): void {
+    this.vfxManager?.setBlendState(createNeutralBlend(), action ?? undefined);
   }
 
   async showProp(propId: string, transform: PropTransform): Promise<void> {

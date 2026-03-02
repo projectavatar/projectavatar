@@ -12,7 +12,7 @@ export { LAYER_LABELS } from './animation-controller.ts';
 export type { LayerState, ActiveClipInfo } from './animation-controller.ts';
 
 export { ExpressionController } from './expression-controller.ts';
-export { resolveBlend, NEUTRAL_BLEND, EMOTION_COLORS, ENERGY_COEFFICIENTS } from './emotion-blend.ts';
+export { resolveBlend, createNeutralBlend, EmotionDecay, NEUTRAL_WEIGHTS, EMOTION_COLORS, ENERGY_COEFFICIENTS } from './emotion-blend.ts';
 export type { ResolvedBlend } from './emotion-blend.ts';
 export { BlinkController } from './blink-controller.ts';
 export { PropManager } from './prop-manager.ts';
