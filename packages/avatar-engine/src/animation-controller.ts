@@ -301,6 +301,12 @@ export class AnimationController {
       }
     }
 
+    // Dynamically adjust leg/feet clip weights based on air↔ground blend.
+    // In air mode, legs are dampened so idle layer dangle dominates.
+    // In ground mode, clips have full leg control.
+    // This runs every frame so mode transitions are smooth — no stuck poses.
+    this._updateLegWeights();
+
     // Procedural idle layer: hover bob, breathing, etc.
     // Runs AFTER mixer so additive offsets aren't overwritten by clips.
     // Independent of FBX clips toggle — has its own toggle.
@@ -571,13 +577,9 @@ export class AnimationController {
     );
     action.clampWhenFinished = !entry.loop;
     action.reset();
-    // In air mode, dampen leg/feet clip weights so the idle layer's
-    // dangle pose dominates but clips still have some influence.
-    let effectiveWeight = normalizedWeight;
-    if (this.idleLayer.getMode() === 'air' && (group === 'legs' || group === 'feet')) {
-      effectiveWeight *= AIR_LEG_WEIGHT;
-    }
-    action.setEffectiveWeight(effectiveWeight);
+    // Leg/feet weights are dynamically adjusted in _updateLegWeights()
+    // based on air↔ground blend, so we set base weight here.
+    action.setEffectiveWeight(normalizedWeight);
     action.setEffectiveTimeScale(1);
     if (autoPlay) {
       action.fadeIn(entry.fadeIn ?? DEFAULT_FADE_IN);
@@ -591,6 +593,29 @@ export class AnimationController {
       baseWeight: normalizedWeight,
       fadeOut: entry.fadeOut,
     };
+  }
+
+  /**
+   * Dynamically adjust leg/feet sub-action weights based on air↔ground blend.
+   *
+   * In air mode (modeBlend → 0), leg/feet clips are dampened to AIR_LEG_WEIGHT
+   * so the idle layer’s procedural dangle dominates.
+   * In ground mode (modeBlend → 1), clips have full leg control.
+   *
+   * Runs every frame so transitions are smooth — no stuck leg poses
+   * when switching ground → air.
+   */
+  private _updateLegWeights(): void {
+    const blend = this.idleLayer.getModeBlend(); // 0=air, 1=ground
+    for (const sub of this.activeSubActions) {
+      if (sub.bodyPartGroup === 'legs' || sub.bodyPartGroup === 'feet') {
+        // Lerp between dampened (air) and full (ground) weight
+        const airWeight = sub.baseWeight * AIR_LEG_WEIGHT;
+        const groundWeight = sub.baseWeight;
+        const targetWeight = THREE.MathUtils.lerp(airWeight, groundWeight, blend);
+        sub.action.setEffectiveWeight(targetWeight);
+      }
+    }
   }
 
   /**
