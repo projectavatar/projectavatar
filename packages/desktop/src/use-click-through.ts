@@ -272,6 +272,8 @@ function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
  * Project the object's world-space bounding box to NDC and check if
  * the cursor (ndcX, ndcY) falls within it (with padding).
  */
+const _meshBox = new THREE.Box3();
+
 function testBboxHit(
   obj: THREE.Object3D,
   camera: THREE.PerspectiveCamera,
@@ -282,7 +284,25 @@ function testBboxHit(
   ndcMax: THREE.Vector3,
   corners: THREE.Vector3[],
 ): boolean {
-  bbox.setFromObject(obj);
+  // Only include visible SkinnedMesh children — setFromObject picks up
+  // invisible helpers, colliders, and overlay meshes that inflate the box.
+  bbox.makeEmpty();
+  obj.traverse((child) => {
+    if (
+      (child as THREE.SkinnedMesh).isSkinnedMesh &&
+      child.visible
+    ) {
+      const mesh = child as THREE.SkinnedMesh;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const meshBox = mesh.geometry.boundingBox;
+      if (meshBox) {
+        // Transform geometry bbox to world space via the mesh's world matrix
+        _meshBox.copy(meshBox).applyMatrix4(mesh.matrixWorld);
+        bbox.union(_meshBox);
+      }
+    }
+  });
+  if (bbox.isEmpty()) return false;
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
