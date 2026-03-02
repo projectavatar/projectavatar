@@ -97,6 +97,9 @@ export function useClickThrough(
   const debugRef = useRef(debug);
   debugRef.current = debug;
 
+  // 3D wireframe box — added to the Three.js scene for debug visualization
+  const boxHelperRef = useRef<THREE.Box3Helper | null>(null);
+
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoveredRef = useRef(false);
 
@@ -175,7 +178,26 @@ export function useClickThrough(
             bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
           );
 
-          // Update debug bbox overlay
+          // Update 3D wireframe box in the scene
+          if (debugRef.current && scene) {
+            if (!boxHelperRef.current) {
+              const helper = new THREE.Box3Helper(bboxRef.current, new THREE.Color(0x00ff88));
+              const mat = helper.material as THREE.LineBasicMaterial;
+              mat.transparent = true;
+              mat.opacity = 0.5;
+              mat.depthTest = false;
+              boxHelperRef.current = helper;
+              scene.scene.add(boxHelperRef.current);
+            }
+            // Update box geometry — Box3Helper reads from its .box reference
+            boxHelperRef.current.box.copy(bboxRef.current);
+            boxHelperRef.current.updateMatrixWorld(true);
+            // Color: green when hit, red when miss
+            const color = hit ? 0x00ff88 : 0xff4444;
+            ((boxHelperRef.current.material as THREE.LineBasicMaterial).color).setHex(color);
+          }
+
+          // Update 2D debug bbox overlay
           if (debugRef.current) {
             const nMin = ndcMinRef.current;
             const nMax = ndcMaxRef.current;
@@ -211,6 +233,12 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      // Remove debug 3D box
+      if (boxHelperRef.current) {
+        boxHelperRef.current.removeFromParent();
+        boxHelperRef.current.dispose();
+        boxHelperRef.current = null;
+      }
       // Restore normal cursor events on cleanup
       void setIgnoreCursorEvents(false);
     };
