@@ -5,8 +5,10 @@
  *   - Mouse on avatar hitbox (no button pressed) → click-through OFF (interact with avatar)
  *   - Mouse outside avatar hitbox → click-through ON immediately (interact with desktop)
  *
- * Also drives cursor tracking for head/eye follow at the same 5fps rate,
- * replacing the Tauri cursor poll in avatar-canvas (single poll, no duplication).
+ * Hit testing uses 2D convex hull of the projected 3D bounding box corners
+ * for a tight fit from any camera angle.
+ *
+ * Also drives cursor tracking for head/eye follow at the same 5fps rate.
  */
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -35,7 +37,6 @@ async function ensureTauri(): Promise<TauriContext | null> {
   try {
     const core = await import('@tauri-apps/api/core');
     const win = await import('@tauri-apps/api/window');
-    // Probe — throws if not in Tauri runtime
     await core.invoke<unknown>('get_cursor_state');
     _tauri = {
       invoke: core.invoke,
@@ -53,30 +54,83 @@ async function setIgnoreCursor(invoke: InvokeFn, ignore: boolean): Promise<void>
   } catch { /* best effort */ }
 }
 
+// ─── Convex hull + point-in-polygon ───────────────────────────────────────────
+
+interface Point2D { x: number; y: number }
+
+/** Graham scan convex hull — returns points in CCW order. */
+function convexHull(points: Point2D[]): Point2D[] {
+  if (points.length <= 3) return points.slice();
+
+  // Sort by x, then y
+  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+
+  const cross = (o: Point2D, a: Point2D, b: Point2D) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  // Lower hull
+  const lower: Point2D[] = [];
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
+      lower.pop();
+    lower.push(p);
+  }
+
+  // Upper hull
+  const upper: Point2D[] = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0)
+      upper.pop();
+    upper.push(p);
+  }
+
+  // Remove last point of each half (it's the first of the other)
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+/** Winding number point-in-polygon test. */
+function pointInConvexHull(hull: Point2D[], px: number, py: number): boolean {
+  if (hull.length < 3) return false;
+  let wn = 0;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i];
+    const b = hull[(i + 1) % hull.length];
+    if (a.y <= py) {
+      if (b.y > py) {
+        const cross = (b.x - a.x) * (py - a.y) - (px - a.x) * (b.y - a.y);
+        if (cross > 0) wn++;
+      }
+    } else {
+      if (b.y <= py) {
+        const cross = (b.x - a.x) * (py - a.y) - (px - a.x) * (b.y - a.y);
+        if (cross < 0) wn--;
+      }
+    }
+  }
+  return wn !== 0;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-/** NDC bounding box for the avatar hitbox (debug visualization). */
-export interface HitboxNdc {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
+/** Convex hull polygon in NDC for debug visualization. */
+export type HitboxHull = Point2D[];
 
 export interface ClickThroughState {
   /** True when the avatar is "activated" — UI elements should be visible. */
   hovered: boolean;
-  /** NDC bounds of the avatar hitbox (updated every poll). */
-  hitbox: HitboxNdc | null;
+  /** Convex hull polygon in NDC (updated every poll). */
+  hitboxHull: HitboxHull | null;
 }
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
-  /** Callback to project cursor NDC for head/eye tracking. */
   onCursorNdc?: (ndcX: number, ndcY: number) => void,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
-  const [hitbox, setHitbox] = useState<HitboxNdc | null>(null);
+  const [hitboxHull, setHitboxHull] = useState<HitboxHull | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
@@ -84,13 +138,10 @@ export function useClickThrough(
   const onCursorNdcRef = useRef(onCursorNdc);
   onCursorNdcRef.current = onCursorNdc;
 
-  // State ref (avoid re-renders on every poll)
   const activatedRef = useRef(false);
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
-  const ndcMinRef = useRef(new THREE.Vector3());
-  const ndcMaxRef = useRef(new THREE.Vector3());
   const cornersRef = useRef<THREE.Vector3[]>(
     Array.from({ length: 8 }, () => new THREE.Vector3()),
   );
@@ -111,8 +162,6 @@ export function useClickThrough(
       if (!tauri || cancelled) return;
 
       const { invoke, win } = tauri;
-
-      // Start in click-through mode
       void setIgnoreCursor(invoke, true);
 
       const poll = async () => {
@@ -121,7 +170,6 @@ export function useClickThrough(
         if (!scene) return;
 
         try {
-          // Single IPC: cursor position + button state
           const state = await invoke('get_cursor_state') as [number, number, boolean] | null;
           if (!state || cancelled) return;
 
@@ -137,44 +185,37 @@ export function useClickThrough(
           const ndcX = Math.max(-2, Math.min(2, (localX / w) * 2 - 1));
           const ndcY = Math.max(-2, Math.min(2, -((localY / h) * 2 - 1)));
 
-          // Feed cursor NDC to head/eye tracking only when cursor actually moved
           const [prevX, prevY] = prevScreenRef.current;
           if (screenX !== prevX || screenY !== prevY) {
             prevScreenRef.current = [screenX, screenY];
             onCursorNdcRef.current?.(ndcX, ndcY);
           }
 
-          // Hit test against VRM bounding box
           const vrmRoot = scene.vrmRoot;
           let hit = false;
           if (vrmRoot) {
-            hit = testBboxHit(
-              vrmRoot, scene.camera, ndcX, ndcY,
-              bboxRef.current, ndcMinRef.current, ndcMaxRef.current,
-              cornersRef.current, cubeSizeRef.current, cubeCenterRef.current,
+            const hull = projectHull(
+              vrmRoot, scene.camera,
+              bboxRef.current, cornersRef.current,
+              cubeSizeRef.current, cubeCenterRef.current,
             );
-            // Update 3D debug wireframe
-            if (scene.scene) {
-              if (!debugBoxRef.current) {
-                debugBoxRef.current = new THREE.Box3Helper(debugBboxRef.current, new THREE.Color(0x6c5ce7));
-                scene.scene.add(debugBoxRef.current);
-              }
-              debugBboxRef.current.copy(bboxRef.current);
-              debugBoxRef.current.updateMatrixWorld(true);
-            }
 
-            // Expose hitbox NDC for debug overlay
-            setHitbox({
-              minX: ndcMinRef.current.x,
-              minY: ndcMinRef.current.y,
-              maxX: ndcMaxRef.current.x,
-              maxY: ndcMaxRef.current.y,
-            });
+            if (hull) {
+              hit = pointInConvexHull(hull, ndcX, ndcY);
+              setHitboxHull(hull);
+
+              // Update 3D debug wireframe
+              if (scene.scene) {
+                if (!debugBoxRef.current) {
+                  debugBoxRef.current = new THREE.Box3Helper(debugBboxRef.current, new THREE.Color(0x6c5ce7));
+                  scene.scene.add(debugBoxRef.current);
+                }
+                debugBboxRef.current.copy(bboxRef.current);
+                debugBoxRef.current.updateMatrixWorld(true);
+              }
+            }
           }
 
-          // Fullscreen state machine:
-          // On hitbox + no button → activate (can interact with avatar)
-          // Off hitbox → deactivate immediately (clicks pass to desktop)
           if (hit && !buttonPressed) {
             if (!activatedRef.current) {
               activatedRef.current = true;
@@ -182,7 +223,6 @@ export function useClickThrough(
               void setIgnoreCursor(invoke, false);
             }
           } else if (!hit && !buttonPressed) {
-            // Only release when no button is held (don't drop mid-drag)
             if (activatedRef.current) {
               activatedRef.current = false;
               setHovered(false);
@@ -201,7 +241,6 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
-      // Remove debug box
       if (debugBoxRef.current) {
         debugBoxRef.current.parent?.remove(debugBoxRef.current);
         debugBoxRef.current.dispose();
@@ -210,35 +249,30 @@ export function useClickThrough(
     };
   }, []);
 
-  return { hovered, hitbox };
+  return { hovered, hitboxHull };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── 3D → 2D projection ──────────────────────────────────────────────────────
 
 /**
- * Project the VRM bounding box to NDC and test cursor hit.
- * Uses the model AABB with
- * X halved for T-pose, Z matched to X, Y untouched.
+ * Project the shrunk bounding box corners to NDC and return their convex hull.
+ * T-pose compensation: X halved, Z = X, Y untouched.
  */
-function testBboxHit(
+function projectHull(
   obj: THREE.Object3D,
   camera: THREE.PerspectiveCamera,
-  ndcX: number,
-  ndcY: number,
   bbox: THREE.Box3,
-  ndcMin: THREE.Vector3,
-  ndcMax: THREE.Vector3,
   corners: THREE.Vector3[],
   cubeSize: THREE.Vector3,
   cubeCenter: THREE.Vector3,
-): boolean {
+): Point2D[] | null {
   bbox.setFromObject(obj);
-  if (bbox.isEmpty()) return false;
+  if (bbox.isEmpty()) return null;
 
   // T-pose compensation: halve X, use same length for Z, keep Y as-is.
   const size = bbox.getSize(cubeSize);
   const center = bbox.getCenter(cubeCenter);
-  const halfX = size.x / 4; // half of T-pose width
+  const halfX = size.x / 4;
   bbox.min.set(center.x - halfX, bbox.min.y, center.z - halfX);
   bbox.max.set(center.x + halfX, bbox.max.y, center.z + halfX);
 
@@ -252,16 +286,11 @@ function testBboxHit(
   corners[6].set(max.x, max.y, min.z);
   corners[7].set(max.x, max.y, max.z);
 
-  ndcMin.set(Infinity, Infinity, 0);
-  ndcMax.set(-Infinity, -Infinity, 0);
-
+  const projected: Point2D[] = [];
   for (const corner of corners) {
     corner.project(camera);
-    ndcMin.x = Math.min(ndcMin.x, corner.x);
-    ndcMin.y = Math.min(ndcMin.y, corner.y);
-    ndcMax.x = Math.max(ndcMax.x, corner.x);
-    ndcMax.y = Math.max(ndcMax.y, corner.y);
+    projected.push({ x: corner.x, y: corner.y });
   }
 
-  return ndcX >= ndcMin.x && ndcX <= ndcMax.x && ndcY >= ndcMin.y && ndcY <= ndcMax.y;
+  return convexHull(projected);
 }
