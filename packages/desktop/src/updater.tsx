@@ -14,6 +14,31 @@ type UpdateState =
   | { status: 'ready'; version: string }
   | { status: 'error'; message: string };
 
+const pillStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  padding: '6px 14px',
+  background: 'rgba(10, 10, 15, 0.85)',
+  backdropFilter: 'blur(8px)',
+  border: '1px solid var(--color-border, rgba(255,255,255,0.1))',
+  borderRadius: 20,
+  fontSize: 11,
+  fontFamily: 'var(--font-mono, monospace)',
+  letterSpacing: '0.03em',
+  color: 'rgba(232, 232, 240, 0.8)',
+  whiteSpace: 'nowrap' as const,
+};
+
+const barTrackStyle: React.CSSProperties = {
+  width: 120,
+  height: 3,
+  borderRadius: 2,
+  background: 'rgba(255,255,255,0.1)',
+  overflow: 'hidden',
+  flexShrink: 0,
+};
+
 export function Updater() {
   const [state, setState] = useState<UpdateState>({ status: 'idle' });
 
@@ -53,14 +78,12 @@ export function Updater() {
           setState({ status: 'ready', version: update.version });
         }
       } catch (err) {
-        // Silently log — updater errors are not actionable for the user
         if (!cancelled) {
           console.warn('[Updater] Check failed:', err);
         }
       }
     }
 
-    // Delay check by 3s so the app loads first
     const timer = setTimeout(checkForUpdate, 3000);
     return () => {
       cancelled = true;
@@ -73,43 +96,21 @@ export function Updater() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 12,
-      left: 12,
-      right: 12,
+      top: 48,
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 10000,
       pointerEvents: 'auto',
     }}>
-      <div
-        data-no-drag
-        style={{
-          background: 'rgba(10, 10, 15, 0.9)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(108, 92, 231, 0.4)',
-          borderRadius: 10,
-          padding: '10px 14px',
-          fontSize: '0.8rem',
-          color: 'rgba(232, 232, 240, 0.9)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-        }}
-      >
+      <div data-no-drag style={pillStyle}>
         {state.status === 'available' && (
-          <span>Update v{state.version} found...</span>
+          <span>update v{state.version} found...</span>
         )}
 
         {state.status === 'downloading' && (
           <>
-            <span>Downloading update...</span>
-            <div style={{
-              flex: 1,
-              maxWidth: 120,
-              height: 4,
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: 2,
-              overflow: 'hidden',
-            }}>
+            <span>downloading update...</span>
+            <div style={barTrackStyle}>
               <div style={{
                 width: `${Math.round(state.progress * 100)}%`,
                 height: '100%',
@@ -130,21 +131,22 @@ export function Updater() {
                 background: 'var(--color-accent, #6c5ce7)',
                 color: '#fff',
                 border: 'none',
-                borderRadius: 6,
-                padding: '4px 12px',
-                fontSize: '0.75rem',
+                borderRadius: 10,
+                padding: '3px 10px',
+                fontSize: 11,
                 fontWeight: 600,
                 cursor: 'pointer',
+                fontFamily: 'var(--font-mono, monospace)',
               }}
             >
-              Restart
+              restart
             </button>
           </>
         )}
 
         {state.status === 'error' && (
           <span style={{ color: 'rgba(231, 76, 60, 0.8)' }}>
-            Update failed: {state.message}
+            update failed
           </span>
         )}
       </div>
