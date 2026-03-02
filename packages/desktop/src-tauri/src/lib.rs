@@ -1,8 +1,5 @@
 use mouse_position::mouse_position::Mouse;
 use device_query::{DeviceQuery, DeviceState, MouseState};
-use std::sync::LazyLock;
-
-static DEVICE_STATE: LazyLock<DeviceState> = LazyLock::new(DeviceState::new);
 
 #[tauri::command]
 fn get_cursor_position() -> Option<(i32, i32)> {
@@ -15,8 +12,8 @@ fn get_cursor_position() -> Option<(i32, i32)> {
 /// Returns true if any mouse button is currently pressed.
 #[tauri::command]
 fn is_mouse_button_pressed() -> bool {
-    let mouse: MouseState = DEVICE_STATE.get_mouse();
-    // mouse.button_pressed is a Vec<bool> — index 1=left, 2=right, 3=middle
+    let device_state = DeviceState::new();
+    let mouse: MouseState = device_state.get_mouse();
     mouse.button_pressed.iter().skip(1).any(|&b| b)
 }
 
@@ -25,7 +22,8 @@ fn is_mouse_button_pressed() -> bool {
 fn get_cursor_state() -> Option<(i32, i32, bool)> {
     match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => {
-            let mouse: MouseState = DEVICE_STATE.get_mouse();
+            let device_state = DeviceState::new();
+            let mouse: MouseState = device_state.get_mouse();
             let pressed = mouse.button_pressed.iter().skip(1).any(|&b| b);
             Some((x, y, pressed))
         }
