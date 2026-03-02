@@ -4,6 +4,7 @@ import { useStore } from './state/store.ts';
 import { TokenSetup } from './token-setup.tsx';
 import { ModelPickerOverlay } from './model-picker-overlay.tsx';
 import { AvatarCanvas, WsContext } from './avatar/avatar-canvas.tsx';
+import type { AvatarScene } from '@project-avatar/avatar-engine';
 import type { WsContextValue } from './avatar/avatar-canvas.tsx';
 import { StatusBadge } from './components/status-badge.tsx';
 import { SettingsDrawer } from './components/settings-drawer.tsx';
@@ -74,7 +75,14 @@ const connectingPillStyle: React.CSSProperties = {
  * even across WS reconnects. No wsReady state needed; the ref is the source
  * of truth and the warning covers the not-ready case.
  */
-export function App() {
+export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor, activated }: {
+  onScene?: (scene: AvatarScene | null) => void;
+  cursorPollMs?: number;
+  externalCursorPoll?: boolean;
+  onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
+  /** Desktop click-through: when true, UI elements stay visible. */
+  activated?: boolean;
+} = {}) {
   const token                  = useStore((s) => s.token);
   const modelId                = useStore((s) => s.modelId);
   const theme                  = useStore((s) => s.theme);
@@ -84,7 +92,9 @@ export function App() {
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
   // Auto-hide UI overlays after 5s of mouse inactivity
-  const uiVisible = useIdleHide(1000);
+  const idleVisible = useIdleHide(1000);
+  // When desktop click-through is activated, force UI visible
+  const uiVisible = activated ?? idleVisible;
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.
@@ -163,7 +173,7 @@ export function App() {
   return (
     <WsContext.Provider value={wsContextValue}>
       <div style={avatarContainerStyle}>
-        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} renderScale={renderScale} />
+        <AvatarCanvas onSendSetModel={handleSendSetModelReady} onStateMachine={handleStateMachine} onEffectsManager={handleEffectsManager} onScene={onScene} cursorPollMs={cursorPollMs} externalCursorPoll={externalCursorPoll} onProjectCursor={onProjectCursor} renderScale={renderScale} />
 
         {showPicker && <ModelPickerOverlay />}
 

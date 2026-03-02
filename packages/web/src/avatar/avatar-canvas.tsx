@@ -52,10 +52,18 @@ const clipRegistry = new ClipRegistry(clipsData as unknown as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, renderScale = 2 }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, onScene, cursorPollMs, externalCursorPoll, onProjectCursor, renderScale = 2 }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
   onStateMachine?: (sm: StateMachine | null) => void;
   onEffectsManager?: (em: EffectsManager | null) => void;
+  /** Callback with the AvatarScene instance (exposes camera, scene, VRM root). */
+  onScene?: (scene: AvatarScene | null) => void;
+  /** Override Tauri cursor poll interval in ms (default: 32). */
+  cursorPollMs?: number;
+  /** When true, skip built-in Tauri cursor polling (external consumer drives it). */
+  externalCursorPoll?: boolean;
+  /** Callback to receive the projectCursor function for external cursor input. */
+  onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
@@ -87,6 +95,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
+    onScene?.(avatarScene);
 
     // Eye lookAt proxy — blends between camera and cursor position
     const lookAtProxy = new THREE.Object3D();
@@ -205,6 +214,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           });
           if (cancelled) return;
           vrmManager.setLookAtTarget(lookAtProxy);
+          avatarScene.setVrmRoot(vrm.scene);
           // Dynamic framing: zoomed out → body center, zoomed in → face
           avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
           setupControllers(vrm);
@@ -228,7 +238,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const EYE_LERP_SPEED = 3;      // eye follow responsiveness
     const EYE_BYPASS_SPEED = 2.0;  // speed when head tracking bypassed
     const NDC_CLAMP = 2;           // clamp NDC range for offscreen cursor
-    const CURSOR_POLL_MS = 32;     // ~30Hz desktop cursor polling
+    const CURSOR_POLL_MS = cursorPollMs ?? 32;     // configurable cursor polling rate
 
     const cursorTarget = new THREE.Vector3();
     let lastCursorMove = 0;
@@ -299,6 +309,9 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       }
     };
 
+    // Expose projectCursor to external consumers
+    onProjectCursor?.(projectCursor);
+
     const onMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       projectCursor(
@@ -318,8 +331,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseleave', onMouseLeave);
 
-    // Try Tauri global cursor — probe with real invoke before committing
-    import('@tauri-apps/api/core').then(async ({ invoke }) => {
+    // Try Tauri global cursor — skip if external consumer handles it
+    if (!externalCursorPoll) import('@tauri-apps/api/core').then(async ({ invoke }) => {
       if (cancelled) return;
       try {
         await invoke<[number, number] | null>('get_cursor_position');
@@ -363,6 +376,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       document.removeEventListener('mouseleave', onMouseLeave);
       avatarScene.scene.remove(lookAtProxy);
       cancelled = true;
+      onProjectCursor?.(null);
+      onScene?.(null);
       onStateMachine?.(null);
       onEffectsManager?.(null);
       stateMachineRef.current?.dispose();
@@ -375,7 +390,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       assetResolverRef.current = null;
       sceneRef.current = null;
     };
-  }, [modelUrl, assetBaseUrl, setAvatarState]);
+  }, [modelUrl, assetBaseUrl, setAvatarState]); // onScene, cursorPollMs, externalCursorPoll, onProjectCursor intentionally excluded — they are consumed once during setup; adding them would re-create the entire scene
 
   // Sync render scale (pixel ratio)
   useEffect(() => {

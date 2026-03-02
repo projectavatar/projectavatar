@@ -1,4 +1,8 @@
 use mouse_position::mouse_position::Mouse;
+use device_query::{DeviceQuery, DeviceState, MouseState};
+use std::sync::LazyLock;
+
+static DEVICE_STATE: LazyLock<DeviceState> = LazyLock::new(DeviceState::new);
 
 #[tauri::command]
 fn get_cursor_position() -> Option<(i32, i32)> {
@@ -8,11 +12,36 @@ fn get_cursor_position() -> Option<(i32, i32)> {
     }
 }
 
+/// Returns true if any mouse button is currently pressed.
+#[tauri::command]
+fn is_mouse_button_pressed() -> bool {
+    let mouse: MouseState = DEVICE_STATE.get_mouse();
+    // mouse.button_pressed is a Vec<bool> — index 1=left, 2=right, 3=middle
+    mouse.button_pressed.iter().skip(1).any(|&b| b)
+}
+
+/// Combines cursor position + button state in a single IPC call.
+#[tauri::command]
+fn get_cursor_state() -> Option<(i32, i32, bool)> {
+    match Mouse::get_mouse_position() {
+        Mouse::Position { x, y } => {
+            let mouse: MouseState = DEVICE_STATE.get_mouse();
+            let pressed = mouse.button_pressed.iter().skip(1).any(|&b| b);
+            Some((x, y, pressed))
+        }
+        Mouse::Error => None,
+    }
+}
+
+#[tauri::command]
+fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), String> {
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Force WebView2 transparent background via environment variable.
-    // This must be set BEFORE the webview is created.
-    // See: https://github.com/MicrosoftEdge/WebView2Feedback/issues/2899
     #[cfg(target_os = "windows")]
     std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
 
@@ -20,17 +49,17 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![get_cursor_position])
+        .invoke_handler(tauri::generate_handler![
+            get_cursor_position,
+            set_ignore_cursor_events,
+            is_mouse_button_pressed,
+            get_cursor_state,
+        ])
         .setup(|_app| {
-            // Workaround: WebView2 on Windows doesn't apply transparency until a
-            // resize event forces it to repaint. Nudging the window size by 1px
-            // and restoring it triggers the repaint without any visible flicker.
-            // See: https://github.com/tauri-apps/tauri/issues/8133
             #[cfg(target_os = "windows")]
             {
                 use tauri::Manager;
                 if let Some(window) = _app.get_webview_window("main") {
-                    // Fallback matches tauri.conf.json default (400×600)
                     let size = window.outer_size().unwrap_or(tauri::PhysicalSize {
                         width: 400,
                         height: 600,

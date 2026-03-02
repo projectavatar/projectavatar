@@ -1,6 +1,6 @@
 [package]
 name = "project-avatar-desktop"
-version = "0.6.0"
+version = "0.6.1"
 description = "Project Avatar — Desktop"
 authors = ["linh-n"]
 edition = "2021"
@@ -20,3 +20,4 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-autostart = "2"
 mouse_position = "0.1"
+device_query = "2"
