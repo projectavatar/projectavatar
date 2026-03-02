@@ -59,49 +59,25 @@ async function setIgnoreCursorEvents(ignore: boolean): Promise<void> {
   } catch { /* best effort */ }
 }
 
-// ─── Debug overlay rect (NDC → CSS %) ────────────────────────────────────────
-
-export interface DebugBbox {
-  /** CSS left % (0–100) */
-  left: number;
-  /** CSS top % (0–100) */
-  top: number;
-  /** CSS width % (0–100) */
-  width: number;
-  /** CSS height % (0–100) */
-  height: number;
-  /** Whether cursor is inside */
-  hit: boolean;
-}
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface ClickThroughState {
   /** Whether the cursor is over the model (UI should be visible). */
   hovered: boolean;
-  /** Debug bounding box in CSS % coordinates (only updated when debug=true). */
-  debugBbox: DebugBbox | null;
 }
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
-  /** Enable debug overlay data. */
-  debug = false,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
-  const [debugBbox, setDebugBbox] = useState<DebugBbox | null>(null);
-
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
 
-  const debugRef = useRef(debug);
-  debugRef.current = debug;
 
-  // 3D wireframe box — added to the Three.js scene for debug visualization
-  const boxHelperRef = useRef<THREE.Box3Helper | null>(null);
 
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoveredRef = useRef(false);
+  const clickThroughRef = useRef(true);
 
   // Reusable THREE objects (avoid GC)
   const bboxRef = useRef(new THREE.Box3());
@@ -111,27 +87,27 @@ export function useClickThrough(
     Array.from({ length: 8 }, () => new THREE.Vector3()),
   );
 
-  const enterModel = useCallback(() => {
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
+  /** Mouse entered the window — capture all events. */
+  const enterWindow = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
     }
-    if (!hoveredRef.current) {
-      hoveredRef.current = true;
-      setHovered(true);
+    if (clickThroughRef.current) {
+      clickThroughRef.current = false;
       void setIgnoreCursorEvents(false);
     }
   }, []);
 
-  const leaveModel = useCallback(() => {
-    if (hideTimerRef.current) return; // already scheduled
-    hideTimerRef.current = setTimeout(() => {
-      hideTimerRef.current = null;
-      if (hoveredRef.current) {
-        hoveredRef.current = false;
-        setHovered(false);
-        void setIgnoreCursorEvents(true);
-      }
+  /** Mouse left the window — start 1s timeout then release. */
+  const leaveWindow = useCallback(() => {
+    if (leaveTimerRef.current) return; // already scheduled
+    leaveTimerRef.current = setTimeout(() => {
+      leaveTimerRef.current = null;
+      clickThroughRef.current = true;
+      hoveredRef.current = false;
+      setHovered(false);
+      void setIgnoreCursorEvents(true);
     }, HIDE_TIMEOUT_MS);
   }, []);
 
@@ -169,57 +145,29 @@ export function useClickThrough(
           const ndcX = (localX / w) * 2 - 1;
           const ndcY = -((localY / h) * 2 - 1);
 
-          // Hit test — find the VRM root in the scene (first visible Group child)
-          const vrmRoot = findVrmRoot(scene.scene);
-          if (!vrmRoot) return;
+          // Check if cursor is inside the window
+          const insideWindow = localX >= 0 && localX <= w && localY >= 0 && localY <= h;
 
-          const hit = testBboxHit(
-            vrmRoot, scene.camera, ndcX, ndcY,
-            bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
-          );
+          if (insideWindow) {
+            enterWindow();
 
-          // Update 3D wireframe box in the scene
-          if (debugRef.current && scene) {
-            if (!boxHelperRef.current) {
-              const helper = new THREE.Box3Helper(bboxRef.current, new THREE.Color(0x00ff88));
-              const mat = helper.material as THREE.LineBasicMaterial;
-              mat.transparent = true;
-              mat.opacity = 0.5;
-              mat.depthTest = false;
-              boxHelperRef.current = helper;
-              scene.scene.add(boxHelperRef.current);
+            // Hit test controls UI visibility (chrome border/buttons)
+            const vrmRoot = findVrmRoot(scene.scene);
+            if (vrmRoot) {
+              const hit = testBboxHit(
+                vrmRoot, scene.camera, ndcX, ndcY,
+                bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
+              );
+              if (hit && !hoveredRef.current) {
+                hoveredRef.current = true;
+                setHovered(true);
+              } else if (!hit && hoveredRef.current) {
+                hoveredRef.current = false;
+                setHovered(false);
+              }
             }
-            // Update box geometry — Box3Helper reads from its .box reference
-            boxHelperRef.current.box.copy(bboxRef.current);
-            boxHelperRef.current.updateMatrixWorld(true);
-            // Color: green when hit, red when miss
-            const color = hit ? 0x00ff88 : 0xff4444;
-            ((boxHelperRef.current.material as THREE.LineBasicMaterial).color).setHex(color);
-          }
-
-          // Update 2D debug bbox overlay
-          if (debugRef.current) {
-            const nMin = ndcMinRef.current;
-            const nMax = ndcMaxRef.current;
-            // NDC (-1..1) → CSS % (0..100)
-            const left   = ((nMin.x + 1) / 2) * 100;
-            const right  = ((nMax.x + 1) / 2) * 100;
-            // NDC Y is flipped vs CSS (NDC +1 = top, CSS 0% = top)
-            const top    = ((1 - nMax.y) / 2) * 100;
-            const bottom = ((1 - nMin.y) / 2) * 100;
-            setDebugBbox({
-              left,
-              top,
-              width: right - left,
-              height: bottom - top,
-              hit,
-            });
-          }
-
-          if (hit) {
-            enterModel();
           } else {
-            leaveModel();
+            leaveWindow();
           }
         } catch { /* poll error — skip */ }
       };
@@ -232,19 +180,13 @@ export function useClickThrough(
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      // Remove debug 3D box
-      if (boxHelperRef.current) {
-        boxHelperRef.current.removeFromParent();
-        boxHelperRef.current.dispose();
-        boxHelperRef.current = null;
-      }
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
       // Restore normal cursor events on cleanup
       void setIgnoreCursorEvents(false);
     };
-  }, [enterModel, leaveModel]);
+  }, [enterWindow, leaveWindow]);
 
-  return { hovered, debugBbox: debug ? debugBbox : null };
+  return { hovered };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
