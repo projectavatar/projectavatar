@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { App } from '../../web/src/app.tsx';
 import { useStore } from '../../web/src/state/store.ts';
-import { WindowChrome } from './window-chrome.tsx';
+import { useEscapeClose } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 import { useClickThrough, CURSOR_POLL_MS } from './use-click-through.ts';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
@@ -37,13 +37,16 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
-  // Signal Rust that frontend is ready — show window + enable click-through
+  // Signal Rust that frontend is ready — expand 1×1 window to fullscreen.
+  // The 200ms delay ensures:
+  // 1. First transparent frame is rendered (no flash)
+  // 2. useClickThrough hook has initialized and set click-through ON
   useEffect(() => {
     let cancelled = false;
     const signal = async () => {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 200));
         if (!cancelled) {
           await invoke('frontend_ready');
         }
@@ -53,14 +56,15 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
-  // Bridge: tray "Settings" menu item
+  // Listen for tray "Settings" menu event from Rust
   useEffect(() => {
-    (window as any).__trayOpenSettings = () => {
-      setSettingsOpen(true);
-    };
-    return () => {
-      delete (window as any).__trayOpenSettings;
-    };
+    let unlisten: (() => void) | null = null;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('tray-open-settings', () => {
+        setSettingsOpen(true);
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => { /* Not in Tauri runtime */ });
+    return () => { unlisten?.(); };
   }, [setSettingsOpen]);
 
   useEffect(() => {
@@ -68,6 +72,9 @@ export function DesktopApp() {
     window.addEventListener('contextmenu', handler);
     return () => window.removeEventListener('contextmenu', handler);
   }, []);
+
+  // Double-tap Escape to close
+  useEscapeClose();
 
   // Cursor: grab on hover (but not when settings is open)
   useEffect(() => {
@@ -85,7 +92,6 @@ export function DesktopApp() {
         activated={hovered}
         hideSettings
       />
-      <WindowChrome />
       <Updater />
     </>
   );

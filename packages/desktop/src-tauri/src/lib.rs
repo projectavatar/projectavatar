@@ -3,7 +3,7 @@ use device_query::{DeviceQuery, DeviceState, MouseState};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager,
+    Emitter, AppHandle, Manager,
 };
 
 #[tauri::command]
@@ -47,39 +47,42 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
 /// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Expand to primary monitor
-    if let Ok(Some(monitor)) = window.primary_monitor() {
-        let size = monitor.size();
-        let pos = monitor.position();
-        let _ = window.set_position(tauri::Position::Physical(
-            tauri::PhysicalPosition { x: pos.x, y: pos.y },
-        ));
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-            width: size.width,
-            height: size.height,
-        }));
-    }
+    // Expand to primary monitor, fallback to 1920×1080 at (0,0)
+    let (width, height, x, y) = match window.primary_monitor() {
+        Ok(Some(monitor)) => {
+            let size = monitor.size();
+            let pos = monitor.position();
+            (size.width, size.height, pos.x, pos.y)
+        }
+        _ => (1920, 1080, 0, 0),
+    };
 
-    // Hide from taskbar (after resize so it doesn't flash)
+    window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+        .map_err(|e| e.to_string())?;
+
+    // Hide from taskbar
     let _ = window.set_skip_taskbar(true);
 
     // Enable click-through
-    window.set_ignore_cursor_events(true).map_err(|e| e.to_string())?;
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|e| e.to_string())?;
 
     // Windows transparency workaround
     #[cfg(target_os = "windows")]
     {
-        let size = window.outer_size().unwrap_or(tauri::PhysicalSize {
-            width: 400,
-            height: 600,
-        });
+        let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width, height });
         if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-            width: size.width + 1,
-            height: size.height + 1,
+            width: current.width + 1,
+            height: current.height + 1,
         })) {
             eprintln!("transparency workaround: nudge failed: {e}");
         }
-        if let Err(e) = window.set_size(tauri::Size::Physical(size)) {
+        if let Err(e) = window.set_size(tauri::Size::Physical(current)) {
             eprintln!("transparency workaround: restore failed: {e}");
         }
     }
@@ -95,7 +98,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             get_cursor_position,
             set_ignore_cursor_events,
@@ -105,20 +111,25 @@ pub fn run() {
         ])
         .setup(|app| {
             // ── System tray ──────────────────────────────────────────────
-            let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let settings_item =
+                MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
 
+            let icon = app
+                .default_window_icon()
+                .cloned()
+                .expect("default window icon must be set in tauri.conf.json");
+
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(icon)
                 .tooltip("Project Avatar")
                 .menu(&menu)
                 .on_menu_event(|app_handle: &AppHandle, event| {
                     match event.id.as_ref() {
                         "settings" => {
-                            if let Some(window) = app_handle.get_webview_window("main") {
-                                let _ = window.eval("window.__trayOpenSettings?.()");
-                            }
+                            // Emit a Tauri event that the frontend listens for
+                            let _ = app_handle.emit("tray-open-settings", ());
                         }
                         "quit" => {
                             app_handle.exit(0);

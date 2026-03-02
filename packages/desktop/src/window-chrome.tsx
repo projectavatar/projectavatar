@@ -1,18 +1,13 @@
 /**
- * WindowChrome — minimal overlay for fullscreen desktop mode.
- *
- * All visible chrome (grip, pin, close, resize handles, dashed border)
- * has been removed. Settings and quit live in the system tray.
- *
- * Escape (double-tap) still closes the window as a safety hatch.
+ * useEscapeClose — double-tap Escape to close the window.
+ * Safety hatch for fullscreen mode.
  */
 import { useEffect, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-export function WindowChrome() {
+export function useEscapeClose() {
   const lastEscapeRef = useRef(0);
 
-  // ── Escape to close (double-tap within 500ms) ──────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -25,6 +20,4 @@ export function WindowChrome() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-
-  return null;
 }

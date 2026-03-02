@@ -67,6 +67,9 @@ function convexHull(points: Point2D[]): Point2D[] {
   const cross = (o: Point2D, a: Point2D, b: Point2D) =>
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
+  // Build lower and upper hulls. Using <= 0 (not < 0) to exclude
+  // collinear points — safe for bounding box corners where duplicates
+  // on edges are expected.
   const lower: Point2D[] = [];
   for (const p of sorted) {
     while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
@@ -119,7 +122,12 @@ export interface ClickThroughState {
 export function useClickThrough(
   avatarScene: AvatarScene | null,
   onCursorNdc?: (ndcX: number, ndcY: number) => void,
-  /** Force click-through OFF (e.g. settings drawer open). */
+  /**
+   * Force click-through OFF regardless of hitbox state.
+   * Used when UI overlays (settings drawer) need mouse interaction.
+   * When true: click-through disabled, hovered=true.
+   * When false/undefined: normal hitbox-based state machine.
+   */
   forceActive?: boolean,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
