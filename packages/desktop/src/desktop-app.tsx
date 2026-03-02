@@ -68,22 +68,10 @@ export function DesktopApp() {
     return () => window.removeEventListener('contextmenu', handler);
   }, []);
 
-  // Cursor: grab on hover, grabbing while dragging
+  // Cursor: grab on hover
   useEffect(() => {
-    if (!hovered) {
-      document.body.style.cursor = 'default';
-      return () => { document.body.style.cursor = ''; };
-    }
-    document.body.style.cursor = 'grab';
-    const onDown = () => { document.body.style.cursor = 'grabbing'; };
-    const onUp = () => { document.body.style.cursor = hovered ? 'grab' : 'default'; };
-    window.addEventListener('mousedown', onDown, { capture: true });
-    window.addEventListener('mouseup', onUp, { capture: true });
-    return () => {
-      window.removeEventListener('mousedown', onDown, { capture: true });
-      window.removeEventListener('mouseup', onUp, { capture: true });
-      document.body.style.cursor = '';
-    };
+    document.body.style.cursor = hovered ? 'grab' : 'default';
+    return () => { document.body.style.cursor = ''; };
   }, [hovered]);
 
   return (
