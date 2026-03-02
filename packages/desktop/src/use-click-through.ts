@@ -272,7 +272,8 @@ function findVrmRoot(scene: THREE.Scene): THREE.Object3D | null {
  * Project the object's world-space bounding box to NDC and check if
  * the cursor (ndcX, ndcY) falls within it (with padding).
  */
-const _meshBox = new THREE.Box3();
+const _cubeSize = new THREE.Vector3();
+const _cubeCenter = new THREE.Vector3();
 
 function testBboxHit(
   obj: THREE.Object3D,
@@ -284,26 +285,17 @@ function testBboxHit(
   ndcMax: THREE.Vector3,
   corners: THREE.Vector3[],
 ): boolean {
-  // Only include visible SkinnedMesh children — setFromObject picks up
-  // invisible helpers, colliders, and overlay meshes that inflate the box.
-  // Use SkinnedMesh.computeBoundingBox() which accounts for bone transforms
-  // (rest-pose geometry.boundingBox would give T-pose dimensions).
-  bbox.makeEmpty();
-  obj.traverse((child) => {
-    if (
-      (child as THREE.SkinnedMesh).isSkinnedMesh &&
-      child.visible
-    ) {
-      const mesh = child as THREE.SkinnedMesh;
-      // computeBoundingBox() on SkinnedMesh applies bone transforms to vertices
-      mesh.computeBoundingBox();
-      const meshBox = mesh.geometry.boundingBox;
-      if (meshBox) {
-        bbox.union(meshBox);
-      }
-    }
-  });
+  bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
+
+  // Expand AABB into a cube (longest axis) so the hitbox is
+  // consistent regardless of camera angle.
+  const size = bbox.getSize(_cubeSize);
+  const maxSide = Math.max(size.x, size.y, size.z);
+  const center = bbox.getCenter(_cubeCenter);
+  const half = maxSide / 2;
+  bbox.min.set(center.x - half, center.y - half, center.z - half);
+  bbox.max.set(center.x + half, center.y + half, center.z + half);
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
