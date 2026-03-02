@@ -76,19 +76,13 @@ export function DesktopApp() {
 
   return (
     <>
-      <div style={{
-        width: '100%',
-        height: '100%',
-        filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4))',
-      }}>
-        <App
-          onScene={handleScene}
-          cursorPollMs={CURSOR_POLL_MS}
-          externalCursorPoll
-          onProjectCursor={handleProjectCursor}
-          activated={hovered}
-        />
-      </div>
+      <App
+        onScene={handleScene}
+        cursorPollMs={CURSOR_POLL_MS}
+        externalCursorPoll
+        onProjectCursor={handleProjectCursor}
+        activated={hovered}
+      />
       <WindowChrome />
       <Updater />
     </>
