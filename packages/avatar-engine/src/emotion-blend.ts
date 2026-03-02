@@ -69,7 +69,7 @@ export const NEUTRAL_WEIGHTS: ReadonlyMap<PrimaryEmotion, number> = new Map<Prim
 const NEUTRAL_COLOR = new THREE.Color(0.9, 0.9, 0.85); // soft warm white
 
 /** Threshold: weights at or below this are considered "at neutral floor". */
-const NEUTRAL_THRESHOLD = 0.12;
+const NEUTRAL_THRESHOLD = 0.15;
 
 /** Create a fresh neutral blend. Always returns a new object — safe to mutate. */
 export function createNeutralBlend(): ResolvedBlend {
@@ -163,7 +163,11 @@ export function resolveBlendFromWeights(
   let maxWeight = 0;
   let hasAboveNeutral = false;
 
-  for (const [emotion, weight] of weights) {
+  // Iterate PRIMARY_EMOTIONS (not Map order) for consistent tie-breaking:
+  // positive emotions win ties (joy > sadness > anger > ...).
+  for (const emotion of PRIMARY_EMOTIONS) {
+    const weight = weights.get(emotion);
+    if (weight === undefined) continue;
     if (weight > NEUTRAL_THRESHOLD) hasAboveNeutral = true;
     if (weight > maxWeight) {
       maxWeight = weight;
@@ -224,7 +228,8 @@ function _computeBlendedColor(weights: Map<PrimaryEmotion, number>): THREE.Color
  * Higher = faster decay. At 0.3, a "high" (1.0) emotion reaches
  * neutral floor (~0.1) in roughly 8 seconds.
  */
-const DECAY_RATE = 0.3;
+const DECAY_RATE = 0.5;
+const SNAP_RATE = 5.0;
 
 /**
  * EmotionDecay — per-frame decay of emotion weights toward neutral baseline.
@@ -241,6 +246,9 @@ export class EmotionDecay {
   private _decaying = false;
   private _colorOverride: string | undefined;
   private _currentBlend: ResolvedBlend;
+
+  /** Scratch map reused per update to avoid per-frame allocation. */
+  private _scratchWeights = new Map<PrimaryEmotion, number>();
 
   constructor() {
     // Start at neutral
@@ -300,9 +308,9 @@ export class EmotionDecay {
    * Returns true if the blend changed (so callers know to re-dispatch).
    */
   update(delta: number): boolean {
-    const speed = this._decaying ? DECAY_RATE : 5.0; // snap to target fast, decay slowly
+    const speed = this._decaying ? DECAY_RATE : SNAP_RATE; // snap to target fast, decay slowly
     const factor = 1 - Math.exp(-speed * delta);
-    let changed = false;
+    let moving = false;
 
     // Gather all emotions that need processing
     const allEmotions = new Set<PrimaryEmotion>();
@@ -312,28 +320,34 @@ export class EmotionDecay {
     for (const emotion of allEmotions) {
       const current = this.currentWeights.get(emotion) ?? 0;
       const target = this.targetWeights.get(emotion) ?? 0;
+      const gap = Math.abs(current - target);
 
+      if (gap < 0.001) {
+        // Close enough — snap to target
+        if (target < 0.005) {
+          this.currentWeights.delete(emotion);
+        } else if (current !== target) {
+          this.currentWeights.set(emotion, target);
+          moving = true;
+        }
+        continue;
+      }
+
+      moving = true;
       const next = current + (target - current) * factor;
-
-      if (Math.abs(next - current) > 0.001) {
-        changed = true;
-      }
-
-      if (next < 0.005 && target < 0.005) {
-        this.currentWeights.delete(emotion);
-      } else {
-        this.currentWeights.set(emotion, next);
-      }
+      this.currentWeights.set(emotion, next);
     }
 
-    if (changed) {
+    if (moving) {
+      this._scratchWeights.clear();
+      for (const [e, w] of this.currentWeights) this._scratchWeights.set(e, w);
       this._currentBlend = resolveBlendFromWeights(
-        new Map(this.currentWeights),
+        this._scratchWeights,
         this._colorOverride,
       );
     }
 
-    return changed;
+    return moving;
   }
 }
 

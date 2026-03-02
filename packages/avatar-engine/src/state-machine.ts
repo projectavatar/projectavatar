@@ -156,7 +156,11 @@ export class StateMachine {
     // (initial snap handled by decay's fast interpolation)
 
     // Update body action — explicit non-idle action takes priority, otherwise infer
-    const action = event.action;
+    // Infer action from dominant emotion when action is 'idle' and emotions are active.
+    // Explicit non-idle actions always take priority.
+    // Empty emotions + idle = real idle (no inference).
+    const hasExplicitEmotions = Object.keys(event.emotions).length > 0;
+    const action = (event.action === 'idle' && hasExplicitEmotions) ? inferAction(blend) : event.action;
     if (action !== prev.action) {
       this.state.action = action;
       this.animationCtrl.playAction(action, this.state.intensity);
@@ -270,12 +274,10 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
     }
     this.idleTimer = setTimeout(() => {
-      // Don't snap to idle — start decay. Body action goes to idle immediately,
-      // but emotions decay gradually toward neutral baseline.
-      this.state.action = 'idle';
-      this.animationCtrl.playAction('idle', this.state.intensity);
+      // Start decay — emotions will gradually settle toward neutral.
+      // Don't snap action to idle immediately — let the decay-driven
+      // action inference handle the transition smoothly.
       this.decay.startDecay();
-      this.onStateChange?.(this.state);
     }, this.idleTimeoutMs);
   }
 
