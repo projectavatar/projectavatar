@@ -62,13 +62,11 @@ interface Point2D { x: number; y: number }
 function convexHull(points: Point2D[]): Point2D[] {
   if (points.length <= 3) return points.slice();
 
-  // Sort by x, then y
   const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
 
   const cross = (o: Point2D, a: Point2D, b: Point2D) =>
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
-  // Lower hull
   const lower: Point2D[] = [];
   for (const p of sorted) {
     while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
@@ -76,7 +74,6 @@ function convexHull(points: Point2D[]): Point2D[] {
     lower.push(p);
   }
 
-  // Upper hull
   const upper: Point2D[] = [];
   for (let i = sorted.length - 1; i >= 0; i--) {
     const p = sorted[i];
@@ -85,7 +82,6 @@ function convexHull(points: Point2D[]): Point2D[] {
     upper.push(p);
   }
 
-  // Remove last point of each half (it's the first of the other)
   lower.pop();
   upper.pop();
   return lower.concat(upper);
@@ -115,14 +111,9 @@ function pointInConvexHull(hull: Point2D[], px: number, py: number): boolean {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-/** Convex hull polygon in NDC for debug visualization. */
-export type HitboxHull = Point2D[];
-
 export interface ClickThroughState {
   /** True when the avatar is "activated" — UI elements should be visible. */
   hovered: boolean;
-  /** Convex hull polygon in NDC (updated every poll). */
-  hitboxHull: HitboxHull | null;
 }
 
 export function useClickThrough(
@@ -130,7 +121,6 @@ export function useClickThrough(
   onCursorNdc?: (ndcX: number, ndcY: number) => void,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
-  const [hitboxHull, setHitboxHull] = useState<HitboxHull | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
@@ -148,10 +138,6 @@ export function useClickThrough(
   const cubeSizeRef = useRef(new THREE.Vector3());
   const cubeCenterRef = useRef(new THREE.Vector3());
   const prevScreenRef = useRef<[number, number]>([-1, -1]);
-
-  // 3D debug wireframe box
-  const debugBoxRef = useRef<THREE.Box3Helper | null>(null);
-  const debugBboxRef = useRef(new THREE.Box3());
 
   useEffect(() => {
     let cancelled = false;
@@ -199,20 +185,8 @@ export function useClickThrough(
               bboxRef.current, cornersRef.current,
               cubeSizeRef.current, cubeCenterRef.current,
             );
-
             if (hull) {
               hit = pointInConvexHull(hull, ndcX, ndcY);
-              setHitboxHull(hull);
-
-              // Update 3D debug wireframe
-              if (scene.scene) {
-                if (!debugBoxRef.current) {
-                  debugBoxRef.current = new THREE.Box3Helper(debugBboxRef.current, new THREE.Color(0x6c5ce7));
-                  scene.scene.add(debugBoxRef.current);
-                }
-                debugBboxRef.current.copy(bboxRef.current);
-                debugBoxRef.current.updateMatrixWorld(true);
-              }
             }
           }
 
@@ -241,15 +215,10 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
-      if (debugBoxRef.current) {
-        debugBoxRef.current.parent?.remove(debugBoxRef.current);
-        debugBoxRef.current.dispose();
-        debugBoxRef.current = null;
-      }
     };
   }, []);
 
-  return { hovered, hitboxHull };
+  return { hovered };
 }
 
 // ─── 3D → 2D projection ──────────────────────────────────────────────────────
