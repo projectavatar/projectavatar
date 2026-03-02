@@ -4,7 +4,7 @@
 
 Project Avatar renders a 3D anime-style avatar that reacts in real-time to what your AI agent is doing. The agent thinks — the avatar thinks. The agent codes — the avatar types. The agent panics — you see it on her face.
 
-Works with any AI agent. For [OpenClaw](https://openclaw.ai) users, a plugin hooks directly into the agent lifecycle — no configuration, no output parsing, just install and go.
+For [OpenClaw](https://openclaw.ai) users, a plugin hooks directly into the agent lifecycle — no configuration, no output parsing, just install and go.
 
 Your agent finally has a body.
 
@@ -13,14 +13,14 @@ Your agent finally has a body.
 ## How It Works
 
 ```
-┌─────────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│     AI Agent         │     │   Relay Server    │     │    Avatar           │
-│  (any platform)      │     │  (Cloudflare DO)  │     │  (browser / desktop)│
+┌──────────────────────┐     ┌───────────────────┐     ┌─────────────────────┐
+│     AI Agent         │     │   Relay Server    │     │   Avatar            │
+│  (any platform)      │     │  (Cloudflare DO)  │     │ (browser / desktop) │
 │                      │     │                   │     │                     │
-│  Agent does things → │────▶│  WebSocket relay  │────▶│   3D VRM avatar     │
-│  Plugin/skill emits  │     │  fans out events  │     │   reacts in         │
-│  avatar signals      │     │                   │     │   real-time          │
-└─────────────────────┘     └──────────────────┘     └─────────────────────┘
+│  Agent does things → │────▶│  WebSocket relay  │────▶│  3D VRM avatar      │
+│  Plugin/skill emits  │     │  fans out events  │     │  reacts in          │
+│  avatar signals      │     │                   │     │  real-time          │
+└──────────────────────┘     └───────────────────┘     └─────────────────────┘
 ```
 
 1. Your AI agent runs with a plugin or skill that emits avatar signals (emotions, actions, props)
@@ -32,36 +32,26 @@ Your agent finally has a body.
 
 ## Getting Started
 
-### 1. Open the Avatar
+### 1. Install plugin
 
-Go to **[app.projectavatar.io](https://app.projectavatar.io)**
-
-A token is generated automatically. Pick your VRM model. Done.
-
-### 2. Connect Your Agent
-
-#### OpenClaw (recommended)
+#### OpenClaw
 
 ```bash
 openclaw plugins install @projectavatar/openclaw-avatar
-openclaw secrets set AVATAR_TOKEN <your-token>
 ```
 
 The plugin hooks into the agent lifecycle directly — the avatar reacts the moment a tool call starts, not after the response. No skill files, no output parsing.
 
 **Commands:**
-- `/avatar link` — get your shareable avatar URL
+
 - `/avatar status` — show connection info, model, viewer count
 
-#### Any Other Agent
 
-Give your agent the skill install URL from the avatar app:
+### 2. Open the Avatar
 
-```
-https://projectavatar.io/skill/install?token=YOUR_TOKEN
-```
+Run `/avatar` — get your shareable avatar URL
 
-Tell your agent: *"Install this as a skill."* It fetches a pre-configured SKILL.md with your token baked in. The agent learns to emit avatar signals in its output, and an output filter strips them before the user sees anything.
+Pick your VRM model. Done.
 
 ---
 
