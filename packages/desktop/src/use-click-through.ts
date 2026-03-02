@@ -286,6 +286,8 @@ function testBboxHit(
 ): boolean {
   // Only include visible SkinnedMesh children — setFromObject picks up
   // invisible helpers, colliders, and overlay meshes that inflate the box.
+  // Use SkinnedMesh.computeBoundingBox() which accounts for bone transforms
+  // (rest-pose geometry.boundingBox would give T-pose dimensions).
   bbox.makeEmpty();
   obj.traverse((child) => {
     if (
@@ -293,12 +295,11 @@ function testBboxHit(
       child.visible
     ) {
       const mesh = child as THREE.SkinnedMesh;
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      // computeBoundingBox() on SkinnedMesh applies bone transforms to vertices
+      mesh.computeBoundingBox();
       const meshBox = mesh.geometry.boundingBox;
       if (meshBox) {
-        // Transform geometry bbox to world space via the mesh's world matrix
-        _meshBox.copy(meshBox).applyMatrix4(mesh.matrixWorld);
-        bbox.union(_meshBox);
+        bbox.union(meshBox);
       }
     }
   });
