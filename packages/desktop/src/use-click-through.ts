@@ -24,7 +24,7 @@ const LEAVE_TIMEOUT_MS = 1000;
  * NDC padding around the projected bounding box.
  * Ensures the hit area covers chrome buttons and border.
  */
-const BBOX_PADDING_NDC = 0.08;
+const BBOX_PADDING_NDC = 0;
 
 // ─── Tauri interop (lazy-loaded) ──────────────────────────────────────────────
 
