@@ -52,10 +52,14 @@ const clipRegistry = new ClipRegistry(clipsData as unknown as ClipsJsonData);
 
 // ─── AvatarCanvas ─────────────────────────────────────────────────────────────
 
-export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, renderScale = 2 }: {
+export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager, onScene, cursorPollMs, renderScale = 2 }: {
   onSendSetModel?: (fn: ((modelId: string | null) => void) | null) => void;
   onStateMachine?: (sm: StateMachine | null) => void;
   onEffectsManager?: (em: EffectsManager | null) => void;
+  /** Callback with the AvatarScene instance (exposes camera, scene, VRM root). */
+  onScene?: (scene: AvatarScene | null) => void;
+  /** Override Tauri cursor poll interval in ms (default: 32). */
+  cursorPollMs?: number;
   renderScale?: number;
 }) {
   const [animationsLoaded, setAnimationsLoaded] = useState(false);
@@ -87,6 +91,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
 
     const avatarScene = new AvatarScene(canvas, { orbit: true, dev: import.meta.env.DEV });
     sceneRef.current  = avatarScene;
+    onScene?.(avatarScene);
 
     // Eye lookAt proxy — blends between camera and cursor position
     const lookAtProxy = new THREE.Object3D();
@@ -228,7 +233,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     const EYE_LERP_SPEED = 3;      // eye follow responsiveness
     const EYE_BYPASS_SPEED = 2.0;  // speed when head tracking bypassed
     const NDC_CLAMP = 2;           // clamp NDC range for offscreen cursor
-    const CURSOR_POLL_MS = 32;     // ~30Hz desktop cursor polling
+    const CURSOR_POLL_MS = cursorPollMs ?? 32;     // configurable cursor polling rate
 
     const cursorTarget = new THREE.Vector3();
     let lastCursorMove = 0;
@@ -363,6 +368,7 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       document.removeEventListener('mouseleave', onMouseLeave);
       avatarScene.scene.remove(lookAtProxy);
       cancelled = true;
+      onScene?.(null);
       onStateMachine?.(null);
       onEffectsManager?.(null);
       stateMachineRef.current?.dispose();

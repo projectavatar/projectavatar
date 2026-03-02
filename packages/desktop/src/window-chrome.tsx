@@ -82,7 +82,7 @@ const chromeBtnStyle: React.CSSProperties = {
   backdropFilter: 'blur(8px)',
 };
 
-export function WindowChrome() {
+export function WindowChrome({ hovered: externalHovered }: { hovered?: boolean } = {}) {
   // ── Round window corners ────────────────────────────────────────────
   useEffect(() => {
     const root = document.documentElement;
@@ -99,7 +99,10 @@ export function WindowChrome() {
   const lastEscapeRef = useRef(0);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const uiVisible = useIdleHide(1000);
+  const idleVisible = useIdleHide(1000);
+  // In click-through mode (externalHovered provided), UI visibility is driven
+  // by the click-through hook. Otherwise fall back to idle-hide behavior.
+  const uiVisible = externalHovered !== undefined ? externalHovered : idleVisible;
   const visible = uiVisible || resizing;
 
   // ── Sync initial alwaysOnTop state ──────────────────────────────────

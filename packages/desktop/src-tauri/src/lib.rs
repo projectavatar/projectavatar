@@ -8,6 +8,13 @@ fn get_cursor_position() -> Option<(i32, i32)> {
     }
 }
 
+#[tauri::command]
+fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), String> {
+    window
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Force WebView2 transparent background via environment variable.
@@ -20,7 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![get_cursor_position])
+        .invoke_handler(tauri::generate_handler![get_cursor_position, set_ignore_cursor_events])
         .setup(|_app| {
             // Workaround: WebView2 on Windows doesn't apply transparency until a
             // resize event forces it to repaint. Nudging the window size by 1px
