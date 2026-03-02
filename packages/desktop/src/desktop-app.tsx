@@ -12,6 +12,7 @@ import type { AvatarScene } from '@project-avatar/avatar-engine';
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
   const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
+  const settingsOpen = useStore((s) => s.settingsOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
 
@@ -25,7 +26,7 @@ export function DesktopApp() {
     projectCursorRef.current?.(ndcX, ndcY);
   }, []);
 
-  const { hovered } = useClickThrough(avatarScene, handleCursorNdc);
+  const { hovered } = useClickThrough(avatarScene, handleCursorNdc, settingsOpen);
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);

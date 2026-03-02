@@ -119,6 +119,8 @@ export interface ClickThroughState {
 export function useClickThrough(
   avatarScene: AvatarScene | null,
   onCursorNdc?: (ndcX: number, ndcY: number) => void,
+  /** Force click-through OFF (e.g. settings drawer open). */
+  forceActive?: boolean,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
 
@@ -129,6 +131,8 @@ export function useClickThrough(
   onCursorNdcRef.current = onCursorNdc;
 
   const activatedRef = useRef(false);
+  const forceActiveRef = useRef(forceActive ?? false);
+  forceActiveRef.current = forceActive ?? false;
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
@@ -190,13 +194,15 @@ export function useClickThrough(
             }
           }
 
-          if (hit && !buttonPressed) {
+          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current;
+
+          if (shouldBeActive) {
             if (!activatedRef.current) {
               activatedRef.current = true;
               setHovered(true);
               void setIgnoreCursor(invoke, false);
             }
-          } else if (!hit && !buttonPressed) {
+          } else if (!buttonPressed) {
             if (activatedRef.current) {
               activatedRef.current = false;
               setHovered(false);
