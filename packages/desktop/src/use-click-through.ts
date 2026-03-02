@@ -175,8 +175,14 @@ export function useClickThrough(
           } else {
             cancelLeave();
             if (!activatedRef.current) {
-              if (hit) {
-                // Start 1s hover timer to activate
+              // Check if a mouse button is pressed (user dragging something)
+              let buttonPressed = false;
+              try {
+                buttonPressed = await (_invoke as InvokeFn)('is_mouse_button_pressed') as boolean;
+              } catch { /* ignore */ }
+
+              if (hit && !buttonPressed) {
+                // Start 1s hover timer to activate (only if not dragging)
                 if (!hoverTimerRef.current) {
                   hoverTimerRef.current = setTimeout(() => {
                     hoverTimerRef.current = null;
@@ -184,7 +190,7 @@ export function useClickThrough(
                   }, 1000);
                 }
               } else {
-                // Left hitbox before 1s — cancel
+                // Left hitbox or button pressed — cancel hover timer
                 if (hoverTimerRef.current) {
                   clearTimeout(hoverTimerRef.current);
                   hoverTimerRef.current = null;

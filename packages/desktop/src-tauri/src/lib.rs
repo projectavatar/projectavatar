@@ -1,4 +1,5 @@
 use mouse_position::mouse_position::Mouse;
+use device_query::{DeviceQuery, DeviceState, MouseState};
 
 #[tauri::command]
 fn get_cursor_position() -> Option<(i32, i32)> {
@@ -6,6 +7,15 @@ fn get_cursor_position() -> Option<(i32, i32)> {
         Mouse::Position { x, y } => Some((x, y)),
         Mouse::Error => None,
     }
+}
+
+/// Returns true if any mouse button is currently pressed.
+#[tauri::command]
+fn is_mouse_button_pressed() -> bool {
+    let device_state = DeviceState::new();
+    let mouse: MouseState = device_state.get_mouse();
+    // mouse.button_pressed is a Vec<bool> — index 1=left, 2=right, 3=middle
+    mouse.button_pressed.iter().skip(1).any(|&b| b)
 }
 
 #[tauri::command]
@@ -27,7 +37,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![get_cursor_position, set_ignore_cursor_events])
+        .invoke_handler(tauri::generate_handler![get_cursor_position, set_ignore_cursor_events, is_mouse_button_pressed])
         .setup(|_app| {
             // Workaround: WebView2 on Windows doesn't apply transparency until a
             // resize event forces it to repaint. Nudging the window size by 1px
