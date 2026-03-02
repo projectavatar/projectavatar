@@ -72,7 +72,7 @@ pub fn run() {
                     match event.id.as_ref() {
                         "settings" => {
                             if let Some(window) = app_handle.get_webview_window("main") {
-                                let _ = window.eval_script("window.__trayOpenSettings?.()");
+                                let _ = window.eval("window.__trayOpenSettings?.()");
                             }
                         }
                         "quit" => {
