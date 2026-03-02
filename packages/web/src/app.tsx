@@ -75,9 +75,11 @@ const connectingPillStyle: React.CSSProperties = {
  * even across WS reconnects. No wsReady state needed; the ref is the source
  * of truth and the warning covers the not-ready case.
  */
-export function App({ onScene, cursorPollMs }: {
+export function App({ onScene, cursorPollMs, activated }: {
   onScene?: (scene: AvatarScene | null) => void;
   cursorPollMs?: number;
+  /** Desktop click-through: when true, UI elements stay visible. */
+  activated?: boolean;
 } = {}) {
   const token                  = useStore((s) => s.token);
   const modelId                = useStore((s) => s.modelId);
@@ -88,7 +90,9 @@ export function App({ onScene, cursorPollMs }: {
   const setSettingsOpen        = useStore((s) => s.setSettingsOpen);
 
   // Auto-hide UI overlays after 5s of mouse inactivity
-  const uiVisible = useIdleHide(1000);
+  const idleVisible = useIdleHide(1000);
+  // When desktop click-through is activated, force UI visible
+  const uiVisible = activated ?? idleVisible;
 
   // Bridge: AvatarCanvas pushes its sendSetModel here via onSendSetModel prop.
   // Reading the ref at call time means the context value never needs to change.

@@ -45,7 +45,7 @@ export function DesktopApp() {
 
   return (
     <>
-      <App onScene={handleScene} cursorPollMs={CURSOR_POLL_MS} />
+      <App onScene={handleScene} cursorPollMs={CURSOR_POLL_MS} activated={hovered} />
       <WindowChrome hovered={hovered} />
       <Updater />
     </>

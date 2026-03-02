@@ -78,6 +78,7 @@ export function useClickThrough(
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
+  const boxHelperRef = useRef<THREE.Box3Helper | null>(null);
   const ndcMinRef = useRef(new THREE.Vector3());
   const ndcMaxRef = useRef(new THREE.Vector3());
   const cornersRef = useRef<THREE.Vector3[]>(
@@ -102,6 +103,11 @@ export function useClickThrough(
       }
       activatedRef.current = true;
       setHovered(true);
+      if (boxHelperRef.current) {
+        boxHelperRef.current.removeFromParent();
+        boxHelperRef.current.dispose();
+        boxHelperRef.current = null;
+      }
       void setIgnoreCursor(false);
     };
 
@@ -173,6 +179,24 @@ export function useClickThrough(
             bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
           );
 
+          // Debug 3D wireframe
+          if (scene) {
+            if (!boxHelperRef.current) {
+              const helper = new THREE.Box3Helper(bboxRef.current, new THREE.Color(0x00ff88));
+              const mat = helper.material as THREE.LineBasicMaterial;
+              mat.transparent = true;
+              mat.opacity = 0.5;
+              mat.depthTest = false;
+              boxHelperRef.current = helper;
+              scene.scene.add(helper);
+            }
+            boxHelperRef.current.box.copy(bboxRef.current);
+            boxHelperRef.current.updateMatrixWorld(true);
+            (boxHelperRef.current.material as THREE.LineBasicMaterial).color.setHex(
+              hit ? 0x00ff88 : 0xff4444,
+            );
+          }
+
           if (hit) {
             activate();
           }
@@ -189,6 +213,11 @@ export function useClickThrough(
       cancelled = true;
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+      if (boxHelperRef.current) {
+        boxHelperRef.current.removeFromParent();
+        boxHelperRef.current.dispose();
+        boxHelperRef.current = null;
+      }
       void setIgnoreCursor(false);
     };
   }, []);
@@ -227,13 +256,15 @@ function testBboxHit(
   bbox.setFromObject(obj);
   if (bbox.isEmpty()) return false;
 
-  // Expand AABB into a cube so hitbox is consistent from every angle
+  // Expand AABB into a cube so hitbox is consistent from every angle,
+  // but shrink X by 1.5 to compensate for T-pose width inflation.
   const size = bbox.getSize(_cubeSize);
   const maxSide = Math.max(size.x, size.y, size.z);
   const center = bbox.getCenter(_cubeCenter);
   const half = maxSide / 2;
-  bbox.min.set(center.x - half, center.y - half, center.z - half);
-  bbox.max.set(center.x + half, center.y + half, center.z + half);
+  const halfX = half / 1.5;
+  bbox.min.set(center.x - halfX, center.y - half, center.z - half);
+  bbox.max.set(center.x + halfX, center.y + half, center.z + half);
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
