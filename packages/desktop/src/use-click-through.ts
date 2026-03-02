@@ -262,9 +262,9 @@ function testBboxHit(
   const maxSide = Math.max(size.x, size.y, size.z);
   const center = bbox.getCenter(_cubeCenter);
   const half = maxSide / 2;
-  const halfX = half / 1.5;
-  bbox.min.set(center.x - halfX, center.y - half, center.z - half);
-  bbox.max.set(center.x + halfX, center.y + half, center.z + half);
+  const halfXZ = half / 1.5;
+  bbox.min.set(center.x - halfXZ, center.y - half, center.z - halfXZ);
+  bbox.max.set(center.x + halfXZ, center.y + half, center.z + halfXZ);
 
   const { min, max } = bbox;
   corners[0].set(min.x, min.y, min.z);
