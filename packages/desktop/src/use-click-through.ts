@@ -62,15 +62,12 @@ async function setIgnoreCursor(ignore: boolean): Promise<void> {
 export interface ClickThroughState {
   /** True when the avatar is "activated" — chrome + UI elements should be visible. */
   hovered: boolean;
-  /** Debug 2D hitbox in CSS % coordinates. */
-  debugBbox: { left: number; top: number; width: number; height: number; hit: boolean } | null;
 }
 
 export function useClickThrough(
   avatarScene: AvatarScene | null,
 ): ClickThroughState {
   const [hovered, setHovered] = useState(false);
-  const [debugBbox, setDebugBbox] = useState<{ left: number; top: number; width: number; height: number; hit: boolean } | null>(null);
 
   const sceneRef = useRef(avatarScene);
   sceneRef.current = avatarScene;
@@ -82,7 +79,6 @@ export function useClickThrough(
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
-  const boxHelperRef = useRef<THREE.Box3Helper | null>(null);
   const ndcMinRef = useRef(new THREE.Vector3());
   const ndcMaxRef = useRef(new THREE.Vector3());
   const cornersRef = useRef<THREE.Vector3[]>(
@@ -107,11 +103,6 @@ export function useClickThrough(
       }
       activatedRef.current = true;
       setHovered(true);
-      if (boxHelperRef.current) {
-        boxHelperRef.current.removeFromParent();
-        boxHelperRef.current.dispose();
-        boxHelperRef.current = null;
-      }
       void setIgnoreCursor(false);
     };
 
@@ -171,30 +162,6 @@ export function useClickThrough(
               bboxRef.current, ndcMinRef.current, ndcMaxRef.current, cornersRef.current,
             );
 
-            // Debug 3D wireframe — always visible
-            if (!boxHelperRef.current) {
-              const helper = new THREE.Box3Helper(bboxRef.current, new THREE.Color(0x00ff88));
-              const mat = helper.material as THREE.LineBasicMaterial;
-              mat.transparent = true;
-              mat.opacity = 0.5;
-              mat.depthTest = false;
-              boxHelperRef.current = helper;
-              scene.scene.add(helper);
-            }
-            boxHelperRef.current.box.copy(bboxRef.current);
-            boxHelperRef.current.updateMatrixWorld(true);
-            (boxHelperRef.current.material as THREE.LineBasicMaterial).color.setHex(
-              hit ? 0x00ff88 : 0xff4444,
-            );
-
-            // Debug 2D overlay
-            const nMin = ndcMinRef.current;
-            const nMax = ndcMaxRef.current;
-            const left   = ((nMin.x + 1) / 2) * 100;
-            const right  = ((nMax.x + 1) / 2) * 100;
-            const top    = ((1 - nMax.y) / 2) * 100;
-            const bottom = ((1 - nMin.y) / 2) * 100;
-            setDebugBbox({ left, top, width: right - left, height: bottom - top, hit });
           }
 
           // State machine
@@ -238,16 +205,11 @@ export function useClickThrough(
       if (pollId) clearInterval(pollId);
       if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-      if (boxHelperRef.current) {
-        boxHelperRef.current.removeFromParent();
-        boxHelperRef.current.dispose();
-        boxHelperRef.current = null;
-      }
       void setIgnoreCursor(false);
     };
   }, []);
 
-  return { hovered, debugBbox };
+  return { hovered };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

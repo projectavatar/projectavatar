@@ -13,7 +13,6 @@ import { useStore } from '../../web/src/state/store.ts';
 import { WindowChrome } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 import { useClickThrough } from './use-click-through.ts';
-import { DebugHitbox } from './debug-hitbox.tsx';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
 
 /** Cursor poll rate for desktop — 5fps for both tracking and hit-testing. */
@@ -24,7 +23,7 @@ export function DesktopApp() {
   const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
 
-  const { hovered, debugBbox } = useClickThrough(avatarScene);
+  const { hovered } = useClickThrough(avatarScene);
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
@@ -46,7 +45,6 @@ export function DesktopApp() {
       <App onScene={handleScene} cursorPollMs={CURSOR_POLL_MS} activated={hovered} />
       <WindowChrome hovered={hovered} />
       <Updater />
-      <DebugHitbox bbox={debugBbox} />
     </>
   );
 }
