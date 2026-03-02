@@ -7,20 +7,36 @@ export function isValidModelId(id: unknown): id is string {
   return typeof id === 'string' && MODEL_ID_REGEX.test(id);
 }
 
-// ─── Avatar event types ────────────────────────────────────────────────────────
+// ─── Primary emotions ──────────────────────────────────────────────────────────
 
-export const EMOTIONS = [
-  'idle',
-  'thinking',
-  'excited',
-  'confused',
-  'happy',
-  'angry',
-  'sad',
-  'surprised',
-  'bashful',
-  'nervous',
+export const PRIMARY_EMOTIONS = [
+  'joy',
+  'sadness',
+  'anger',
+  'fear',
+  'surprise',
+  'disgust',
+  'interest',
 ] as const;
+
+export type PrimaryEmotion = (typeof PRIMARY_EMOTIONS)[number];
+
+// ─── Word intensities ──────────────────────────────────────────────────────────
+
+export const WORD_INTENSITIES = ['subtle', 'low', 'medium', 'high'] as const;
+export type WordIntensity = (typeof WORD_INTENSITIES)[number];
+
+export const WORD_INTENSITY_VALUES: Record<WordIntensity, number> = {
+  subtle: 0.15,
+  low:    0.3,
+  medium: 0.6,
+  high:   1.0,
+};
+
+/** Emotion blend — partial map of primary emotions to word intensities. */
+export type EmotionBlend = Partial<Record<PrimaryEmotion, WordIntensity>>;
+
+// ─── Actions ───────────────────────────────────────────────────────────────────
 
 export const ACTIONS = [
   'idle',
@@ -37,6 +53,10 @@ export const ACTIONS = [
   'greeting',
 ] as const;
 
+export type Action = (typeof ACTIONS)[number];
+
+// ─── Props ─────────────────────────────────────────────────────────────────────
+
 export const PROPS = [
   'none',
   'keyboard',
@@ -47,29 +67,34 @@ export const PROPS = [
   'scroll',
 ] as const;
 
-export const INTENSITIES = ['low', 'medium', 'high'] as const;
-
-export type Emotion = (typeof EMOTIONS)[number];
-export type Action = (typeof ACTIONS)[number];
 export type Prop = (typeof PROPS)[number];
+
+// ─── Intensities (action intensity, kept for body animation scaling) ───────────
+
+export const INTENSITIES = ['low', 'medium', 'high'] as const;
 export type Intensity = (typeof INTENSITIES)[number];
 
+// ─── Avatar event ──────────────────────────────────────────────────────────────
+
 export interface AvatarEvent {
-  emotion: Emotion;
+  /** Primary emotion blend — weighted mix of primaries. */
+  emotions: EmotionBlend;
+  /** Body action — explicit or inferred from dominant emotion. */
   action: Action;
+  /** Hand prop. */
   prop?: Prop;
+  /** Action intensity (body animation scaling). */
   intensity?: Intensity;
+  /** Optional CSS color name — overrides engine-computed VFX color. */
+  color?: string;
   /**
    * Opaque string identifying the agent session that pushed this event.
-   * Used by the relay for multi-session arbitration — lower-priority sessions
-   * are suppressed while a higher-priority session is active.
-   * Optional: events without sessionId are treated as legacy single-session pushes (priority 0).
+   * Used by the relay for multi-session arbitration.
    */
   sessionId?: string;
   /**
    * Session priority for arbitration. Lower number = higher priority.
    * 0 = main/interactive session, 1 = sub-agent, 2+ = background tasks.
-   * Optional: defaults to 0 (treated as highest priority) when absent.
    */
   priority?: number;
 }
@@ -83,17 +108,26 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
 
   const e = event as Record<string, unknown>;
 
-  // Use explicit type checks rather than truthiness — avoids false negatives
-  // for falsy-but-valid values and gives clearer "required" vs "invalid" errors
-  if (typeof e.emotion !== 'string' || !EMOTIONS.includes(e.emotion as Emotion)) {
-    return {
-      ok: false,
-      error: e.emotion === undefined
-        ? `'emotion' is required. Must be one of: ${EMOTIONS.join(', ')}`
-        : `Invalid emotion: ${String(e.emotion)}. Must be one of: ${EMOTIONS.join(', ')}`,
-    };
+  // ── emotions (required) ──────────────────────────────────────────────────
+  if (e.emotions === undefined) {
+    return { ok: false, error: "'emotions' is required. Must be an object with primary emotion keys." };
   }
 
+  if (typeof e.emotions !== 'object' || e.emotions === null || Array.isArray(e.emotions)) {
+    return { ok: false, error: "'emotions' must be an object mapping primary emotions to word intensities." };
+  }
+
+  const emotions = e.emotions as Record<string, unknown>;
+  for (const [key, value] of Object.entries(emotions)) {
+    if (!PRIMARY_EMOTIONS.includes(key as PrimaryEmotion)) {
+      return { ok: false, error: `Invalid emotion key: ${key}. Must be one of: ${PRIMARY_EMOTIONS.join(', ')}` };
+    }
+    if (typeof value !== 'string' || !WORD_INTENSITIES.includes(value as WordIntensity)) {
+      return { ok: false, error: `Invalid intensity for '${key}': ${String(value)}. Must be one of: ${WORD_INTENSITIES.join(', ')}` };
+    }
+  }
+
+  // ── action (required) ────────────────────────────────────────────────────
   if (typeof e.action !== 'string' || !ACTIONS.includes(e.action as Action)) {
     return {
       ok: false,
@@ -103,20 +137,22 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
     };
   }
 
+  // ── prop (optional) ──────────────────────────────────────────────────────
   if (e.prop !== undefined && (typeof e.prop !== 'string' || !PROPS.includes(e.prop as Prop))) {
-    return {
-      ok: false,
-      error: `Invalid prop: ${String(e.prop)}. Must be one of: ${PROPS.join(', ')}`,
-    };
+    return { ok: false, error: `Invalid prop: ${String(e.prop)}. Must be one of: ${PROPS.join(', ')}` };
   }
 
+  // ── intensity (optional) ─────────────────────────────────────────────────
   if (e.intensity !== undefined && (typeof e.intensity !== 'string' || !INTENSITIES.includes(e.intensity as Intensity))) {
-    return {
-      ok: false,
-      error: `Invalid intensity: ${String(e.intensity)}. Must be one of: ${INTENSITIES.join(', ')}`,
-    };
+    return { ok: false, error: `Invalid intensity: ${String(e.intensity)}. Must be one of: ${INTENSITIES.join(', ')}` };
   }
 
+  // ── color (optional) ─────────────────────────────────────────────────────
+  if (e.color !== undefined && typeof e.color !== 'string') {
+    return { ok: false, error: 'color must be a string (CSS color name)' };
+  }
+
+  // ── session fields (optional) ────────────────────────────────────────────
   if (e.sessionId !== undefined && typeof e.sessionId !== 'string') {
     return { ok: false, error: 'sessionId must be a string when provided' };
   }
@@ -125,8 +161,8 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
     return { ok: false, error: 'priority must be a non-negative integer when provided' };
   }
 
-  // Reject additional properties — sessionId and priority are now explicitly allowed
-  const allowedKeys = new Set(['emotion', 'action', 'prop', 'intensity', 'sessionId', 'priority']);
+  // ── reject unknown fields ────────────────────────────────────────────────
+  const allowedKeys = new Set(['emotions', 'action', 'prop', 'intensity', 'color', 'sessionId', 'priority']);
   for (const key of Object.keys(e)) {
     if (!allowedKeys.has(key)) {
       return { ok: false, error: `Unknown field: ${key}` };
@@ -138,23 +174,14 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
 
 // ─── Channel state ─────────────────────────────────────────────────────────────
 
-/**
- * The persistent state of a relay channel (Durable Object).
- * Sent to WebSocket clients on connect, and returned by the HTTP state endpoint.
- * The DO is the source of truth — clients treat this as authoritative.
- */
 export interface ChannelState {
-  /** Currently selected VRM model ID, or null if not yet chosen */
   model: string | null;
-  /** Unix timestamp (ms) of the last agent push event, or null if never pushed */
   lastAgentEventAt: number | null;
-  /** Number of currently connected WebSocket clients */
   connectedClients: number;
 }
 
 // ─── WebSocket message types (server → client) ─────────────────────────────────
 
-/** Sent once on WebSocket connect — full channel state + optional last event */
 export interface ChannelStateMessage {
   type: 'channel_state';
   version: string;
@@ -162,7 +189,6 @@ export interface ChannelStateMessage {
   timestamp: number;
 }
 
-/** Sent to all clients when any client changes the model */
 export interface ModelChangedMessage {
   type: 'model_changed';
   version: string;
@@ -170,7 +196,6 @@ export interface ModelChangedMessage {
   timestamp: number;
 }
 
-/** Existing avatar event message (unchanged) */
 export interface AvatarEventMessage {
   type: 'avatar_event';
   version: string;
@@ -187,7 +212,6 @@ export type WebSocketServerMessage =
 
 // ─── WebSocket message types (client → server) ─────────────────────────────────
 
-/** Client requests a model change — broadcasts to all connected clients */
 export interface SetModelMessage {
   type: 'set_model';
   model: string | null;
@@ -197,17 +221,9 @@ export type WebSocketClientMessage = SetModelMessage | PongMessage;
 
 // ─── HTTP response types ────────────────────────────────────────────────────────
 
-/** Response from GET /channel/:token/state */
 export type ChannelStateResponse = ChannelState;
 
 // ─── Keepalive ──────────────────────────────────────────────────────────────────
 
-/** Server-sent keepalive ping. Clients should reset their dead-connection timer on receipt. */
-export interface PingMessage {
-  type: 'ping';
-}
-
-/** Optional client-sent pong in response to a ping. */
-export interface PongMessage {
-  type: 'pong';
-}
+export interface PingMessage { type: 'ping'; }
+export interface PongMessage { type: 'pong'; }

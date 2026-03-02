@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULTS, generateToken } from '@project-avatar/shared';
-import type { Emotion, Action, Intensity, ChannelState, AvatarEvent } from '@project-avatar/shared';
+import type { Action, Intensity, EmotionBlend, ChannelState, AvatarEvent } from '@project-avatar/shared';
 import { DEFAULT_EFFECTS_STATE } from '@project-avatar/avatar-engine';
 import type { EffectsState } from '@project-avatar/avatar-engine';
 import manifest from '../assets/models/manifest.json';
@@ -9,9 +9,10 @@ import type { ModelEntry } from '../types.ts';
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
 
 export interface AvatarState {
-  emotion: Emotion;
+  emotions: EmotionBlend;
   action: Action;
   intensity: Intensity;
+  color?: string;
 }
 
 export interface AppState {
@@ -20,16 +21,8 @@ export interface AppState {
   modelId: string | null;
   modelUrl: string | null;
   lastAgentEventAt: number | null;
-  // agentPresence is NOT stored — computed on render in StatusBadge
-  // from lastAgentEventAt + Date.now() to avoid stale state.
   connectionState: ConnectionState;
   reconnectAttempt: number;
-  /**
-   * True once the first channel_state message is received from the DO after
-   * connecting. Gates ModelPickerOverlay to prevent a flash between onopen
-   * (connectionState = 'connected') and the first message event (channel_state).
-   * Reset via resetConnectionState() on disconnect or token change.
-   */
   channelStateReceived: boolean;
   avatar: AvatarState;
   effects: EffectsState;
@@ -37,7 +30,6 @@ export interface AppState {
   settingsOpen: boolean;
   devPanelOpen: boolean;
   theme: 'dark' | 'transparent';
-  /** Base URL for remote asset loading (desktop). Empty = same-origin (web). */
   assetBaseUrl: string;
   setupComplete: boolean;
   setToken: (token: string | null) => void;
@@ -55,14 +47,8 @@ export interface AppState {
   setAssetBaseUrl: (url: string) => void;
   setSetupComplete: (complete: boolean) => void;
   generateAndSetToken: () => string;
-  /**
-   * Apply channel state from DO on connect — single authoritative write path.
-   * DO always wins over localStorage. Sets channelStateReceived = true.
-   */
   applyChannelState: (channelState: ChannelState & { lastEvent: AvatarEvent | null }) => void;
-  /** Record live agent event — updates lastAgentEventAt only */
   recordAgentEvent: () => void;
-  /** Reset transient connection state — call on disconnect or token change */
   resetConnectionState: () => void;
 }
 
@@ -82,7 +68,7 @@ function updateUrlParams(params: Record<string, string | null>) {
       if (value != null) url.searchParams.set(key, value);
       else url.searchParams.delete(key);
     }
-    url.searchParams.delete('model'); // strip stale pre-4.1 param
+    url.searchParams.delete('model');
     window.history.replaceState(null, '', url.toString());
   } catch { /* SSR / restricted */ }
 }
@@ -137,7 +123,7 @@ export const useStore = create<AppState>((set, get) => ({
   connectionState:      'disconnected',
   reconnectAttempt:     0,
 
-  avatar: { emotion: 'idle', action: 'idle', intensity: 'medium' },
+  avatar: { emotions: {}, action: 'idle', intensity: 'medium' },
   effects: persisted.effects ?? { ...DEFAULT_EFFECTS_STATE },
   renderScale: persisted.renderScale ?? 2,
 

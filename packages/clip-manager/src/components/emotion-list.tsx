@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import type { ClipsJson } from '../types.ts';
 import type { Action } from '../state.ts';
-import { EMOTIONS } from '@project-avatar/shared';
+import { PRIMARY_EMOTIONS } from '@project-avatar/shared';
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ export function EmotionList({ data, selectedEmotion, dispatch }: EmotionListProp
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredEmotions = useMemo(() => {
-    const sorted = [...EMOTIONS].sort((a, b) => a.localeCompare(b));
+    const sorted = [...PRIMARY_EMOTIONS].sort((a, b) => a.localeCompare(b));
     if (!searchQuery) return sorted;
     const q = searchQuery.toLowerCase();
     return sorted.filter(name => name.includes(q));

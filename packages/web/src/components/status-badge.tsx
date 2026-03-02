@@ -125,7 +125,7 @@ export function StatusBadge() {
         <>
           <div style={dividerStyle} />
           <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>
-            {avatar.emotion} / {avatar.action}
+            {Object.keys(avatar.emotions).length > 0 ? Object.entries(avatar.emotions).map(([e,w]) => `${e}:${w}`).join('+') : 'neutral'} / {avatar.action}
           </span>
         </>
       )}

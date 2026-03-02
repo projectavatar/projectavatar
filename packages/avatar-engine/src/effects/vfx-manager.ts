@@ -1,12 +1,14 @@
 /**
  * VfxManager — manages emotion/action-driven VFX.
  *
- * Reads VFX bindings from clips.json (per-emotion, per-action),
- * spawns/despawns VFX instances with fade in/out transitions.
+ * v2: Blend-aware. Receives ResolvedBlend from the state machine,
+ * uses dominant emotion for VFX selection and blend color/intensity
+ * for VFX appearance.
  */
 import * as THREE from 'three';
 import type { VfxBinding, VfxInstance } from './emotion-vfx.ts';
 import { createVfx } from './emotion-vfx.ts';
+import type { ResolvedBlend } from '../emotion-blend.ts';
 
 /** JSON-level binding (type is a string, not the enum). */
 interface VfxBindingLoose {
@@ -16,7 +18,7 @@ interface VfxBindingLoose {
   offsetY?: number;
 }
 
-const FADE_SPEED = 0.5; // ~2s crossfade // opacity units per second
+const FADE_SPEED = 0.5; // opacity units per second
 
 export class VfxManager {
   private scene: THREE.Scene;
@@ -48,32 +50,15 @@ export class VfxManager {
   }
 
   /**
-   * Set the current emotion — spawns/despawns VFX accordingly.
+   * Set state from a resolved emotion blend.
+   * Uses dominant emotion for VFX selection.
+   * Applies blend color to active VFX instances.
    */
-  setEmotion(emotion: string | null): void {
-    const key = emotion ? `emotion:${emotion}` : null;
-    this._transitionTo(key);
-  }
-
-  /**
-   * Set the current action — spawns/despawns VFX accordingly.
-   * Action VFX layer on top of emotion VFX.
-   */
-  setAction(action: string | null): void {
-    const key = action ? `action:${action}` : null;
-    // For now, action VFX replace emotion VFX (could layer later)
-    this._transitionTo(key);
-  }
-
-  /**
-   * Set the emotion+action combo. Emotion VFX takes priority,
-   * falls back to action VFX if emotion has none.
-   */
-  setState(emotion: string | null, action: string | null): void {
-    const emotionKey = emotion ? `emotion:${emotion}` : null;
+  setBlendState(blend: ResolvedBlend, action?: string): void {
+    const emotionKey = blend.dominant ? `emotion:${blend.dominant}` : null;
     const actionKey = action ? `action:${action}` : null;
 
-    // Prefer emotion VFX, fall back to action VFX
+    // Prefer emotion VFX, fall back to action VFX (e.g. idle aura)
     if (emotionKey && this.bindings.has(emotionKey)) {
       this._transitionTo(emotionKey);
     } else if (actionKey && this.bindings.has(actionKey)) {
@@ -81,7 +66,9 @@ export class VfxManager {
     } else {
       this._transitionTo(null);
     }
+    // (future: also modulate intensity/behavior based on energy)
   }
+
 
   private _transitionTo(key: string | null): void {
     if (key === this.currentKey) return;
@@ -117,7 +104,6 @@ export class VfxManager {
 
     // Update active VFX
     for (const vfx of this.activeVfx) {
-      // Fade in
       if (vfx.opacity < vfx.targetOpacity) {
         vfx.setOpacity(Math.min(vfx.opacity + delta * FADE_SPEED, vfx.targetOpacity));
       }

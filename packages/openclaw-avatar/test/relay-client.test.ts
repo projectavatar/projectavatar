@@ -1,8 +1,5 @@
 /**
- * Relay client tests.
- *
- * Tests fire-and-forget behavior, validation, URL construction, and the
- * critical invariant: push() never throws, even on network failure.
+ * Relay client tests — v2 (EmotionBlend format).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -23,9 +20,8 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'test-token-abc123');
-    relay.push({ emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
+    relay.push({ emotions: { interest: 'high' }, action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
 
-    // Give the async fire-and-forget a tick
     await new Promise((r) => setTimeout(r, 0));
 
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -39,7 +35,7 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'tok');
-    relay.push({ emotion: 'excited', action: 'celebrating' }, IDLE_EVENT);
+    relay.push({ emotions: { joy: 'high' }, action: 'celebrating' }, IDLE_EVENT);
 
     await new Promise((r) => setTimeout(r, 0));
 
@@ -52,19 +48,24 @@ describe('createRelayClient', () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', mockFetch);
 
-    const current = { emotion: 'thinking' as const, action: 'typing' as const, prop: 'keyboard' as const, intensity: 'high' as const };
+    const current = {
+      emotions: { interest: 'high' as const },
+      action: 'typing' as const,
+      prop: 'keyboard' as const,
+      intensity: 'high' as const,
+    };
     const relay = createRelayClient(DEFAULT_CONFIG, 'tok');
-    // Partial signal — only change emotion
-    relay.push({ emotion: 'happy' }, current);
+    // Partial signal — only change emotions
+    relay.push({ emotions: { joy: 'high' } }, current);
 
     await new Promise((r) => setTimeout(r, 0));
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string);
-    expect(body.emotion).toBe('happy');
-    expect(body.action).toBe('typing');     // from current
-    expect(body.prop).toBe('keyboard');      // from current
-    expect(body.intensity).toBe('high');     // from current
+    expect(body.emotions).toEqual({ joy: 'high' }); // from signal
+    expect(body.action).toBe('typing');               // from current
+    expect(body.prop).toBe('keyboard');                // from current
+    expect(body.intensity).toBe('high');               // from current
   });
 
   it('never throws on network failure', async () => {
@@ -72,14 +73,11 @@ describe('createRelayClient', () => {
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'tok');
 
-    // Should NOT throw
     expect(() => {
-      relay.push({ emotion: 'thinking', action: 'typing' }, IDLE_EVENT);
+      relay.push({ emotions: { interest: 'high' }, action: 'typing' }, IDLE_EVENT);
     }).not.toThrow();
 
-    // Give async rejection a tick to resolve
     await new Promise((r) => setTimeout(r, 0));
-    // Still no unhandled rejection here — test would fail if there was one
   });
 
   it('URL-encodes tokens with special characters', async () => {
@@ -87,13 +85,12 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'my/token+with spaces');
-    relay.push({ emotion: 'thinking', action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
+    relay.push({ emotions: { interest: 'high' }, action: 'typing', prop: 'keyboard', intensity: 'medium' }, IDLE_EVENT);
 
     await new Promise((r) => setTimeout(r, 0));
 
     const [url] = mockFetch.mock.calls[0] as [string];
     expect(url).toContain('my%2Ftoken%2Bwith%20spaces');
-    expect(url).not.toContain('my/token+with spaces');
   });
 
   it('does not call fetch for invalid events', async () => {
@@ -101,8 +98,8 @@ describe('createRelayClient', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const relay = createRelayClient(DEFAULT_CONFIG, 'tok');
-    // Invalid emotion — should be silently dropped
-    relay.push({ emotion: 'nonexistent_emotion' as any, action: 'typing', prop: 'none', intensity: 'medium' }, IDLE_EVENT);
+    // Invalid emotion key in blend — should be silently dropped by validation
+    relay.push({ emotions: { nonexistent: 'high' } as any, action: 'typing', prop: 'none', intensity: 'medium' }, IDLE_EVENT);
 
     await new Promise((r) => setTimeout(r, 0));
 

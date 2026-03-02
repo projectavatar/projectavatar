@@ -8,68 +8,41 @@
  *  3. One-shot action protection: celebrating/greeting/laughing/dismissive
  *     get a longer cooldown — once one fires, action changes are blocked
  *     until the cooldown expires
- *  4. Emotion priority: higher-priority emotions (confused, nervous, angry)
- *     bypass cooldowns to ensure errors/alerts always show
- *  5. Schedule idle timeout after the last event
- *  6. Pass session metadata to the relay for multi-session arbitration
+ *  4. Schedule idle timeout after the last event
+ *  5. Pass session metadata to the relay for multi-session arbitration
  *
- * Design philosophy: the agent's avatar_signal tool calls are the PRIMARY
- * source of truth. Lifecycle hooks (tool calls, message_received) are
- * secondary — they only fire for high-signal tools. The state machine
- * ensures rapid signals from either source don't produce visual jitter.
+ * v2: Emotion blend format — emotions is a dict of primary emotions → word
+ * intensities instead of a single string. Color override support added.
  */
 
-import type { AvatarEvent, AvatarSignal, SessionMeta, PluginConfig } from './types.js';
+import type { AvatarEvent, AvatarSignal, EmotionBlend, SessionMeta, PluginConfig } from './types.js';
 import { IDLE_EVENT, ONE_SHOT_ACTIONS } from './types.js';
 import type { RelayClient } from './relay-client.js';
 
-/** Higher number = higher priority. Errors and excitement beat idle/thinking. */
-const EMOTION_PRIORITY: Record<string, number> = {
-  idle:      0,
-  thinking:  1,
-  happy:     2,
-  bashful:   2,
-  excited:   3,
-  sad:       3,
-  confused:  4,
-  surprised: 4,
-  nervous:   5,
-  angry:     5,
-};
-
-/** Emotions at or above this threshold bypass cooldowns entirely. */
-const PRIORITY_BYPASS_THRESHOLD = 4; // confused, surprised, nervous, angry
-
-function emotionPriority(emotion: string): number {
-  return EMOTION_PRIORITY[emotion] ?? 1;
+function emotionsEqual(a: EmotionBlend, b: EmotionBlend): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if ((a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]) return false;
+  }
+  return true;
 }
 
 function eventsEqual(a: AvatarEvent, b: AvatarEvent): boolean {
   return (
-    a.emotion === b.emotion &&
+    emotionsEqual(a.emotions, b.emotions) &&
     a.action === b.action &&
     a.prop === b.prop &&
-    a.intensity === b.intensity
+    a.intensity === b.intensity &&
+    (a.color ?? undefined) === (b.color ?? undefined)
   );
 }
 
 export type AvatarStateMachine = {
-  /**
-   * Merge a partial signal into current state and push to relay,
-   * respecting per-category cooldowns and one-shot action protection.
-   * Blocked fields are deferred and coalesced (last-write-wins).
-   */
   transition: (signal: AvatarSignal, session?: SessionMeta) => void;
-  /**
-   * Schedule a return to idle after idleTimeoutMs. Bypasses all cooldowns.
-   * Captures the session in the closure so the idle push is correctly attributed.
-   */
   scheduleIdle: (session?: SessionMeta) => void;
-  /**
-   * Immediately reset to idle and cancel all pending timers/cooldowns.
-   */
   reset: (session?: SessionMeta) => void;
-  /** Get a snapshot of current state. */
   getCurrent: () => AvatarEvent;
 };
 
@@ -77,7 +50,7 @@ export function createAvatarStateMachine(
   cfg: PluginConfig,
   relay: RelayClient,
 ): AvatarStateMachine {
-  let current: AvatarEvent = { ...IDLE_EVENT };
+  let current: AvatarEvent = { ...IDLE_EVENT, emotions: { ...IDLE_EVENT.emotions } };
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let lastSession: SessionMeta | undefined = undefined;
 
@@ -89,7 +62,7 @@ export function createAvatarStateMachine(
   /** When a one-shot action is active, this is the timestamp it was emitted. */
   let oneShotActiveTime = 0;
 
-  /** Pending coalesced signal — accumulated during cooldown, emitted when cooldown expires. */
+  /** Pending coalesced signal. */
   let pendingSignal: AvatarSignal | null = null;
   let pendingSession: SessionMeta | undefined = undefined;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -111,20 +84,15 @@ export function createAvatarStateMachine(
 
   function emit(event: AvatarEvent, session?: SessionMeta) {
     const now = Date.now();
-    if (event.emotion !== current.emotion) lastEmotionChangeTime = now;
-    if (event.action !== current.action)   lastActionChangeTime = now;
+    if (!emotionsEqual(event.emotions, current.emotions)) lastEmotionChangeTime = now;
+    if (event.action !== current.action) lastActionChangeTime = now;
     if (ONE_SHOT_ACTIONS.has(event.action) && event.action !== current.action) {
       oneShotActiveTime = now;
     }
-    current = { ...event };
+    current = { ...event, emotions: { ...event.emotions } };
     relay.push(event, event, session);
   }
 
-  /**
-   * Apply cooldown filtering to a signal. Returns the filtered signal
-   * (fields that are blocked by cooldown are removed) and the earliest
-   * time at which the blocked fields could be retried.
-   */
   function applyCooldowns(signal: AvatarSignal, now: number): {
     allowed: AvatarSignal;
     blocked: AvatarSignal;
@@ -134,19 +102,18 @@ export function createAvatarStateMachine(
     const blocked: AvatarSignal = {};
     let retryAfterMs = 0;
 
-    // ── Emotion cooldown ────────────────────────────────────────────────
-    if (signal.emotion !== undefined && signal.emotion !== current.emotion) {
+    // ── Emotion blend cooldown ──────────────────────────────────────────
+    if (signal.emotions !== undefined && !emotionsEqual(signal.emotions, current.emotions)) {
       const emotionElapsed = now - lastEmotionChangeTime;
-      const pri = emotionPriority(signal.emotion);
 
-      if (pri >= PRIORITY_BYPASS_THRESHOLD || emotionElapsed >= cfg.emotionCooldownMs) {
-        allowed.emotion = signal.emotion;
+      if (emotionElapsed >= cfg.emotionCooldownMs) {
+        allowed.emotions = signal.emotions;
       } else {
-        blocked.emotion = signal.emotion;
+        blocked.emotions = signal.emotions;
         retryAfterMs = Math.max(retryAfterMs, cfg.emotionCooldownMs - emotionElapsed);
       }
-    } else if (signal.emotion !== undefined) {
-      allowed.emotion = signal.emotion;
+    } else if (signal.emotions !== undefined) {
+      allowed.emotions = signal.emotions;
     }
 
     // ── Action cooldown ─────────────────────────────────────────────────
@@ -167,15 +134,15 @@ export function createAvatarStateMachine(
       allowed.action = signal.action;
     }
 
-    // ── Prop and intensity — no cooldown ─────────────────────────────────
+    // ── No cooldown for these ───────────────────────────────────────────
     if (signal.prop !== undefined)       allowed.prop = signal.prop;
     if (signal.intensity !== undefined)  allowed.intensity = signal.intensity;
+    if (signal.color !== undefined)      allowed.color = signal.color;
 
     return { allowed, blocked, retryAfterMs };
   }
 
   function schedulePendingFlush(retryAfterMs: number, session?: SessionMeta) {
-    // Always update session — a newer signal may carry a different session context
     pendingSession = session;
     if (pendingTimer !== null) return;
     pendingTimer = setTimeout(() => {
@@ -200,18 +167,20 @@ export function createAvatarStateMachine(
     const { allowed, blocked, retryAfterMs } = applyCooldowns(signal, now);
 
     const next: AvatarEvent = {
-      emotion:   allowed.emotion   ?? current.emotion,
+      emotions:  allowed.emotions  ?? { ...current.emotions },
       action:    allowed.action    ?? current.action,
       prop:      allowed.prop      ?? current.prop,
       intensity: allowed.intensity ?? current.intensity,
+      color:     allowed.color     ?? current.color,
     };
 
     if (retryAfterMs > 0) {
       if (pendingSignal === null) pendingSignal = {};
-      if (blocked.emotion !== undefined) pendingSignal.emotion = blocked.emotion;
-      if (blocked.action !== undefined)  pendingSignal.action  = blocked.action;
-      if (signal.prop !== undefined)       pendingSignal.prop = signal.prop;
-      if (signal.intensity !== undefined)  pendingSignal.intensity = signal.intensity;
+      if (blocked.emotions !== undefined) pendingSignal.emotions = blocked.emotions;
+      if (blocked.action !== undefined)   pendingSignal.action  = blocked.action;
+      if (signal.prop !== undefined)        pendingSignal.prop = signal.prop;
+      if (signal.intensity !== undefined)   pendingSignal.intensity = signal.intensity;
+      if (signal.color !== undefined)       pendingSignal.color = signal.color;
 
       schedulePendingFlush(retryAfterMs, effectiveSession);
     }
@@ -229,7 +198,7 @@ export function createAvatarStateMachine(
       if (!eventsEqual(current, IDLE_EVENT)) {
         clearPending();
         oneShotActiveTime = 0;
-        emit({ ...IDLE_EVENT }, idleSession);
+        emit({ ...IDLE_EVENT, emotions: {} }, idleSession);
       }
     }, cfg.idleTimeoutMs);
   }
@@ -238,7 +207,7 @@ export function createAvatarStateMachine(
     clearPending();
     clearIdle();
     const wasIdle = eventsEqual(current, IDLE_EVENT);
-    current = { ...IDLE_EVENT };
+    current = { ...IDLE_EVENT, emotions: {} };
     lastEmotionChangeTime = 0;
     lastActionChangeTime = 0;
     oneShotActiveTime = 0;
@@ -248,7 +217,7 @@ export function createAvatarStateMachine(
   }
 
   function getCurrent(): AvatarEvent {
-    return { ...current };
+    return { ...current, emotions: { ...current.emotions } };
   }
 
   return { transition, scheduleIdle, reset, getCurrent };
