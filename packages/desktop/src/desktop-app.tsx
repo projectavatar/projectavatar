@@ -77,11 +77,11 @@ export function DesktopApp() {
     document.body.style.cursor = 'grab';
     const onDown = () => { document.body.style.cursor = 'grabbing'; };
     const onUp = () => { document.body.style.cursor = hovered ? 'grab' : 'default'; };
-    window.addEventListener('mousedown', onDown);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('mousedown', onDown, { capture: true });
+    window.addEventListener('mouseup', onUp, { capture: true });
     return () => {
-      window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('mousedown', onDown, { capture: true });
+      window.removeEventListener('mouseup', onUp, { capture: true });
       document.body.style.cursor = '';
     };
   }, [hovered]);
