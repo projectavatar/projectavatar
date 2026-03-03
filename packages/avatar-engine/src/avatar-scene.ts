@@ -120,8 +120,9 @@ export class AvatarScene {
   /**
    * Optional custom render function — replaces renderer.render() in tick().
    * Used by BloomEffect to render through the EffectComposer instead.
+   * Receives the active scissor rect (null when scissor is disabled).
    */
-  private customRender: (() => void) | null = null;
+  private customRender: ((scissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null) => void) | null = null;
 
   /** Dynamic framing points — set via setFramingPoints() after model load. */
   private bodyCenter = new THREE.Vector3(0, 0, 0);
@@ -323,8 +324,9 @@ export class AvatarScene {
   /**
    * Set a custom render function that replaces renderer.render().
    * Pass null to restore default rendering.
+   * The function receives the active scissor rect for multi-monitor rendering.
    */
-  setCustomRender(fn: (() => void) | null): void {
+  setCustomRender(fn: ((scissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null) => void) | null): void {
     this.customRender = fn;
   }
 
@@ -425,10 +427,15 @@ export class AvatarScene {
       this.renderer.getClearColor(this._scissorClearColor);
       this.renderer.setClearColor(this._scissorClearColor, 0);
       this.renderer.clear(true, true, true);
+    } else if (this._scissorEnabled) {
+      // Scissor enabled but no VRM loaded yet — still need to clear
+      // to prevent stale pixels when autoClear is disabled.
+      this.renderer.setClearColor(0x000000, 0);
+      this.renderer.clear(true, true, true);
     }
 
     if (this.customRender) {
-      this.customRender();
+      this.customRender(scissor ?? null);
     } else {
       this.renderer.render(this.scene, this.camera);
     }

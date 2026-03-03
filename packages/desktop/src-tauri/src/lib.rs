@@ -69,15 +69,15 @@ fn compute_virtual_screen(window: &tauri::Window) -> VirtualScreen {
                 let size = monitor.size();
                 min_x = min_x.min(pos.x);
                 min_y = min_y.min(pos.y);
-                max_x = max_x.max(pos.x + size.width as i32);
-                max_y = max_y.max(pos.y + size.height as i32);
+                max_x = max_x.max(pos.x.saturating_add(size.width as i32));
+                max_y = max_y.max(pos.y.saturating_add(size.height as i32));
                 if monitor.scale_factor() > max_scale {
                     max_scale = monitor.scale_factor();
                 }
             }
 
-            let width = (max_x - min_x) as u32;
-            let height = (max_y - min_y) as u32;
+            let width = (max_x - min_x).max(0) as u32;
+            let height = (max_y - min_y).max(0) as u32;
             return VirtualScreen { x: min_x, y: min_y, width, height, max_scale_factor: max_scale };
         }
     }
@@ -195,6 +195,36 @@ pub fn run() {
 
             // Window starts at 1×1 (invisible). frontend_ready command
             // expands it to fullscreen after the webview has rendered.
+
+            // ── Monitor hot-plug detection ───────────────────────────────
+            // Poll available monitors every 2s. When the layout changes,
+            // emit "monitors-changed" so the frontend can resize the window.
+            let main_window = app.get_webview_window("main")
+                .expect("main window must exist");
+            std::thread::spawn(move || {
+                let mut last_hash: u64 = 0;
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    if let Ok(monitors) = main_window.available_monitors() {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        for m in &monitors {
+                            let pos = m.position();
+                            let size = m.size();
+                            (pos.x, pos.y, size.width, size.height).hash(&mut hasher);
+                            // Hash scale factor as bits to avoid float hashing issues
+                            m.scale_factor().to_bits().hash(&mut hasher);
+                        }
+                        monitors.len().hash(&mut hasher);
+                        let hash = hasher.finish();
+                        if hash != last_hash && last_hash != 0 {
+                            let _ = main_window.emit("monitors-changed", ());
+                        }
+                        last_hash = hash;
+                    }
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

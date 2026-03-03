@@ -24,6 +24,15 @@ const FADE_SPEED = 2.0;
 
 // ─── BloomEffect ──────────────────────────────────────────────────────────────
 
+export interface ScissorRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fullW: number;
+  fullH: number;
+}
+
 export class BloomEffect {
   private composer: EffectComposer | null = null;
   private renderTarget: THREE.WebGLRenderTarget | null = null;
@@ -32,6 +41,9 @@ export class BloomEffect {
   private targetStrength = 0;
   private currentStrength = 0;
   private baseStrength: number;
+
+  /** Active scissor rect — set each frame before render() when scissor is enabled. */
+  private _scissorRect: ScissorRect | null = null;
 
   // Stored for deferred construction
   private renderer: THREE.WebGLRenderer;
@@ -149,9 +161,26 @@ export class BloomEffect {
     this.bloomPass.strength = this.baseStrength * this.currentStrength;
   }
 
+  /** Set the scissor rect for the next render. Call before render() each frame. */
+  setScissorRect(rect: ScissorRect | null): void {
+    this._scissorRect = rect;
+  }
+
   /** Render the scene through the bloom pipeline. */
   render(): void {
-    this.composer?.render();
+    if (!this.composer) return;
+    const rect = this._scissorRect;
+    if (rect) {
+      // Propagate scissor to the composer — all passes (render, bloom, SMAA, output)
+      // write into FBOs at full resolution, but the GPU only processes fragments
+      // inside the scissor rect. This preserves the multi-monitor perf win.
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
+    }
+    this.composer.render();
+    if (rect) {
+      this.renderer.setScissorTest(false);
+    }
   }
 
   /** Update composer size on window resize. */

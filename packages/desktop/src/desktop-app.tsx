@@ -15,6 +15,7 @@ export function DesktopApp() {
   const settingsOpen = useStore((s) => s.settingsOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
+  const setRenderScale = useStore((s) => s.setRenderScale);
 
   const projectCursorRef = useRef<((ndcX: number, ndcY: number) => void) | null>(null);
 
@@ -39,11 +40,7 @@ export function DesktopApp() {
     if (scene) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
         invoke<{ max_scale_factor: number }>('get_virtual_screen').then((vs) => {
-          const ratio = Math.min(vs.max_scale_factor, 2);
-          scene.renderer.setPixelRatio(ratio);
-          // Force resize to apply new ratio
-          const canvas = scene.renderer.domElement;
-          scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+          setRenderScale(Math.min(vs.max_scale_factor, 2));
         });
       }).catch(() => { /* Not in Tauri runtime */ });
     }
@@ -72,6 +69,30 @@ export function DesktopApp() {
     void signal();
     return () => { cancelled = true; };
   }, []);
+
+  // Monitor hot-plug: when monitors change, re-expand window to new virtual screen
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('monitors-changed', async () => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const vs = await invoke<{ x: number; y: number; width: number; height: number; max_scale_factor: number }>('get_virtual_screen');
+
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          const win = getCurrentWindow();
+          await win.setPosition(new (await import('@tauri-apps/api/dpi')).PhysicalPosition(vs.x, vs.y));
+          await win.setSize(new (await import('@tauri-apps/api/dpi')).PhysicalSize(vs.width, vs.height));
+
+          // Update DPI if it changed
+          setRenderScale(Math.min(vs.max_scale_factor, 2));
+        } catch (e) {
+          console.warn('[DesktopApp] Failed to handle monitor change:', e);
+        }
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => { /* Not in Tauri runtime */ });
+    return () => { unlisten?.(); };
+  }, [setRenderScale]);
 
   // Listen for tray "Settings" menu event from Rust
   useEffect(() => {
