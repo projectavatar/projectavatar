@@ -84,7 +84,6 @@ export function DesktopApp() {
       if (fovFrac == null || !(await ensureTauri()) || !tauriInvoke || !tauriWin) return;
 
       // fovFrac = how much of camera FOV the model fills.
-      // At a BASE_SIZE window, fovFrac of 1.0 means model fills entire view.
       // We want model to fill FILL_RATIO of the window.
       const BASE_SIZE = 800;
       const cssSize = Math.max(MIN_SIZE, Math.ceil(BASE_SIZE * fovFrac / FILL_RATIO));
@@ -93,13 +92,10 @@ export function DesktopApp() {
 
       if (Math.abs(newPhysSize - lastPhysSize) < THRESHOLD * scale) return;
 
-      const pos = await tauriWin.outerPosition();
-      const size = await tauriWin.outerSize();
-      const dx = Math.round((size.width - newPhysSize) / 2);
-      const dy = Math.round((size.height - newPhysSize) / 2);
-
-      await tauriInvoke('set_window_rect', {
-        x: pos.x + dx, y: pos.y + dy,
+      // Only resize, don't reposition — avoids the two-step jump.
+      // Avatar is centered in the canvas by Three.js, so growing/shrinking
+      // from the top-left anchor still keeps her visually centered.
+      await tauriInvoke('set_window_size', {
         width: newPhysSize, height: newPhysSize,
       });
       lastPhysSize = newPhysSize;

@@ -459,10 +459,10 @@ export class AvatarScene {
     this._restBbox.getSize(size);
     const modelExtent = Math.max(size.x, size.y, size.z);
 
-    // Distance from camera to bbox center
-    const center = new THREE.Vector3();
-    this._restBbox.getCenter(center);
-    const distance = this.camera.position.distanceTo(center);
+    // Distance from camera to orbit target (stable across rotation).
+    // Orbit target doesn't shift with camera angle like bbox center does.
+    const target = this.controls?.target ?? new THREE.Vector3(0, 0, 0);
+    const distance = this.camera.position.distanceTo(target);
     if (distance < 0.001) return null;
 
     // How much of the vertical FOV does the model span?
