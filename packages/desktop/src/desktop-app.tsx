@@ -1,5 +1,5 @@
 /**
- * Desktop wrapper for the web app — fullscreen mode.
+ * Desktop wrapper for the web app — small auto-sizing window mode.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { App } from '../../web/src/app.tsx';
@@ -9,13 +9,20 @@ import { Updater } from './updater.tsx';
 import { useClickThrough, CURSOR_POLL_MS } from './use-click-through.ts';
 import type { AvatarScene } from '@project-avatar/avatar-engine';
 
+/** Minimum window size (CSS pixels). */
+const MIN_WIDTH = 300;
+const MIN_HEIGHT = 400;
+/** How often to check avatar bounds for auto-resize (ms). */
+const RESIZE_POLL_MS = 500;
+/** Minimum size change (px) before triggering a resize. */
+const RESIZE_THRESHOLD = 30;
+
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
   const setAssetBaseUrl = useStore((s) => s.setAssetBaseUrl);
   const settingsOpen = useStore((s) => s.settingsOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
-  const setRenderScale = useStore((s) => s.setRenderScale);
 
   const projectCursorRef = useRef<((ndcX: number, ndcY: number) => void) | null>(null);
 
@@ -31,27 +38,14 @@ export function DesktopApp() {
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
-    // Enable scissor rendering for multi-monitor: only the region around
-    // the avatar is rendered, avoiding millions of wasted pixels.
-    scene?.setScissorEnabled(true);
-
-    // Use the highest DPI across all monitors so the avatar looks crisp
-    // on any screen. The scissor rect keeps actual rendering cost low.
-    if (scene) {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke<{ max_scale_factor: number }>('get_virtual_screen').then((vs) => {
-          setRenderScale(Math.min(vs.max_scale_factor, 2));
-        });
-      }).catch(() => { /* Not in Tauri runtime */ });
-    }
-  }, [setRenderScale]);
+  }, []);
 
   useEffect(() => {
     setTheme('transparent');
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
-  // Signal Rust that frontend is ready — expand 1×1 window to span all monitors.
+  // Signal Rust that frontend is ready — set small default window.
   // The 200ms delay ensures:
   // 1. First transparent frame is rendered (no flash)
   // 2. useClickThrough hook has initialized and set click-through ON
@@ -70,29 +64,55 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
-  // Monitor hot-plug: when monitors change, re-expand window to new virtual screen
+  // Auto-resize window to fit avatar bounds
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('monitors-changed', async () => {
-        try {
-          const { invoke } = await import('@tauri-apps/api/core');
-          const vs = await invoke<{ x: number; y: number; width: number; height: number; max_scale_factor: number }>('get_virtual_screen');
+    if (!avatarScene) return;
+    let lastW = 0;
+    let lastH = 0;
 
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const win = getCurrentWindow();
-          await win.setPosition(new (await import('@tauri-apps/api/dpi')).PhysicalPosition(vs.x, vs.y));
-          await win.setSize(new (await import('@tauri-apps/api/dpi')).PhysicalSize(vs.width, vs.height));
+    const poll = async () => {
+      const bounds = avatarScene.getAvatarBounds();
+      if (!bounds) return;
 
-          // Update DPI if it changed
-          setRenderScale(Math.min(vs.max_scale_factor, 2));
-        } catch (e) {
-          console.warn('[DesktopApp] Failed to handle monitor change:', e);
-        }
-      }).then((fn) => { unlisten = fn; });
-    }).catch(() => { /* Not in Tauri runtime */ });
-    return () => { unlisten?.(); };
-  }, [setRenderScale]);
+      const targetW = Math.max(MIN_WIDTH, bounds.width);
+      const targetH = Math.max(MIN_HEIGHT, bounds.height);
+
+      // Only resize if change exceeds threshold (avoids jitter)
+      if (Math.abs(targetW - lastW) < RESIZE_THRESHOLD && Math.abs(targetH - lastH) < RESIZE_THRESHOLD) return;
+
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const scale = window.devicePixelRatio || 1;
+        // Convert CSS pixels to physical pixels for Tauri
+        const physW = Math.round(targetW * scale);
+        const physH = Math.round(targetH * scale);
+
+        // Get current position to keep window in place
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const win = getCurrentWindow();
+        const pos = await win.outerPosition();
+
+        await invoke('set_window_rect', {
+          x: pos.x,
+          y: pos.y,
+          width: physW,
+          height: physH,
+        });
+
+        lastW = targetW;
+        lastH = targetH;
+      } catch { /* Not in Tauri runtime */ }
+    };
+
+    const id = setInterval(poll, RESIZE_POLL_MS);
+    // Run once immediately after a short delay for model to load
+    const initialId = setTimeout(poll, 2000);
+
+    return () => {
+      clearInterval(id);
+      clearTimeout(initialId);
+    };
+  }, [avatarScene]);
 
   // Listen for tray "Settings" menu event from Rust
   useEffect(() => {

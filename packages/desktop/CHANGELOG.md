@@ -1,6 +1,23 @@
 # Desktop Changelog
 
 
+## 0.9.0
+
+### Changed
+- **Small auto-sizing window** — Replaced the fullscreen mega-window + scissor approach with a small borderless window that auto-sizes to fit the avatar. Window breathes with zoom level: zoom in → window grows, zoom out → shrinks. Much lower GPU usage (no compositor overhead from giant transparent surfaces).
+- **Removed scissor rendering** — No longer needed. The canvas is now the render region itself.
+- **Removed monitor hot-plug detection** — Not needed for small window approach. Will return when avatar movement across screens is implemented.
+- **Performance overlay (Shift+P)** — Now shows window size, avatar bounds, draw calls, triangles. Also draws a green debug border around the window.
+
+### Removed
+- Virtual screen spanning (mega-window)
+- Scissor test rendering pipeline
+- `compute_virtual_screen` / `get_virtual_screen` Rust commands
+
+### Added
+- `set_window_rect` Rust command for programmatic window positioning/sizing
+- `getAvatarBounds()` on AvatarScene — returns projected avatar size in CSS pixels
+
 ## 0.8.0
 
 ### Added

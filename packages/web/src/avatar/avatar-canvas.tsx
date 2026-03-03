@@ -184,8 +184,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       onEffectsManager?.(effectsManager);
 
       // Integrate bloom: custom render through composer when active
-      avatarScene.setCustomRender((scissorRect) => {
-        if (!effectsManager.renderBloom(scissorRect)) {
+      avatarScene.setCustomRender(() => {
+        if (!effectsManager.renderBloom()) {
           avatarScene.renderer.render(avatarScene.scene, avatarScene.camera);
         }
       });

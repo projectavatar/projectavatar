@@ -33,8 +33,8 @@ const DEFAULT_GRID_DIVISIONS = 16;
  * - At CLOSE_DISTANCE or closer → target = face/head
  * - Between → smooth lerp
  */
-/** Padding (in CSS pixels) around the avatar bounding box for the scissor rect. */
-const SCISSOR_PADDING_PX = 250;
+/** Padding (in CSS pixels) around the avatar bounding box for auto-sizing. */
+const AVATAR_BOUNDS_PADDING_PX = 100;
 
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
@@ -91,11 +91,9 @@ export class AvatarScene {
   /** VRM model root — set after model load for external consumers (e.g. hit-testing). */
   private _vrmRoot: THREE.Object3D | null = null;
 
-  // ─── Scissor rendering ──────────────────────────────────────────────
-  private _scissorEnabled = false;
-  private _scissorBbox = new THREE.Box3();
-  private _scissorCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
-  private _scissorClearColor = new THREE.Color(0x000000);
+  // ─── Avatar bounds (for auto-sizing) ────────────────────────────────
+  private _boundsBbox = new THREE.Box3();
+  private _boundsCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   // ─── Performance stats ────────────────────────────────────────────
   private _perfEnabled = false;
@@ -103,7 +101,6 @@ export class AvatarScene {
   private _perfFrames = 0;
   private _perfLastTime = 0;
   private _perfFps = 0;
-  private _lastScissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null = null;
   private _perfDrawCalls = 0;
   private _perfTriangles = 0;
 
@@ -130,9 +127,8 @@ export class AvatarScene {
   /**
    * Optional custom render function — replaces renderer.render() in tick().
    * Used by BloomEffect to render through the EffectComposer instead.
-   * Receives the active scissor rect (null when scissor is disabled).
    */
-  private customRender: ((scissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null) => void) | null = null;
+  private customRender: (() => void) | null = null;
 
   /** Dynamic framing points — set via setFramingPoints() after model load. */
   private bodyCenter = new THREE.Vector3(0, 0, 0);
@@ -332,9 +328,8 @@ export class AvatarScene {
   /**
    * Set a custom render function that replaces renderer.render().
    * Pass null to restore default rendering.
-   * The function receives the active scissor rect for multi-monitor rendering.
    */
-  setCustomRender(fn: ((scissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null) => void) | null): void {
+  setCustomRender(fn: (() => void) | null): void {
     this.customRender = fn;
   }
 
@@ -427,23 +422,6 @@ export class AvatarScene {
       cb(delta);
     }
 
-    // ── Scissor: render only the region around the avatar ──
-    const scissor = this._scissorEnabled ? this._computeScissorRect() : null;
-    if (scissor) {
-      this.renderer.setScissorTest(true);
-      this.renderer.setScissor(scissor.x, scissor.y, scissor.w, scissor.h);
-      this.renderer.setViewport(0, 0, scissor.fullW, scissor.fullH);
-      // Clear only the scissor region (transparent)
-      this.renderer.getClearColor(this._scissorClearColor);
-      this.renderer.setClearColor(this._scissorClearColor, 0);
-      this.renderer.clear(true, true, true);
-    } else if (this._scissorEnabled) {
-      // Scissor enabled but no VRM loaded yet — still need to clear
-      // to prevent stale pixels when autoClear is disabled.
-      this.renderer.setClearColor(0x000000, 0);
-      this.renderer.clear(true, true, true);
-    }
-
     // Capture render stats across all passes (bloom resets info per-pass)
     if (this._perfEnabled) {
       this.renderer.info.autoReset = false;
@@ -451,7 +429,7 @@ export class AvatarScene {
     }
 
     if (this.customRender) {
-      this.customRender(scissor ?? null);
+      this.customRender();
     } else {
       this.renderer.render(this.scene, this.camera);
     }
@@ -462,11 +440,6 @@ export class AvatarScene {
       this.renderer.info.autoReset = true;
     }
 
-    if (scissor) {
-      this.renderer.setScissorTest(false);
-    }
-
-    this._lastScissorRect = scissor ?? null;
     this._updatePerfOverlay();
   }
 
@@ -479,6 +452,9 @@ export class AvatarScene {
   setPerfOverlay(enabled: boolean): void {
     this._perfEnabled = enabled;
     if (enabled && !this._perfOverlay) {
+      // Show window border for debugging
+      document.body.style.outline = '2px solid rgba(0, 255, 0, 0.5)';
+      document.body.style.outlineOffset = '-2px';
       const div = document.createElement('div');
       div.id = 'avatar-perf-overlay';
       div.style.cssText = `
@@ -494,6 +470,8 @@ export class AvatarScene {
     } else if (!enabled && this._perfOverlay) {
       this._perfOverlay.remove();
       this._perfOverlay = null;
+      document.body.style.outline = '';
+      document.body.style.outlineOffset = '';
     }
   }
 
@@ -516,66 +494,40 @@ export class AvatarScene {
 
     const info = this.renderer.info;
     const canvas = this.renderer.domElement;
-    const scissor = this._lastScissorRect;
 
     const canvasW = canvas.width;
     const canvasH = canvas.height;
-    const canvasMP = ((canvasW * canvasH) / 1e6).toFixed(1);
 
-    let scissorLine = 'scissor: off';
-    let savingsLine = '';
-    if (scissor) {
-      const scissorMP = ((scissor.w * scissor.h) / 1e6).toFixed(2);
-      const pct = (100 - (scissor.w * scissor.h) / (canvasW * canvasH) * 100).toFixed(0);
-      scissorLine = 'scissor: ' + scissor.w + '\u00d7' + scissor.h + ' (' + scissorMP + 'MP)';
-      savingsLine = 'savings: ' + pct + '% pixels skipped';
-    }
+    const bounds = this.getAvatarBounds();
+    const boundsLine = bounds ? 'avatar: ' + bounds.width + '\u00d7' + bounds.height : 'avatar: loading';
 
     const mem = info.memory;
     const lines = [
       'fps: ' + this._perfFps,
-      'canvas: ' + canvasW + '\u00d7' + canvasH + ' (' + canvasMP + 'MP)',
-      scissorLine,
-      savingsLine,
+      'window: ' + canvasW + '\u00d7' + canvasH,
+      boundsLine,
       'draws: ' + this._perfDrawCalls + '  tris: ' + this._perfTriangles,
       'textures: ' + mem.textures + '  geometries: ' + mem.geometries,
-    ].filter(Boolean).join('\n');
+    ].join('\n');
 
     this._perfOverlay.textContent = lines;
   }
 
-  // ─── Scissor rendering ────────────────────────────────────────────
+  // ─── Avatar bounds (for auto-sizing) ────────────────────────────────
 
   /**
-   * Enable scissor rendering — only the region around the avatar is rendered.
-   * Essential for multi-monitor setups where the canvas spans all screens
-   * but the avatar occupies a tiny fraction.
-   */
-  setScissorEnabled(enabled: boolean): void {
-    this._scissorEnabled = enabled;
-    if (enabled) {
-      this.renderer.autoClear = false;
-    } else {
-      this.renderer.autoClear = true;
-      this.renderer.setScissorTest(false);
-    }
-  }
-
-  /**
-   * Compute the pixel-space scissor rect from the VRM bounding box.
-   * Projects all 8 bbox corners to screen space, expands with padding
-   * for VFX (particles, trails, bloom bleed), and clamps to canvas bounds.
-   *
+   * Compute the avatar's projected screen bounds in CSS pixels.
+   * Used by the desktop app to auto-size the window.
    * Returns null if no VRM root is set.
    */
-  private _computeScissorRect(): { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null {
+  getAvatarBounds(): { width: number; height: number } | null {
     if (!this._vrmRoot) return null;
 
-    this._scissorBbox.setFromObject(this._vrmRoot);
-    if (this._scissorBbox.isEmpty()) return null;
+    this._boundsBbox.setFromObject(this._vrmRoot);
+    if (this._boundsBbox.isEmpty()) return null;
 
-    const { min, max } = this._scissorBbox;
-    const corners = this._scissorCorners;
+    const { min, max } = this._boundsBbox;
+    const corners = this._boundsCorners;
     corners[0]!.set(min.x, min.y, min.z);
     corners[1]!.set(min.x, min.y, max.z);
     corners[2]!.set(min.x, max.y, min.z);
@@ -598,31 +550,16 @@ export class AvatarScene {
       ndcMaxY = Math.max(ndcMaxY, c.y);
     }
 
-    // NDC [-1,1] → pixel coordinates
-    // WebGL scissor: Y=0 at bottom, measured in framebuffer pixels.
-    // canvas.width/height already include pixel ratio (set by renderer.setSize).
+    // NDC [-1,1] → CSS pixels
     const canvas = this.renderer.domElement;
-    const dpr = this.renderer.getPixelRatio();
-    const fbW = canvas.width;
-    const fbH = canvas.height;
-    const pad = SCISSOR_PADDING_PX * dpr;
+    const cssW = canvas.clientWidth;
+    const cssH = canvas.clientHeight;
+    const pad = AVATAR_BOUNDS_PADDING_PX;
 
-    let px0 = ((ndcMinX + 1) / 2) * fbW - pad;
-    let py0 = ((ndcMinY + 1) / 2) * fbH - pad;  // GL Y: bottom=0
-    let px1 = ((ndcMaxX + 1) / 2) * fbW + pad;
-    let py1 = ((ndcMaxY + 1) / 2) * fbH + pad;
+    const projW = ((ndcMaxX - ndcMinX) / 2) * cssW + pad * 2;
+    const projH = ((ndcMaxY - ndcMinY) / 2) * cssH + pad * 2;
 
-    // Clamp to framebuffer bounds
-    px0 = Math.max(0, Math.floor(px0));
-    py0 = Math.max(0, Math.floor(py0));
-    px1 = Math.min(fbW, Math.ceil(px1));
-    py1 = Math.min(fbH, Math.ceil(py1));
-
-    const w = px1 - px0;
-    const h = py1 - py0;
-    if (w <= 0 || h <= 0) return null;
-
-    return { x: px0, y: py0, w, h, fullW: fbW, fullH: fbH };
+    return { width: Math.ceil(projW), height: Math.ceil(projH) };
   }
 
   /** Set a resize callback for external compositors. */
