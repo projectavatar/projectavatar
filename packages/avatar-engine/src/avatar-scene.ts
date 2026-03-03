@@ -84,10 +84,11 @@ export class AvatarScene {
 
   /** VRM model root — set after model load for external consumers (e.g. hit-testing). */
   private _vrmRoot: THREE.Object3D | null = null;
+  /** Fixed rest-pose bounding box — captured once on setVrmRoot, never changes. */
+  private _restBbox: THREE.Box3 | null = null;
+  private _boundsCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   // ─── Avatar bounds ──────────────────────────────────────────────────
-  private _boundsBbox = new THREE.Box3();
-  private _boundsCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   // ─── Performance overlay ────────────────────────────────────────────
   private _perfEnabled = false;
@@ -302,6 +303,13 @@ export class AvatarScene {
   /** Set the VRM model root for external consumers. */
   setVrmRoot(root: THREE.Object3D | null): void {
     this._vrmRoot = root;
+    // Capture rest-pose bounding box once — used for stable window sizing.
+    // The animated bbox fluctuates with pose; rest bbox is constant.
+    if (root) {
+      this._restBbox = new THREE.Box3().setFromObject(root);
+    } else {
+      this._restBbox = null;
+    }
   }
 
   /** Full cleanup — call when unmounting. */
@@ -447,12 +455,9 @@ export class AvatarScene {
    * the avatar at the current camera zoom, based on devicePixelRatio.
    */
   getAvatarBounds(): { width: number; height: number; ndcW: number; ndcH: number } | null {
-    if (!this._vrmRoot) return null;
+    if (!this._restBbox) return null;
 
-    this._boundsBbox.setFromObject(this._vrmRoot);
-    if (this._boundsBbox.isEmpty()) return null;
-
-    const { min, max } = this._boundsBbox;
+    const { min, max } = this._restBbox;
     const corners = this._boundsCorners;
     corners[0]!.set(min.x, min.y, min.z);
     corners[1]!.set(min.x, min.y, max.z);
