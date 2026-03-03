@@ -63,7 +63,6 @@ export function DesktopApp() {
     const POLL_MS = 500;
     const THRESHOLD = 20;
     const FILL_RATIO = 0.9;
-    const REF = 1000;
 
     let lastPhysSize = 0;
     let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
@@ -81,11 +80,14 @@ export function DesktopApp() {
     };
 
     const poll = async () => {
-      const bounds = avatarScene.getAvatarBounds();
-      if (!bounds || !(await ensureTauri()) || !tauriInvoke || !tauriWin) return;
+      const fovFrac = avatarScene.getAvatarFovFraction();
+      if (fovFrac == null || !(await ensureTauri()) || !tauriInvoke || !tauriWin) return;
 
-      const needed = Math.max((bounds.ndcW / 2) * REF, (bounds.ndcH / 2) * REF);
-      const cssSize = Math.max(MIN_SIZE, Math.ceil(needed / FILL_RATIO));
+      // fovFrac = how much of camera FOV the model fills.
+      // At a BASE_SIZE window, fovFrac of 1.0 means model fills entire view.
+      // We want model to fill FILL_RATIO of the window.
+      const BASE_SIZE = 800;
+      const cssSize = Math.max(MIN_SIZE, Math.ceil(BASE_SIZE * fovFrac / FILL_RATIO));
       const scale = await tauriWin.scaleFactor();
       const newPhysSize = Math.round(cssSize * scale);
 

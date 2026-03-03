@@ -33,9 +33,6 @@ const DEFAULT_GRID_DIVISIONS = 16;
  * - At CLOSE_DISTANCE or closer → target = face/head
  * - Between → smooth lerp
  */
-/** Padding (in CSS pixels) around the avatar bounding box. */
-const AVATAR_BOUNDS_PADDING_PX = 100;
-
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
@@ -86,7 +83,6 @@ export class AvatarScene {
   private _vrmRoot: THREE.Object3D | null = null;
   /** Fixed rest-pose bounding box — captured once on setVrmRoot, never changes. */
   private _restBbox: THREE.Box3 | null = null;
-  private _boundsCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   // ─── Avatar bounds ──────────────────────────────────────────────────
 
@@ -430,8 +426,8 @@ export class AvatarScene {
 
     const info = this.renderer.info;
     const canvas = this.renderer.domElement;
-    const bounds = this.getAvatarBounds();
-    const boundsLine = bounds ? 'avatar: ' + bounds.width + '\u00d7' + bounds.height : 'avatar: loading';
+    const fovFrac = this.getAvatarFovFraction();
+    const boundsLine = fovFrac != null ? 'fovFrac: ' + fovFrac.toFixed(3) : 'avatar: loading';
     const mem = info.memory;
     const lines = [
       'fps: ' + this._perfFps,
@@ -447,51 +443,34 @@ export class AvatarScene {
 
   /** Compute the avatar's projected screen bounds in CSS pixels. */
   /**
-   * Compute the avatar's projected screen bounds in CSS pixels.
-   * Uses NDC span only (window-independent) to avoid feedback loops
-   * where resize → new bounds → resize again.
+   * Compute the avatar's world-space extent as a fraction of the camera's
+   * vertical field of view. This is completely independent of window size,
+   * canvas aspect, and camera rotation — it only depends on the model's
+   * rest-pose height and the camera's distance + FOV.
    *
-   * Returns the pixel size needed for a square window to fully contain
-   * the avatar at the current camera zoom, based on devicePixelRatio.
+   * Returns `fovFraction`: how much of the camera's vertical FOV the model
+   * occupies (0..1+). Multiply by desired window size to get pixel extent.
    */
-  getAvatarBounds(): { width: number; height: number; ndcW: number; ndcH: number } | null {
+  getAvatarFovFraction(): number | null {
     if (!this._restBbox) return null;
 
-    const { min, max } = this._restBbox;
-    const corners = this._boundsCorners;
-    corners[0]!.set(min.x, min.y, min.z);
-    corners[1]!.set(min.x, min.y, max.z);
-    corners[2]!.set(min.x, max.y, min.z);
-    corners[3]!.set(min.x, max.y, max.z);
-    corners[4]!.set(max.x, min.y, min.z);
-    corners[5]!.set(max.x, min.y, max.z);
-    corners[6]!.set(max.x, max.y, min.z);
-    corners[7]!.set(max.x, max.y, max.z);
+    // Use the largest axis of the rest bbox as the "diameter"
+    const size = new THREE.Vector3();
+    this._restBbox.getSize(size);
+    const modelExtent = Math.max(size.x, size.y, size.z);
 
-    let ndcMinX = Infinity, ndcMinY = Infinity;
-    let ndcMaxX = -Infinity, ndcMaxY = -Infinity;
+    // Distance from camera to bbox center
+    const center = new THREE.Vector3();
+    this._restBbox.getCenter(center);
+    const distance = this.camera.position.distanceTo(center);
+    if (distance < 0.001) return null;
 
-    for (const c of corners) {
-      c.project(this.camera);
-      ndcMinX = Math.min(ndcMinX, c.x);
-      ndcMinY = Math.min(ndcMinY, c.y);
-      ndcMaxX = Math.max(ndcMaxX, c.x);
-      ndcMaxY = Math.max(ndcMaxY, c.y);
-    }
+    // How much of the vertical FOV does the model span?
+    // visibleHeight = 2 * distance * tan(fov/2)
+    const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
+    const visibleHeight = 2 * distance * Math.tan(fovRad / 2);
 
-    // NDC span (0..2 range). These are window-size-independent.
-    const ndcW = ndcMaxX - ndcMinX;
-    const ndcH = ndcMaxY - ndcMinY;
-
-    // For perf overlay / info: convert to current canvas CSS pixels
-    const canvas = this.renderer.domElement;
-    const cssW = canvas.clientWidth;
-    const cssH = canvas.clientHeight;
-    const pad = AVATAR_BOUNDS_PADDING_PX;
-    const projW = (ndcW / 2) * cssW + pad * 2;
-    const projH = (ndcH / 2) * cssH + pad * 2;
-
-    return { width: Math.ceil(projW), height: Math.ceil(projH), ndcW, ndcH };
+    return modelExtent / visibleHeight;
   }
 
   /** Set a resize callback for external compositors. */
