@@ -1,6 +1,19 @@
 # Desktop Changelog
 
 
+## 0.8.0
+
+### Added
+- **Multi-monitor support** — Avatar can now roam freely across all screens. The transparent overlay spans the entire virtual desktop.
+- **Scissor rendering** — Only the region around the avatar is rendered (~97% GPU savings on multi-monitor). Toggled automatically on desktop.
+- **Mixed DPI handling** — Uses the highest scale factor across all monitors. Avatar stays crisp on any screen.
+- **Monitor hot-plug detection** — Monitors connecting/disconnecting are detected automatically (2s poll). Window resizes and DPI updates without restart.
+- **Performance debug overlay** — `Shift+P` toggles a real-time HUD showing FPS, scissor rect size, total canvas size, draw calls, triangles, and memory usage.
+
+### Changed
+- Window now spans all monitors instead of just the primary.
+- Bloom FBOs are allocated at full canvas size but scissor test prevents wasted GPU compute. VRAM note documented for future optimization.
+
 ## 0.7.0
 
 ### Added

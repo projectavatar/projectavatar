@@ -184,8 +184,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
       onEffectsManager?.(effectsManager);
 
       // Integrate bloom: custom render through composer when active
-      avatarScene.setCustomRender(() => {
-        if (!effectsManager.renderBloom()) {
+      avatarScene.setCustomRender((scissorRect) => {
+        if (!effectsManager.renderBloom(scissorRect)) {
           avatarScene.renderer.render(avatarScene.scene, avatarScene.camera);
         }
       });
@@ -432,7 +432,25 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // Force resize to apply
     const canvas = scene.renderer.domElement;
     scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    // Propagate pixel ratio to bloom effect composer
+    const em = effectsManagerRef.current;
+    if (em) {
+      em.setPixelRatio(renderScale);
+      em.setSize(canvas.clientWidth, canvas.clientHeight);
+    }
   }, [renderScale]);
+
+  // Shift+P toggles performance debug overlay (works in web + desktop)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'P' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const scene = sceneRef.current;
+        if (scene) scene.setPerfOverlay(!scene.perfOverlayEnabled);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // WebSocket lifecycle
   useEffect(() => {
