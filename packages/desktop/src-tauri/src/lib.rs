@@ -57,6 +57,17 @@ fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(),
         .map_err(|e| e.to_string())
 }
 
+/// Set window position and size in one call.
+#[tauri::command]
+fn set_window_rect(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
+    window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+        .map_err(|e| e.to_string())
+}
+
 /// Default window size.
 const DEFAULT_WIDTH: u32 = 500;
 const DEFAULT_HEIGHT: u32 = 700;
@@ -131,6 +142,7 @@ pub fn run() {
             frontend_ready,
             start_drag,
             set_window_size,
+            set_window_rect,
         ])
         .setup(|app| {
             // ── System tray ──────────────────────────────────────────────

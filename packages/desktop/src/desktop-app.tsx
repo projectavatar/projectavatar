@@ -56,12 +56,11 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
-  // Auto-resize window to fit avatar (always square + padding)
+  // Auto-resize window to fit avatar (always square, centered)
   useEffect(() => {
     if (!avatarScene) return;
     let lastSize = 0;
     const MIN_SIZE = 400;
-    const PADDING_TOP_BOTTOM = 60;
     const RESIZE_THRESHOLD = 30;
     const RESIZE_POLL_MS = 500;
 
@@ -69,17 +68,29 @@ export function DesktopApp() {
       const bounds = avatarScene.getAvatarBounds();
       if (!bounds) return;
 
-      // Square: use the larger dimension + top/bottom padding
-      const inner = Math.max(bounds.width, bounds.height + PADDING_TOP_BOTTOM * 2);
-      const targetSize = Math.max(MIN_SIZE, Math.ceil(inner));
+      // Square: use the larger dimension
+      const targetSize = Math.max(MIN_SIZE, Math.ceil(Math.max(bounds.width, bounds.height)));
 
       if (Math.abs(targetSize - lastSize) < RESIZE_THRESHOLD) return;
 
       try {
         const { invoke } = await import('@tauri-apps/api/core');
-        const scale = window.devicePixelRatio || 1;
-        const physSize = Math.round(targetSize * scale);
-        await invoke('set_window_size', { width: physSize, height: physSize });
+        const win = (await import('@tauri-apps/api/window')).getCurrentWindow();
+        const scale = await win.scaleFactor();
+        const pos = await win.outerPosition();
+        const size = await win.outerSize();
+
+        const newPhysSize = Math.round(targetSize * scale);
+        // Adjust position so window stays centered
+        const dx = Math.round((size.width - newPhysSize) / 2);
+        const dy = Math.round((size.height - newPhysSize) / 2);
+
+        await invoke('set_window_rect', {
+          x: pos.x + dx,
+          y: pos.y + dy,
+          width: newPhysSize,
+          height: newPhysSize,
+        });
         lastSize = targetSize;
       } catch { /* Not in Tauri */ }
     };
