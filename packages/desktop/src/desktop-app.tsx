@@ -56,51 +56,88 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
-  // Auto-resize window to fit avatar (always square, centered)
+  // Auto-resize window to fit avatar (always square, centered, smooth lerp)
   useEffect(() => {
     if (!avatarScene) return;
-    let lastSize = 0;
     const MIN_SIZE = 400;
-    const RESIZE_THRESHOLD = 30;
-    const RESIZE_POLL_MS = 500;
+    const BOUNDS_POLL_MS = 500;
+    const LERP_SPEED = 0.08; // ~12 frames to 90% of target at 60fps
+    const SNAP_THRESHOLD = 1; // snap when within 1px
 
-    const poll = async () => {
-      const bounds = avatarScene.getAvatarBounds();
-      if (!bounds) return;
+    let targetSize = 0;
+    let currentSize = 0;
+    let animating = false;
+    let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+    let tauriWin: { scaleFactor(): Promise<number>; outerPosition(): Promise<{ x: number; y: number }>; outerSize(): Promise<{ width: number; height: number }> } | null = null;
 
-      // Square: use the larger dimension
-      const targetSize = Math.max(MIN_SIZE, Math.ceil(Math.max(bounds.width, bounds.height)));
-
-      if (Math.abs(targetSize - lastSize) < RESIZE_THRESHOLD) return;
-
+    // Lazy-load Tauri APIs once
+    const ensureTauri = async () => {
+      if (tauriInvoke) return true;
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const win = (await import('@tauri-apps/api/window')).getCurrentWindow();
-        const scale = await win.scaleFactor();
-        const pos = await win.outerPosition();
-        const size = await win.outerSize();
-
-        const newPhysSize = Math.round(targetSize * scale);
-        // Adjust position so window stays centered
-        const dx = Math.round((size.width - newPhysSize) / 2);
-        const dy = Math.round((size.height - newPhysSize) / 2);
-
-        await invoke('set_window_rect', {
-          x: pos.x + dx,
-          y: pos.y + dy,
-          width: newPhysSize,
-          height: newPhysSize,
-        });
-        lastSize = targetSize;
-      } catch { /* Not in Tauri */ }
+        const core = await import('@tauri-apps/api/core');
+        const winMod = await import('@tauri-apps/api/window');
+        tauriInvoke = core.invoke;
+        tauriWin = winMod.getCurrentWindow() as unknown as typeof tauriWin;
+        return true;
+      } catch { return false; }
     };
 
-    const id = setInterval(poll, RESIZE_POLL_MS);
-    const initialId = setTimeout(poll, 2000);
+    // Poll bounds at low frequency to update target
+    const pollBounds = () => {
+      const bounds = avatarScene.getAvatarBounds();
+      if (!bounds) return;
+      const newTarget = Math.max(MIN_SIZE, Math.ceil(Math.max(bounds.width, bounds.height)));
+      if (newTarget !== targetSize) {
+        targetSize = newTarget;
+        if (currentSize === 0) currentSize = targetSize; // first frame: snap
+        if (!animating) startLerp();
+      }
+    };
+
+    // Smooth lerp loop via requestAnimationFrame
+    let rafId = 0;
+    const lerpFrame = async () => {
+      if (Math.abs(currentSize - targetSize) < SNAP_THRESHOLD) {
+        currentSize = targetSize;
+        animating = false;
+      }
+
+      const prevSize = Math.round(currentSize);
+      currentSize += (targetSize - currentSize) * LERP_SPEED;
+      const newSize = Math.round(currentSize);
+
+      if (newSize !== prevSize && tauriInvoke && tauriWin) {
+        try {
+          const scale = await tauriWin.scaleFactor();
+          const pos = await tauriWin.outerPosition();
+          const size = await tauriWin.outerSize();
+          const newPhysSize = Math.round(newSize * scale);
+          const dx = Math.round((size.width - newPhysSize) / 2);
+          const dy = Math.round((size.height - newPhysSize) / 2);
+          await tauriInvoke('set_window_rect', {
+            x: pos.x + dx, y: pos.y + dy,
+            width: newPhysSize, height: newPhysSize,
+          });
+        } catch { /* skip frame */ }
+      }
+
+      if (animating) rafId = requestAnimationFrame(lerpFrame);
+    };
+
+    const startLerp = async () => {
+      if (!(await ensureTauri())) return;
+      animating = true;
+      rafId = requestAnimationFrame(lerpFrame);
+    };
+
+    const boundsId = setInterval(pollBounds, BOUNDS_POLL_MS);
+    const initialId = setTimeout(pollBounds, 2000);
 
     return () => {
-      clearInterval(id);
+      clearInterval(boundsId);
       clearTimeout(initialId);
+      animating = false;
+      cancelAnimationFrame(rafId);
     };
   }, [avatarScene]);
 
