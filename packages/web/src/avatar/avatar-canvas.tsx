@@ -218,10 +218,6 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
           avatarScene.setVrmRoot(vrm.scene);
           // Dynamic framing: zoomed out → body center, zoomed in → face
           avatarScene.setFramingPoints(vrmManager.bodyCenter, vrmManager.faceCenter);
-          // Set clamp bones: head for vertical, hips for horizontal
-          const headBone = vrm.humanoid?.getNormalizedBoneNode('head') ?? null;
-          const hipsBone = vrm.humanoid?.getNormalizedBoneNode('hips') ?? null;
-          avatarScene.setClampBones(headBone, hipsBone);
           setupControllers(vrm);
         } catch (err) {
           if (cancelled) return;
@@ -251,41 +247,14 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     // Smooth eye tracking + zoom-aware idle mode — runs every frame.
     // Cleaned up via avatarScene.dispose() which clears all update callbacks.
     const eyeGoal = new THREE.Vector3();
-    const _shinWorldPos = new THREE.Vector3();
-    const _shinProjected = new THREE.Vector3();
-    // Cached bone refs — populated after VRM load, avoids per-frame lookups
-    let _legBones: Array<{ knee: THREE.Object3D; foot: THREE.Object3D }> | null = null;
+    const ZOOM_GROUND_THRESHOLD = 3; // switch to ground mode when zoomed in closer than this
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
 
-      // Switch idle mode based on mid-shin visibility.
-      // Mid-shin visible → air mode (dangling legs look intentional).
-      // Mid-shin off-screen → ground mode (hides feet issues).
+      // Switch idle mode based on zoom distance
       if (ctrl) {
-        // Cache bone refs on first access
-        if (!_legBones) {
-          const humanoid = vrmManager.vrm?.humanoid;
-          if (humanoid) {
-            _legBones = [];
-            for (const side of ['left', 'right'] as const) {
-              const knee = humanoid.getNormalizedBoneNode(side === 'left' ? 'leftLowerLeg' : 'rightLowerLeg');
-              const foot = humanoid.getNormalizedBoneNode(side === 'left' ? 'leftFoot' : 'rightFoot');
-              if (knee && foot) _legBones.push({ knee, foot });
-            }
-          }
-        }
-        let kneeVisible = false;
-        if (_legBones) {
-          for (const { knee, foot } of _legBones) {
-            knee.getWorldPosition(_shinWorldPos);
-            foot.getWorldPosition(_shinProjected);
-            // Midpoint between knee and foot (mid-shin)
-            _shinWorldPos.lerp(_shinProjected, 0.5);
-            _shinProjected.copy(_shinWorldPos).project(avatarScene.camera);
-            if (_shinProjected.y > -1) { kneeVisible = true; break; }
-          }
-        }
-        const wantGround = !kneeVisible;
+        const dist = avatarScene.camera.position.length();
+        const wantGround = dist < ZOOM_GROUND_THRESHOLD;
         const currentMode = ctrl.getIdleMode();
         if (wantGround && currentMode === 'air') {
           ctrl.setIdleMode('ground');
