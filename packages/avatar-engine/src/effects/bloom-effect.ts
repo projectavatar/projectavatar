@@ -45,8 +45,6 @@ export class BloomEffect {
   /** Active scissor rect — set each frame before render() when scissor is enabled. */
   private _scissorRect: ScissorRect | null = null;
 
-
-
   // Stored for deferred construction
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
@@ -167,8 +165,6 @@ export class BloomEffect {
   setScissorRect(rect: ScissorRect | null): void {
     this._scissorRect = rect;
   }
-
-
 
   /** Render the scene through the bloom pipeline. */
   render(): void {

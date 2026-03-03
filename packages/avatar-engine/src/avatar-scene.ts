@@ -104,6 +104,8 @@ export class AvatarScene {
   private _perfLastTime = 0;
   private _perfFps = 0;
   private _lastScissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null = null;
+  private _perfDrawCalls = 0;
+  private _perfTriangles = 0;
 
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
@@ -442,10 +444,22 @@ export class AvatarScene {
       this.renderer.clear(true, true, true);
     }
 
+    // Capture render stats across all passes (bloom resets info per-pass)
+    if (this._perfEnabled) {
+      this.renderer.info.autoReset = false;
+      this.renderer.info.reset();
+    }
+
     if (this.customRender) {
       this.customRender(scissor ?? null);
     } else {
       this.renderer.render(this.scene, this.camera);
+    }
+
+    if (this._perfEnabled) {
+      this._perfDrawCalls = this.renderer.info.render.calls;
+      this._perfTriangles = this.renderer.info.render.triangles;
+      this.renderer.info.autoReset = true;
     }
 
     if (scissor) {
@@ -523,7 +537,7 @@ export class AvatarScene {
       'canvas: ' + canvasW + '\u00d7' + canvasH + ' (' + canvasMP + 'MP)',
       scissorLine,
       savingsLine,
-      'draws: ' + info.render.calls + '  tris: ' + info.render.triangles,
+      'draws: ' + this._perfDrawCalls + '  tris: ' + this._perfTriangles,
       'textures: ' + mem.textures + '  geometries: ' + mem.geometries,
     ].filter(Boolean).join('\n');
 
