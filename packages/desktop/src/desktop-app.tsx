@@ -56,6 +56,43 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
+  // Auto-resize window to fit avatar (always square + padding)
+  useEffect(() => {
+    if (!avatarScene) return;
+    let lastSize = 0;
+    const MIN_SIZE = 400;
+    const PADDING_TOP_BOTTOM = 60;
+    const RESIZE_THRESHOLD = 30;
+    const RESIZE_POLL_MS = 500;
+
+    const poll = async () => {
+      const bounds = avatarScene.getAvatarBounds();
+      if (!bounds) return;
+
+      // Square: use the larger dimension + top/bottom padding
+      const inner = Math.max(bounds.width, bounds.height + PADDING_TOP_BOTTOM * 2);
+      const targetSize = Math.max(MIN_SIZE, Math.ceil(inner));
+
+      if (Math.abs(targetSize - lastSize) < RESIZE_THRESHOLD) return;
+
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const scale = window.devicePixelRatio || 1;
+        const physSize = Math.round(targetSize * scale);
+        await invoke('set_window_size', { width: physSize, height: physSize });
+        lastSize = targetSize;
+      } catch { /* Not in Tauri */ }
+    };
+
+    const id = setInterval(poll, RESIZE_POLL_MS);
+    const initialId = setTimeout(poll, 2000);
+
+    return () => {
+      clearInterval(id);
+      clearTimeout(initialId);
+    };
+  }, [avatarScene]);
+
   // Listen for tray "Settings" menu event from Rust
   useEffect(() => {
     let unlisten: (() => void) | null = null;
