@@ -1,5 +1,5 @@
 /**
- * Desktop wrapper for the web app — fullscreen mode.
+ * Desktop wrapper for the web app — small draggable window mode.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { App } from '../../web/src/app.tsx';
@@ -37,7 +37,7 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
-  // Signal Rust that frontend is ready — expand 1×1 window to fullscreen.
+  // Signal Rust that frontend is ready — set small window at bottom-right.
   // The 200ms delay ensures:
   // 1. First transparent frame is rendered (no flash)
   // 2. useClickThrough hook has initialized and set click-through ON

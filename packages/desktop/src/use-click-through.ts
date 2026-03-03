@@ -139,6 +139,7 @@ export function useClickThrough(
   onCursorNdcRef.current = onCursorNdc;
 
   const activatedRef = useRef(false);
+  const draggingRef = useRef(false);
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
 
@@ -202,7 +203,19 @@ export function useClickThrough(
             }
           }
 
-          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current;
+          // Drag: hit + button pressed → initiate native OS window drag
+          if (hit && buttonPressed && !draggingRef.current) {
+            draggingRef.current = true;
+            // Must disable click-through first so OS can grab the window
+            void setIgnoreCursor(invoke, false).then(() => {
+              void invoke('start_drag');
+            });
+          }
+          if (!buttonPressed) {
+            draggingRef.current = false;
+          }
+
+          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current || draggingRef.current;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {

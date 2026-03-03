@@ -43,25 +43,46 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
-/// Called by the frontend when it's ready (transparent, rendered).
-/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
+/// Initiate native OS window drag. Call on mousedown over the avatar hitbox.
+#[tauri::command]
+fn start_drag(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// Resize the window (keeps current position).
+#[tauri::command]
+fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
+    window
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+        .map_err(|e| e.to_string())
+}
+
+/// Default window size.
+const DEFAULT_WIDTH: u32 = 500;
+const DEFAULT_HEIGHT: u32 = 700;
+
+/// Called by the frontend when it's ready.
+/// Sets a small default window at bottom-right, hides from taskbar, enables click-through.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Expand to primary monitor, fallback to 1920×1080 at (0,0)
-    let (width, height, x, y) = match window.primary_monitor() {
+    // Position at bottom-right of primary monitor
+    let (x, y) = match window.primary_monitor() {
         Ok(Some(monitor)) => {
             let size = monitor.size();
             let pos = monitor.position();
-            (size.width, size.height, pos.x, pos.y)
+            (
+                pos.x + size.width as i32 - DEFAULT_WIDTH as i32 - 50,
+                pos.y + size.height as i32 - DEFAULT_HEIGHT as i32 - 100,
+            )
         }
-        _ => (1920, 1080, 0, 0),
+        _ => (100, 100),
     };
 
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())?;
     window
-        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }))
         .map_err(|e| e.to_string())?;
 
     // Hide from taskbar
@@ -75,7 +96,7 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     // Windows transparency workaround
     #[cfg(target_os = "windows")]
     {
-        let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width, height });
+        let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
         if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
             width: current.width + 1,
             height: current.height + 1,
@@ -108,6 +129,8 @@ pub fn run() {
             is_mouse_button_pressed,
             get_cursor_state,
             frontend_ready,
+            start_drag,
+            set_window_size,
         ])
         .setup(|app| {
             // ── System tray ──────────────────────────────────────────────
@@ -128,7 +151,6 @@ pub fn run() {
                 .on_menu_event(|app_handle: &AppHandle, event| {
                     match event.id.as_ref() {
                         "settings" => {
-                            // Emit a Tauri event that the frontend listens for
                             let _ = app_handle.emit("tray-open-settings", ());
                         }
                         "quit" => {
@@ -139,8 +161,6 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Window starts at 1×1 (invisible). frontend_ready command
-            // expands it to fullscreen after the webview has rendered.
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,6 +1,23 @@
 # Desktop Changelog
 
 
+## 0.8.0
+
+### Changed
+- **Small draggable window** — Replaced fullscreen overlay with a small borderless window. Click and drag the avatar to move the window across screens using native OS drag.
+- **Native OS window drag** — Uses Tauri's `startDragging()` for smooth, 60fps, cross-monitor dragging. No manual position tracking.
+- **No user resize** — Window is not resizable by the user. Auto-resize (future) will adjust to fit the model.
+
+### Removed
+- Fullscreen overlay mode (was causing high GPU usage on multi-monitor setups)
+- Multi-monitor scissor rendering
+- In-canvas pan/viewport offset (#101) — dragging now moves the window
+- Monitor hot-plug detection
+
+### Added
+- `start_drag` Rust command — initiates native OS window drag
+- `set_window_size` Rust command — for future auto-resize support
+
 ## 0.7.0
 
 ### Added
