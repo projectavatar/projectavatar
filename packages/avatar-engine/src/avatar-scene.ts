@@ -428,8 +428,11 @@ export class AvatarScene {
     this._updateFramingTarget();
     this.controls?.update();
     // Keep view offset applied — controls.update() may reset projection
-    if (this._panOffsetX !== 0 || this._panOffsetY !== 0) this._applyViewOffset();
-    this._clampPan();
+    // Skip when external pan handler is active (window handles positioning)
+    if (!this._onPanCallback) {
+      if (this._panOffsetX !== 0 || this._panOffsetY !== 0) this._applyViewOffset();
+      this._clampPan();
+    }
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
@@ -720,9 +723,19 @@ export class AvatarScene {
    * Set an external pan handler. When set, drag gestures call this function
    * with (dx, dy) in CSS pixels instead of applying in-canvas view offset.
    * Pass null to restore default in-canvas panning behavior.
+   *
+   * Also resets any existing view offset — the external handler owns positioning.
    */
   setOnPan(fn: ((dx: number, dy: number) => void) | null): void {
     this._onPanCallback = fn;
+    if (fn) {
+      // Clear in-canvas pan offset — window position handles it now
+      this._panOffsetX = 0;
+      this._panOffsetY = 0;
+      this.camera.clearViewOffset();
+      // Clear persisted pan so it doesn't restore on next launch
+      this._saveCameraAndPan();
+    }
   }
 
   /** Reset pan offset (double-click or programmatic). */
