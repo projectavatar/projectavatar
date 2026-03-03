@@ -38,6 +38,44 @@ export function DesktopApp() {
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
+
+    // Desktop: dragging moves the window, not the avatar inside it.
+    // We cache position/invoke to avoid async overhead at 60fps.
+    if (scene) {
+      let cachedX = 0;
+      let cachedY = 0;
+      let cachedW = 0;
+      let cachedH = 0;
+      let invokeRef: ((cmd: string, args: Record<string, unknown>) => Promise<unknown>) | null = null;
+      let dragging = false;
+
+      // Pre-load Tauri APIs
+      Promise.all([
+        import('@tauri-apps/api/core'),
+        import('@tauri-apps/api/window'),
+      ]).then(([{ invoke }, { getCurrentWindow }]) => {
+        invokeRef = invoke;
+        const win = getCurrentWindow();
+        // Refresh cached position before each drag starts
+        scene.setOnPan((dx, dy) => {
+          if (!invokeRef) return;
+          if (!dragging) {
+            dragging = true;
+            // Sync cache on drag start (one async call)
+            win.outerPosition().then((pos) => { cachedX = pos.x; cachedY = pos.y; });
+            win.outerSize().then((size) => { cachedW = size.width; cachedH = size.height; });
+          }
+          const scale = window.devicePixelRatio || 1;
+          cachedX += Math.round(dx * scale);
+          cachedY += Math.round(dy * scale);
+          void invokeRef('set_window_rect', {
+            x: cachedX, y: cachedY, width: cachedW, height: cachedH,
+          });
+        });
+        // Reset dragging flag on pointerup
+        window.addEventListener('pointerup', () => { dragging = false; });
+      }).catch(() => { /* Not in Tauri */ });
+    }
   }, []);
 
   useEffect(() => {

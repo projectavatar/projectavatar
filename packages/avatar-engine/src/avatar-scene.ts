@@ -119,6 +119,12 @@ export class AvatarScene {
 
   private _panPointer: { id: number; x: number; y: number } | null = null;
 
+  /**
+   * External pan handler — when set, pan deltas go here instead of setViewOffset.
+   * Desktop uses this to move the window; web leaves it null for in-canvas panning.
+   */
+  private _onPanCallback: ((dx: number, dy: number) => void) | null = null;
+
   // Bound handlers
   private _onPanDown: (e: PointerEvent) => void = () => {};
   private _onPanMove: (e: PointerEvent) => void = () => {};
@@ -232,10 +238,16 @@ export class AvatarScene {
         const dy = e.clientY - this._panPointer.y;
         this._panPointer.x = e.clientX;
         this._panPointer.y = e.clientY;
-        const dpr = this.renderer.getPixelRatio();
-        this._panOffsetX -= dx * dpr;
-        this._panOffsetY -= dy * dpr;
-        this._applyViewOffset();
+        if (this._onPanCallback) {
+          // External handler (desktop: move window)
+          this._onPanCallback(dx, dy);
+        } else {
+          // Default: in-canvas view offset panning (web)
+          const dpr = this.renderer.getPixelRatio();
+          this._panOffsetX -= dx * dpr;
+          this._panOffsetY -= dy * dpr;
+          this._applyViewOffset();
+        }
       };
       this._onPanUp = (e: PointerEvent) => {
         if (!this._panPointer || e.pointerId !== this._panPointer.id) return;
@@ -244,7 +256,7 @@ export class AvatarScene {
         canvas.removeEventListener('pointerup', this._onPanUp);
         canvas.removeEventListener('pointercancel', this._onPanUp);
         this._panPointer = null;
-        this._schedulePanSave();
+        if (!this._onPanCallback) this._schedulePanSave();
       };
       // Pan handler blocks left/middle from reaching OrbitControls via
       // stopImmediatePropagation. OrbitControls ignores LEFT (not in mouseButtons)
@@ -702,6 +714,15 @@ export class AvatarScene {
     const w = canvas.width;
     const h = canvas.height;
     this.camera.setViewOffset(w, h, this._panOffsetX, this._panOffsetY, w, h);
+  }
+
+  /**
+   * Set an external pan handler. When set, drag gestures call this function
+   * with (dx, dy) in CSS pixels instead of applying in-canvas view offset.
+   * Pass null to restore default in-canvas panning behavior.
+   */
+  setOnPan(fn: ((dx: number, dy: number) => void) | null): void {
+    this._onPanCallback = fn;
   }
 
   /** Reset pan offset (double-click or programmatic). */
