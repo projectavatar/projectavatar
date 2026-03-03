@@ -438,7 +438,15 @@ export class AvatarScene {
   // ─── Avatar bounds ────────────────────────────────────────────────────
 
   /** Compute the avatar's projected screen bounds in CSS pixels. */
-  getAvatarBounds(): { width: number; height: number } | null {
+  /**
+   * Compute the avatar's projected screen bounds in CSS pixels.
+   * Uses NDC span only (window-independent) to avoid feedback loops
+   * where resize → new bounds → resize again.
+   *
+   * Returns the pixel size needed for a square window to fully contain
+   * the avatar at the current camera zoom, based on devicePixelRatio.
+   */
+  getAvatarBounds(): { width: number; height: number; ndcW: number; ndcH: number } | null {
     if (!this._vrmRoot) return null;
 
     this._boundsBbox.setFromObject(this._vrmRoot);
@@ -466,14 +474,19 @@ export class AvatarScene {
       ndcMaxY = Math.max(ndcMaxY, c.y);
     }
 
+    // NDC span (0..2 range). These are window-size-independent.
+    const ndcW = ndcMaxX - ndcMinX;
+    const ndcH = ndcMaxY - ndcMinY;
+
+    // For perf overlay / info: convert to current canvas CSS pixels
     const canvas = this.renderer.domElement;
     const cssW = canvas.clientWidth;
     const cssH = canvas.clientHeight;
     const pad = AVATAR_BOUNDS_PADDING_PX;
-    const projW = ((ndcMaxX - ndcMinX) / 2) * cssW + pad * 2;
-    const projH = ((ndcMaxY - ndcMinY) / 2) * cssH + pad * 2;
+    const projW = (ndcW / 2) * cssW + pad * 2;
+    const projH = (ndcH / 2) * cssH + pad * 2;
 
-    return { width: Math.ceil(projW), height: Math.ceil(projH) };
+    return { width: Math.ceil(projW), height: Math.ceil(projH), ndcW, ndcH };
   }
 
   /** Set a resize callback for external compositors. */

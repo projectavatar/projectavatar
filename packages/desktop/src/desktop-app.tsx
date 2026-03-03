@@ -82,14 +82,29 @@ export function DesktopApp() {
       } catch { return false; }
     };
 
-    // Poll bounds at low frequency to update target
+    // Poll bounds at low frequency to update target.
+    // Uses NDC span (window-independent) to compute ideal window size.
+    // ndcW/ndcH are in [0..2] range. Divide by 2 to get fraction of window.
+    // We want the avatar to fill ~70% of the window → size = refPixels / 0.7
+    const FILL_RATIO = 0.7;
     const pollBounds = () => {
       const bounds = avatarScene.getAvatarBounds();
       if (!bounds) return;
-      const newTarget = Math.max(MIN_SIZE, Math.ceil(Math.max(bounds.width, bounds.height)));
+      // NDC span → how many CSS pixels the avatar needs at a given window size
+      // At windowSize W, avatar takes (ndcSpan/2)*W pixels.
+      // We want (ndcSpan/2)*W / W = FILL_RATIO → W = doesn't help.
+      // Instead: the avatar's world-space angular size is fixed by zoom.
+      // ndcSpan/2 = fraction of any window it fills.
+      // To fill FILL_RATIO: windowSize = avatarNeedsPixels / FILL_RATIO
+      // avatarNeedsPixels at ref 1000px = (ndcSpan/2) * 1000
+      const REF = 1000;
+      const avatarW = (bounds.ndcW / 2) * REF;
+      const avatarH = (bounds.ndcH / 2) * REF;
+      const needed = Math.max(avatarW, avatarH);
+      const newTarget = Math.max(MIN_SIZE, Math.ceil(needed / FILL_RATIO));
       if (newTarget !== targetSize) {
         targetSize = newTarget;
-        if (currentSize === 0) currentSize = targetSize; // first frame: snap
+        if (currentSize === 0) currentSize = targetSize;
         if (!animating) startLerp();
       }
     };
