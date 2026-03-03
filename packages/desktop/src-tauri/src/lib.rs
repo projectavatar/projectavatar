@@ -43,19 +43,65 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
+/// Returns the bounding rect (physical pixels) that spans all monitors.
+/// Falls back to the primary monitor, then to 1920×1080 at (0,0).
+/// Virtual screen info: bounds + max scale factor across all monitors.
+#[derive(serde::Serialize)]
+struct VirtualScreen {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    max_scale_factor: f64,
+}
+
+fn compute_virtual_screen(window: &tauri::Window) -> VirtualScreen {
+    if let Ok(monitors) = window.available_monitors() {
+        if !monitors.is_empty() {
+            let mut min_x = i32::MAX;
+            let mut min_y = i32::MAX;
+            let mut max_x = i32::MIN;
+            let mut max_y = i32::MIN;
+            let mut max_scale: f64 = 1.0;
+
+            for monitor in &monitors {
+                let pos = monitor.position();
+                let size = monitor.size();
+                min_x = min_x.min(pos.x);
+                min_y = min_y.min(pos.y);
+                max_x = max_x.max(pos.x + size.width as i32);
+                max_y = max_y.max(pos.y + size.height as i32);
+                if monitor.scale_factor() > max_scale {
+                    max_scale = monitor.scale_factor();
+                }
+            }
+
+            let width = (max_x - min_x) as u32;
+            let height = (max_y - min_y) as u32;
+            return VirtualScreen { x: min_x, y: min_y, width, height, max_scale_factor: max_scale };
+        }
+    }
+
+    // Fallback: primary monitor
+    if let Ok(Some(monitor)) = window.primary_monitor() {
+        let size = monitor.size();
+        let pos = monitor.position();
+        return VirtualScreen {
+            x: pos.x, y: pos.y,
+            width: size.width, height: size.height,
+            max_scale_factor: monitor.scale_factor(),
+        };
+    }
+
+    VirtualScreen { x: 0, y: 0, width: 1920, height: 1080, max_scale_factor: 1.0 }
+}
+
 /// Called by the frontend when it's ready (transparent, rendered).
-/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
+/// Expands 1×1 window to span all monitors, hides from taskbar, enables click-through.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Expand to primary monitor, fallback to 1920×1080 at (0,0)
-    let (width, height, x, y) = match window.primary_monitor() {
-        Ok(Some(monitor)) => {
-            let size = monitor.size();
-            let pos = monitor.position();
-            (size.width, size.height, pos.x, pos.y)
-        }
-        _ => (1920, 1080, 0, 0),
-    };
+    let screen = compute_virtual_screen(&window);
+    let (x, y, width, height) = (screen.x, screen.y, screen.width, screen.height);
 
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
@@ -90,6 +136,13 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
+/// Returns the virtual screen info (bounds + max scale factor) in physical pixels.
+/// Used by the frontend to set correct pixel ratio and NDC coordinates.
+#[tauri::command]
+fn get_virtual_screen(window: tauri::Window) -> VirtualScreen {
+    compute_virtual_screen(&window)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -108,6 +161,7 @@ pub fn run() {
             is_mouse_button_pressed,
             get_cursor_state,
             frontend_ready,
+            get_virtual_screen,
         ])
         .setup(|app| {
             // ── System tray ──────────────────────────────────────────────

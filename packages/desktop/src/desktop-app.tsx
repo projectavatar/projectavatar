@@ -30,6 +30,23 @@ export function DesktopApp() {
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
+    // Enable scissor rendering for multi-monitor: only the region around
+    // the avatar is rendered, avoiding millions of wasted pixels.
+    scene?.setScissorEnabled(true);
+
+    // Use the highest DPI across all monitors so the avatar looks crisp
+    // on any screen. The scissor rect keeps actual rendering cost low.
+    if (scene) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke<{ max_scale_factor: number }>('get_virtual_screen').then((vs) => {
+          const ratio = Math.min(vs.max_scale_factor, 2);
+          scene.renderer.setPixelRatio(ratio);
+          // Force resize to apply new ratio
+          const canvas = scene.renderer.domElement;
+          scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+        });
+      }).catch(() => { /* Not in Tauri runtime */ });
+    }
   }, []);
 
   useEffect(() => {
@@ -37,7 +54,7 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
-  // Signal Rust that frontend is ready — expand 1×1 window to fullscreen.
+  // Signal Rust that frontend is ready — expand 1×1 window to span all monitors.
   // The 200ms delay ensures:
   // 1. First transparent frame is rendered (no flash)
   // 2. useClickThrough hook has initialized and set click-through ON

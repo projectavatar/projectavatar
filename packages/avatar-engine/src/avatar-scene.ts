@@ -33,6 +33,9 @@ const DEFAULT_GRID_DIVISIONS = 16;
  * - At CLOSE_DISTANCE or closer → target = face/head
  * - Between → smooth lerp
  */
+/** Padding (in CSS pixels) around the avatar bounding box for the scissor rect. */
+const SCISSOR_PADDING_PX = 250;
+
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
@@ -88,6 +91,12 @@ export class AvatarScene {
   /** VRM model root — set after model load for external consumers (e.g. hit-testing). */
   private _vrmRoot: THREE.Object3D | null = null;
 
+  // ─── Scissor rendering ──────────────────────────────────────────────
+  private _scissorEnabled = false;
+  private _scissorBbox = new THREE.Box3();
+  private _scissorCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
+  private _scissorClearColor = new THREE.Color(0x000000);
+
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -142,6 +151,8 @@ export class AvatarScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // autoClear disabled when scissor is active — we clear only the scissor region
+    // to avoid clearing millions of empty pixels on multi-monitor setups.
     
 
     // Three-point lighting
@@ -403,11 +414,109 @@ export class AvatarScene {
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
+
+    // ── Scissor: render only the region around the avatar ──
+    const scissor = this._scissorEnabled ? this._computeScissorRect() : null;
+    if (scissor) {
+      this.renderer.setScissorTest(true);
+      this.renderer.setScissor(scissor.x, scissor.y, scissor.w, scissor.h);
+      this.renderer.setViewport(0, 0, scissor.fullW, scissor.fullH);
+      // Clear only the scissor region (transparent)
+      this.renderer.getClearColor(this._scissorClearColor);
+      this.renderer.setClearColor(this._scissorClearColor, 0);
+      this.renderer.clear(true, true, true);
+    }
+
     if (this.customRender) {
       this.customRender();
     } else {
       this.renderer.render(this.scene, this.camera);
     }
+
+    if (scissor) {
+      this.renderer.setScissorTest(false);
+    }
+  }
+
+  // ─── Scissor rendering ────────────────────────────────────────────
+
+  /**
+   * Enable scissor rendering — only the region around the avatar is rendered.
+   * Essential for multi-monitor setups where the canvas spans all screens
+   * but the avatar occupies a tiny fraction.
+   */
+  setScissorEnabled(enabled: boolean): void {
+    this._scissorEnabled = enabled;
+    if (enabled) {
+      this.renderer.autoClear = false;
+    } else {
+      this.renderer.autoClear = true;
+      this.renderer.setScissorTest(false);
+    }
+  }
+
+  /**
+   * Compute the pixel-space scissor rect from the VRM bounding box.
+   * Projects all 8 bbox corners to screen space, expands with padding
+   * for VFX (particles, trails, bloom bleed), and clamps to canvas bounds.
+   *
+   * Returns null if no VRM root is set.
+   */
+  private _computeScissorRect(): { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null {
+    if (!this._vrmRoot) return null;
+
+    this._scissorBbox.setFromObject(this._vrmRoot);
+    if (this._scissorBbox.isEmpty()) return null;
+
+    const { min, max } = this._scissorBbox;
+    const corners = this._scissorCorners;
+    corners[0]!.set(min.x, min.y, min.z);
+    corners[1]!.set(min.x, min.y, max.z);
+    corners[2]!.set(min.x, max.y, min.z);
+    corners[3]!.set(min.x, max.y, max.z);
+    corners[4]!.set(max.x, min.y, min.z);
+    corners[5]!.set(max.x, min.y, max.z);
+    corners[6]!.set(max.x, max.y, min.z);
+    corners[7]!.set(max.x, max.y, max.z);
+
+    let ndcMinX = Infinity;
+    let ndcMinY = Infinity;
+    let ndcMaxX = -Infinity;
+    let ndcMaxY = -Infinity;
+
+    for (const c of corners) {
+      c.project(this.camera);
+      ndcMinX = Math.min(ndcMinX, c.x);
+      ndcMinY = Math.min(ndcMinY, c.y);
+      ndcMaxX = Math.max(ndcMaxX, c.x);
+      ndcMaxY = Math.max(ndcMaxY, c.y);
+    }
+
+    // NDC [-1,1] → pixel coordinates
+    // WebGL scissor: Y=0 at bottom, measured in framebuffer pixels.
+    // canvas.width/height already include pixel ratio (set by renderer.setSize).
+    const canvas = this.renderer.domElement;
+    const dpr = this.renderer.getPixelRatio();
+    const fbW = canvas.width;
+    const fbH = canvas.height;
+    const pad = SCISSOR_PADDING_PX * dpr;
+
+    let px0 = ((ndcMinX + 1) / 2) * fbW - pad;
+    let py0 = ((ndcMinY + 1) / 2) * fbH - pad;  // GL Y: bottom=0
+    let px1 = ((ndcMaxX + 1) / 2) * fbW + pad;
+    let py1 = ((ndcMaxY + 1) / 2) * fbH + pad;
+
+    // Clamp to framebuffer bounds
+    px0 = Math.max(0, Math.floor(px0));
+    py0 = Math.max(0, Math.floor(py0));
+    px1 = Math.min(fbW, Math.ceil(px1));
+    py1 = Math.min(fbH, Math.ceil(py1));
+
+    const w = px1 - px0;
+    const h = py1 - py0;
+    if (w <= 0 || h <= 0) return null;
+
+    return { x: px0, y: py0, w, h, fullW: fbW, fullH: fbH };
   }
 
   /** Set a resize callback for external compositors. */
