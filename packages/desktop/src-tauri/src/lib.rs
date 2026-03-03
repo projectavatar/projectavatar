@@ -58,13 +58,14 @@ fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(),
 }
 
 /// Set window position and size in one call.
+/// Size is set first to avoid a flash at the old size + new position.
 #[tauri::command]
 fn set_window_rect(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
     window
-        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
         .map_err(|e| e.to_string())?;
     window
-        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())
 }
 

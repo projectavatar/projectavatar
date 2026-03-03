@@ -62,7 +62,7 @@ export function DesktopApp() {
     const MIN_SIZE = 400;
     const POLL_MS = 500;
     const THRESHOLD = 20;
-    const FILL_RATIO = 0.7;
+    const FILL_RATIO = 0.9;
     const REF = 1000;
 
     let lastPhysSize = 0;
