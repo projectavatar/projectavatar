@@ -44,7 +44,7 @@ export function DesktopApp() {
         });
       }).catch(() => { /* Not in Tauri runtime */ });
     }
-  }, []);
+  }, [setRenderScale]);
 
   useEffect(() => {
     setTheme('transparent');
@@ -113,6 +113,19 @@ export function DesktopApp() {
 
   // Double-tap Escape to close
   useEscapeClose();
+
+  // Shift+P toggles performance debug overlay
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'P' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (avatarScene) {
+          avatarScene.setPerfOverlay(!avatarScene.perfOverlayEnabled);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [avatarScene]);
 
   // Cursor: grab on hover (but not when settings is open)
   useEffect(() => {

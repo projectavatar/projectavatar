@@ -97,6 +97,14 @@ export class AvatarScene {
   private _scissorCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
   private _scissorClearColor = new THREE.Color(0x000000);
 
+  // ─── Performance stats ────────────────────────────────────────────
+  private _perfEnabled = false;
+  private _perfOverlay: HTMLDivElement | null = null;
+  private _perfFrames = 0;
+  private _perfLastTime = 0;
+  private _perfFps = 0;
+  private _lastScissorRect: { x: number; y: number; w: number; h: number; fullW: number; fullH: number } | null = null;
+
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
   private backgroundIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -152,8 +160,6 @@ export class AvatarScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // autoClear disabled when scissor is active — we clear only the scissor region
-    // to avoid clearing millions of empty pixels on multi-monitor setups.
     
 
     // Three-point lighting
@@ -371,6 +377,8 @@ export class AvatarScene {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.renderer.dispose();
     this.updateCallbacks.length = 0;
+    this._perfOverlay?.remove();
+    this._perfOverlay = null;
   }
 
   // ─── Dynamic framing ───────────────────────────────────────────────
@@ -443,6 +451,83 @@ export class AvatarScene {
     if (scissor) {
       this.renderer.setScissorTest(false);
     }
+
+    this._lastScissorRect = scissor ?? null;
+    this._updatePerfOverlay();
+  }
+
+  // ─── Performance debug overlay ──────────────────────────────────────
+
+  /**
+   * Toggle performance debug overlay (Shift+P in desktop).
+   * Shows FPS, scissor rect, canvas size, draw calls, triangles, memory.
+   */
+  setPerfOverlay(enabled: boolean): void {
+    this._perfEnabled = enabled;
+    if (enabled && !this._perfOverlay) {
+      const div = document.createElement('div');
+      div.id = 'avatar-perf-overlay';
+      div.style.cssText = `
+        position: fixed; top: 8px; left: 8px; z-index: 99999;
+        background: rgba(0,0,0,0.85); color: #0f0; font: 11px/1.5 monospace;
+        padding: 6px 10px; border-radius: 4px; pointer-events: none;
+        white-space: pre; min-width: 220px;
+      `;
+      document.body.appendChild(div);
+      this._perfOverlay = div;
+      this._perfLastTime = performance.now();
+      this._perfFrames = 0;
+    } else if (!enabled && this._perfOverlay) {
+      this._perfOverlay.remove();
+      this._perfOverlay = null;
+    }
+  }
+
+  get perfOverlayEnabled(): boolean { return this._perfEnabled; }
+
+  /** Update the perf overlay — called each tick. */
+  private _updatePerfOverlay(): void {
+    if (!this._perfOverlay) return;
+
+    this._perfFrames++;
+    const now = performance.now();
+    const elapsed = now - this._perfLastTime;
+
+    // Update FPS every 500ms
+    if (elapsed >= 500) {
+      this._perfFps = Math.round((this._perfFrames / elapsed) * 1000);
+      this._perfFrames = 0;
+      this._perfLastTime = now;
+    }
+
+    const info = this.renderer.info;
+    const canvas = this.renderer.domElement;
+    const scissor = this._lastScissorRect;
+
+    const canvasW = canvas.width;
+    const canvasH = canvas.height;
+    const canvasMP = ((canvasW * canvasH) / 1e6).toFixed(1);
+
+    let scissorLine = 'scissor: off';
+    let savingsLine = '';
+    if (scissor) {
+      const scissorMP = ((scissor.w * scissor.h) / 1e6).toFixed(2);
+      const pct = (100 - (scissor.w * scissor.h) / (canvasW * canvasH) * 100).toFixed(0);
+      scissorLine = 'scissor: ' + scissor.w + '\u00d7' + scissor.h + ' (' + scissorMP + 'MP)';
+      savingsLine = 'savings: ' + pct + '% pixels skipped';
+    }
+
+    const mem = info.memory;
+    const lines = [
+      'fps: ' + this._perfFps,
+      'canvas: ' + canvasW + '\u00d7' + canvasH + ' (' + canvasMP + 'MP)',
+      scissorLine,
+      savingsLine,
+      'draws: ' + info.render.calls + '  tris: ' + info.render.triangles,
+      'textures: ' + mem.textures + '  geometries: ' + mem.geometries,
+    ].filter(Boolean).join('\n');
+
+    this._perfOverlay.textContent = lines;
   }
 
   // ─── Scissor rendering ────────────────────────────────────────────

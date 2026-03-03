@@ -207,15 +207,18 @@ pub fn run() {
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     if let Ok(monitors) = main_window.available_monitors() {
                         use std::hash::{Hash, Hasher};
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        for m in &monitors {
+                        // Sort by position for order-independent hashing
+                        let mut entries: Vec<(i32, i32, u32, u32, u64)> = monitors.iter().map(|m| {
                             let pos = m.position();
                             let size = m.size();
-                            (pos.x, pos.y, size.width, size.height).hash(&mut hasher);
-                            // Hash scale factor as bits to avoid float hashing issues
-                            m.scale_factor().to_bits().hash(&mut hasher);
+                            (pos.x, pos.y, size.width, size.height, m.scale_factor().to_bits())
+                        }).collect();
+                        entries.sort_by_key(|e| (e.0, e.1));
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        for entry in &entries {
+                            entry.hash(&mut hasher);
                         }
-                        monitors.len().hash(&mut hasher);
+                        entries.len().hash(&mut hasher);
                         let hash = hasher.finish();
                         if hash != last_hash && last_hash != 0 {
                             let _ = main_window.emit("monitors-changed", ());

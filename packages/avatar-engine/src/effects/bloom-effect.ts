@@ -45,6 +45,8 @@ export class BloomEffect {
   /** Active scissor rect — set each frame before render() when scissor is enabled. */
   private _scissorRect: ScissorRect | null = null;
 
+
+
   // Stored for deferred construction
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
@@ -166,14 +168,15 @@ export class BloomEffect {
     this._scissorRect = rect;
   }
 
+
+
   /** Render the scene through the bloom pipeline. */
   render(): void {
     if (!this.composer) return;
     const rect = this._scissorRect;
     if (rect) {
       // Propagate scissor to the composer — all passes (render, bloom, SMAA, output)
-      // write into FBOs at full resolution, but the GPU only processes fragments
-      // inside the scissor rect. This preserves the multi-monitor perf win.
+      // write into FBOs, but the GPU only processes fragments inside the scissor rect.
       this.renderer.setScissorTest(true);
       this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
     }
@@ -183,7 +186,15 @@ export class BloomEffect {
     }
   }
 
-  /** Update composer size on window resize. */
+  /**
+   * Update composer size on window resize.
+   *
+   * NOTE: On multi-monitor setups, bloom FBOs are allocated at full canvas size.
+   * Scissor test prevents wasted GPU compute, but the VRAM allocation remains.
+   * For dual 4K this is ~130MB (HalfFloat RGBA × 2 targets × 7680×2160).
+   * A future optimization could use viewport remapping to shrink FBOs to
+   * the scissor rect, but that requires changes to EffectComposer internals.
+   */
   setSize(width: number, height: number): void {
     const pixelRatio = this.renderer.getPixelRatio();
     this.renderTarget?.setSize(width * pixelRatio, height * pixelRatio);
