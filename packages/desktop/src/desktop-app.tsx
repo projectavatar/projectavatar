@@ -34,7 +34,7 @@ export function DesktopApp() {
     projectCursorRef.current?.(ndcX, ndcY);
   }, []);
 
-  const { hovered } = useClickThrough(avatarScene, handleCursorNdc, settingsOpen);
+  const { hovered, dragLockRef } = useClickThrough(avatarScene, handleCursorNdc, settingsOpen);
 
   const handleScene = useCallback((scene: AvatarScene | null) => {
     setAvatarScene(scene);
@@ -61,6 +61,7 @@ export function DesktopApp() {
           if (!invokeRef) return;
           if (!dragging) {
             dragging = true;
+            dragLockRef.current = true;
             // Sync cache on drag start (one async call)
             win.outerPosition().then((pos) => { cachedX = pos.x; cachedY = pos.y; });
             win.outerSize().then((size) => { cachedW = size.width; cachedH = size.height; });
@@ -73,7 +74,10 @@ export function DesktopApp() {
           });
         });
         // Reset dragging flag on pointerup
-        window.addEventListener('pointerup', () => { dragging = false; });
+        window.addEventListener('pointerup', () => {
+          dragging = false;
+          dragLockRef.current = false;
+        });
       }).catch(() => { /* Not in Tauri */ });
     }
   }, []);

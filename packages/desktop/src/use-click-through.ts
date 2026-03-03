@@ -117,6 +117,8 @@ function pointInConvexHull(hull: Point2D[], px: number, py: number): boolean {
 export interface ClickThroughState {
   /** True when the avatar is "activated" — UI elements should be visible. */
   hovered: boolean;
+  /** Set to true during window drags to prevent click-through from re-engaging. */
+  dragLockRef: React.MutableRefObject<boolean>;
 }
 
 export function useClickThrough(
@@ -141,6 +143,7 @@ export function useClickThrough(
   const activatedRef = useRef(false);
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
+  const dragLockRef = useRef(false);
 
   // Reusable THREE objects
   const bboxRef = useRef(new THREE.Box3());
@@ -202,7 +205,7 @@ export function useClickThrough(
             }
           }
 
-          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current;
+          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current || dragLockRef.current;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {
@@ -232,7 +235,7 @@ export function useClickThrough(
     };
   }, []);
 
-  return { hovered };
+  return { hovered, dragLockRef };
 }
 
 // ─── 3D → 2D projection ──────────────────────────────────────────────────────
