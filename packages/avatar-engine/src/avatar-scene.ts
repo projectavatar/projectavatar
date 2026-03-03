@@ -33,6 +33,9 @@ const DEFAULT_GRID_DIVISIONS = 16;
  * - At CLOSE_DISTANCE or closer → target = face/head
  * - Between → smooth lerp
  */
+/** Padding (in CSS pixels) around the avatar bounding box. */
+const AVATAR_BOUNDS_PADDING_PX = 100;
+
 const FAR_DISTANCE = 4;
 const CLOSE_DISTANCE = 2;
 
@@ -81,6 +84,19 @@ export class AvatarScene {
 
   /** VRM model root — set after model load for external consumers (e.g. hit-testing). */
   private _vrmRoot: THREE.Object3D | null = null;
+
+  // ─── Avatar bounds ──────────────────────────────────────────────────
+  private _boundsBbox = new THREE.Box3();
+  private _boundsCorners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
+
+  // ─── Performance overlay ────────────────────────────────────────────
+  private _perfEnabled = false;
+  private _perfOverlay: HTMLDivElement | null = null;
+  private _perfFrames = 0;
+  private _perfLastTime = 0;
+  private _perfFps = 0;
+  private _perfDrawCalls = 0;
+  private _perfTriangles = 0;
 
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
@@ -298,6 +314,8 @@ export class AvatarScene {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     this.renderer.dispose();
     this.updateCallbacks.length = 0;
+    this._perfOverlay?.remove();
+    this._perfOverlay = null;
   }
 
   // ─── Dynamic framing ───────────────────────────────────────────────
@@ -340,11 +358,122 @@ export class AvatarScene {
     for (const cb of this.updateCallbacks) {
       cb(delta);
     }
+    if (this._perfEnabled) {
+      this.renderer.info.autoReset = false;
+      this.renderer.info.reset();
+    }
+
     if (this.customRender) {
       this.customRender();
     } else {
       this.renderer.render(this.scene, this.camera);
     }
+
+    if (this._perfEnabled) {
+      this._perfDrawCalls = this.renderer.info.render.calls;
+      this._perfTriangles = this.renderer.info.render.triangles;
+      this.renderer.info.autoReset = true;
+    }
+
+    this._updatePerfOverlay();
+  }
+
+  // ─── Performance debug overlay ──────────────────────────────────────
+
+  /** Toggle performance debug overlay (Shift+P). Shows FPS, window size, draw calls. */
+  setPerfOverlay(enabled: boolean): void {
+    this._perfEnabled = enabled;
+    if (enabled && !this._perfOverlay) {
+      document.body.style.outline = '2px solid rgba(0, 255, 0, 0.5)';
+      document.body.style.outlineOffset = '-2px';
+      const div = document.createElement('div');
+      div.id = 'avatar-perf-overlay';
+      div.style.cssText = `
+        position: fixed; top: 8px; left: 8px; z-index: 99999;
+        background: rgba(0,0,0,0.85); color: #0f0; font: 11px/1.5 monospace;
+        padding: 6px 10px; border-radius: 4px; pointer-events: none;
+        white-space: pre; min-width: 220px;
+      `;
+      document.body.appendChild(div);
+      this._perfOverlay = div;
+      this._perfLastTime = performance.now();
+      this._perfFrames = 0;
+    } else if (!enabled && this._perfOverlay) {
+      this._perfOverlay.remove();
+      this._perfOverlay = null;
+      document.body.style.outline = '';
+      document.body.style.outlineOffset = '';
+    }
+  }
+
+  get perfOverlayEnabled(): boolean { return this._perfEnabled; }
+
+  private _updatePerfOverlay(): void {
+    if (!this._perfOverlay) return;
+
+    this._perfFrames++;
+    const now = performance.now();
+    const elapsed = now - this._perfLastTime;
+    if (elapsed >= 500) {
+      this._perfFps = Math.round((this._perfFrames / elapsed) * 1000);
+      this._perfFrames = 0;
+      this._perfLastTime = now;
+    }
+
+    const info = this.renderer.info;
+    const canvas = this.renderer.domElement;
+    const bounds = this.getAvatarBounds();
+    const boundsLine = bounds ? 'avatar: ' + bounds.width + '\u00d7' + bounds.height : 'avatar: loading';
+    const mem = info.memory;
+    const lines = [
+      'fps: ' + this._perfFps,
+      'window: ' + canvas.width + '\u00d7' + canvas.height,
+      boundsLine,
+      'draws: ' + this._perfDrawCalls + '  tris: ' + this._perfTriangles,
+      'textures: ' + mem.textures + '  geometries: ' + mem.geometries,
+    ].join('\n');
+    this._perfOverlay.textContent = lines;
+  }
+
+  // ─── Avatar bounds ────────────────────────────────────────────────────
+
+  /** Compute the avatar's projected screen bounds in CSS pixels. */
+  getAvatarBounds(): { width: number; height: number } | null {
+    if (!this._vrmRoot) return null;
+
+    this._boundsBbox.setFromObject(this._vrmRoot);
+    if (this._boundsBbox.isEmpty()) return null;
+
+    const { min, max } = this._boundsBbox;
+    const corners = this._boundsCorners;
+    corners[0]!.set(min.x, min.y, min.z);
+    corners[1]!.set(min.x, min.y, max.z);
+    corners[2]!.set(min.x, max.y, min.z);
+    corners[3]!.set(min.x, max.y, max.z);
+    corners[4]!.set(max.x, min.y, min.z);
+    corners[5]!.set(max.x, min.y, max.z);
+    corners[6]!.set(max.x, max.y, min.z);
+    corners[7]!.set(max.x, max.y, max.z);
+
+    let ndcMinX = Infinity, ndcMinY = Infinity;
+    let ndcMaxX = -Infinity, ndcMaxY = -Infinity;
+
+    for (const c of corners) {
+      c.project(this.camera);
+      ndcMinX = Math.min(ndcMinX, c.x);
+      ndcMinY = Math.min(ndcMinY, c.y);
+      ndcMaxX = Math.max(ndcMaxX, c.x);
+      ndcMaxY = Math.max(ndcMaxY, c.y);
+    }
+
+    const canvas = this.renderer.domElement;
+    const cssW = canvas.clientWidth;
+    const cssH = canvas.clientHeight;
+    const pad = AVATAR_BOUNDS_PADDING_PX;
+    const projW = ((ndcMaxX - ndcMinX) / 2) * cssW + pad * 2;
+    const projH = ((ndcMaxY - ndcMinY) / 2) * cssH + pad * 2;
+
+    return { width: Math.ceil(projW), height: Math.ceil(projH) };
   }
 
   /** Set a resize callback for external compositors. */

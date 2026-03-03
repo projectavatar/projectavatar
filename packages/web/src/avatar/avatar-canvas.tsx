@@ -403,6 +403,18 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     scene.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
   }, [renderScale]);
 
+  // Shift+P toggles performance debug overlay (works in web + desktop)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'P' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const scene = sceneRef.current;
+        if (scene) scene.setPerfOverlay(!scene.perfOverlayEnabled);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // WebSocket lifecycle
   useEffect(() => {
     if (!token) {
