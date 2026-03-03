@@ -92,10 +92,15 @@ export function DesktopApp() {
 
       if (Math.abs(newPhysSize - lastPhysSize) < THRESHOLD * scale) return;
 
-      // Only resize, don't reposition — avoids the two-step jump.
-      // Avatar is centered in the canvas by Three.js, so growing/shrinking
-      // from the top-left anchor still keeps her visually centered.
-      await tauriInvoke('set_window_size', {
+      // Atomic move+resize via Win32 SetWindowPos (single OS call, no flicker).
+      // Adjust position so window stays centered.
+      const pos = await tauriWin.outerPosition();
+      const size = await tauriWin.outerSize();
+      const dx = Math.round((size.width - newPhysSize) / 2);
+      const dy = Math.round((size.height - newPhysSize) / 2);
+
+      await tauriInvoke('set_window_rect', {
+        x: pos.x + dx, y: pos.y + dy,
         width: newPhysSize, height: newPhysSize,
       });
       lastPhysSize = newPhysSize;

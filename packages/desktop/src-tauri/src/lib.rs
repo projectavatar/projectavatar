@@ -57,16 +57,36 @@ fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(),
         .map_err(|e| e.to_string())
 }
 
-/// Set window position and size in one call.
-/// Size is set first to avoid a flash at the old size + new position.
+/// Set window position and size atomically.
+/// On Windows, uses SetWindowPos for a single-frame update (no flicker).
+/// On other platforms, falls back to size-then-position.
 #[tauri::command]
 fn set_window_rect(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
-    window
-        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
-        .map_err(|e| e.to_string())?;
-    window
-        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
-        .map_err(|e| e.to_string())
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOZORDER, SWP_NOACTIVATE, SWP_ASYNCWINDOWPOS};
+        use windows::Win32::Foundation::HWND;
+        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        unsafe {
+            SetWindowPos(
+                HWND(hwnd.0),
+                HWND::default(),
+                x, y,
+                width as i32, height as i32,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS,
+            ).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        window
+            .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+            .map_err(|e| e.to_string())?;
+        window
+            .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+            .map_err(|e| e.to_string())
+    }
 }
 
 /// Default window size.
