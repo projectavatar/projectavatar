@@ -141,6 +141,7 @@ export function useClickThrough(
   const activatedRef = useRef(false);
   const draggingRef = useRef(false);
   const dragEndTimeRef = useRef(0);
+  const rightSynthesizedRef = useRef(false);
   const DRAG_GRACE_MS = 500;
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
@@ -216,6 +217,34 @@ export function useClickThrough(
           if (hit && leftPressed && activatedRef.current && !draggingRef.current) {
             draggingRef.current = true;
             void invoke('start_drag');
+          }
+
+          // Workaround: after start_drag, WebView2 may not forward the next
+          // right-click to the DOM. Detect right-press from our poll and
+          // synthesize a pointerdown on the canvas so OrbitControls picks it up.
+          if (hit && _rightPressed && activatedRef.current && !draggingRef.current) {
+            const canvas = sceneRef.current?.renderer?.domElement;
+            if (canvas && !rightSynthesizedRef.current) {
+              rightSynthesizedRef.current = true;
+              canvas.dispatchEvent(new PointerEvent('pointerdown', {
+                button: 2, buttons: 2,
+                clientX: localX, clientY: localY,
+                bubbles: true, cancelable: true,
+              }));
+            }
+          }
+          if (!_rightPressed) {
+            if (rightSynthesizedRef.current) {
+              rightSynthesizedRef.current = false;
+              const canvas = sceneRef.current?.renderer?.domElement;
+              if (canvas) {
+                canvas.dispatchEvent(new PointerEvent('pointerup', {
+                  button: 2, buttons: 0,
+                  clientX: localX, clientY: localY,
+                  bubbles: true, cancelable: true,
+                }));
+              }
+            }
           }
           if (!anyPressed) {
             if (draggingRef.current) {
