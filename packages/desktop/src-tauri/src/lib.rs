@@ -54,6 +54,12 @@ fn start_drag(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
 }
 
+/// Re-focus the window after drag (OS may have unfocused it).
+#[tauri::command]
+fn set_focus(window: tauri::Window) -> Result<(), String> {
+    window.set_focus().map_err(|e| e.to_string())
+}
+
 /// Resize the window (keeps current position).
 #[tauri::command]
 fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
@@ -167,6 +173,7 @@ pub fn run() {
             get_cursor_state,
             frontend_ready,
             start_drag,
+            set_focus,
             set_window_size,
             set_window_rect,
         ])

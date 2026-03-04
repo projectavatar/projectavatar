@@ -220,11 +220,16 @@ export function useClickThrough(
           if (!anyPressed) {
             if (draggingRef.current) {
               dragEndTimeRef.current = Date.now();
-              // start_drag captures the mouse at OS level — the browser
-              // never sees pointerdown/pointerup, leaving its pointer state
-              // stale. Dispatch synthetic pointerup to reset it.
+              // start_drag hands the mouse to the OS. After drag, the
+              // webview needs to be re-focused — otherwise the first click
+              // goes to re-focusing instead of the canvas.
+              // Re-focus at every level: Tauri window, browser window, canvas.
+              void invoke('set_focus');
+              window.focus();
+              document.body.focus();
               const canvas = sceneRef.current?.renderer?.domElement;
               if (canvas) {
+                canvas.focus();
                 canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
               }
             }
