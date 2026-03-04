@@ -141,7 +141,6 @@ export function useClickThrough(
   const activatedRef = useRef(false);
   const draggingRef = useRef(false);
   const dragEndTimeRef = useRef(0);
-  const rightSynthesizedRef = useRef(false);
   const DRAG_GRACE_MS = 500;
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
@@ -219,44 +218,7 @@ export function useClickThrough(
             void invoke('start_drag');
           }
 
-          // Workaround: after start_drag, WebView2 may not forward the next
-          // right-click to the DOM. Detect right-press from our poll and
-          // synthesize pointer events on the canvas so OrbitControls picks it up.
-          if (_rightPressed && activatedRef.current && !draggingRef.current) {
-            const canvas = sceneRef.current?.renderer?.domElement;
-            if (canvas) {
-              if (!rightSynthesizedRef.current) {
-                // First detection — send pointerdown
-                rightSynthesizedRef.current = true;
-                canvas.dispatchEvent(new PointerEvent('pointerdown', {
-                  button: 2, buttons: 2,
-                  clientX: localX, clientY: localY,
-                  bubbles: true, cancelable: true,
-                }));
-              } else {
-                // Ongoing — send pointermove for smooth rotation
-                canvas.dispatchEvent(new PointerEvent('pointermove', {
-                  button: 2, buttons: 2,
-                  clientX: localX, clientY: localY,
-                  bubbles: true, cancelable: true,
-                }));
-              }
-            }
-          }
-          if (!_rightPressed && rightSynthesizedRef.current) {
-            rightSynthesizedRef.current = false;
-            // OrbitControls listens for pointerup on the owner document,
-            // not the canvas. Also release pointer capture if active.
-            const canvas = sceneRef.current?.renderer?.domElement;
-            if (canvas) {
-              try { canvas.releasePointerCapture(1); } catch { /* ok */ }
-            }
-            document.dispatchEvent(new PointerEvent('pointerup', {
-              button: 2, buttons: 0,
-              clientX: localX, clientY: localY,
-              bubbles: true, cancelable: true,
-            }));
-          }
+
           if (!anyPressed) {
             if (draggingRef.current) {
               dragEndTimeRef.current = Date.now();
