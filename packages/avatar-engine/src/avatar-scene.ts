@@ -94,6 +94,7 @@ export class AvatarScene {
   private _perfFps = 0;
   private _perfDrawCalls = 0;
   private _perfTriangles = 0;
+  private _debugState: Record<string, string> = {};
 
   private controls: OrbitControls | null = null;
   private animationFrameId: number | null = null;
@@ -412,6 +413,11 @@ export class AvatarScene {
 
   get perfOverlayEnabled(): boolean { return this._perfEnabled; }
 
+  /** Set arbitrary debug key-value pairs shown in the perf overlay. */
+  setDebugState(key: string, value: string): void {
+    this._debugState[key] = value;
+  }
+
   private _updatePerfOverlay(): void {
     if (!this._perfOverlay) return;
 
@@ -429,12 +435,14 @@ export class AvatarScene {
     const fovFrac = this.getAvatarFovFraction();
     const boundsLine = fovFrac != null ? 'fovFrac: ' + fovFrac.toFixed(3) : 'avatar: loading';
     const mem = info.memory;
+    const debugLines = Object.entries(this._debugState).map(([k, v]) => k + ': ' + v);
     const lines = [
       'fps: ' + this._perfFps,
       'window: ' + canvas.width + '\u00d7' + canvas.height,
       boundsLine,
       'draws: ' + this._perfDrawCalls + '  tris: ' + this._perfTriangles,
       'textures: ' + mem.textures + '  geometries: ' + mem.geometries,
+      ...debugLines,
     ].join('\n');
     this._perfOverlay.textContent = lines;
   }

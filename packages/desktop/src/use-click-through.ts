@@ -241,6 +241,16 @@ export function useClickThrough(
               void setIgnoreCursor(invoke, true);
             }
           }
+          // Push debug state to perf overlay
+          const dbgScene = sceneRef.current;
+          if (dbgScene) {
+            dbgScene.setDebugState('ct', activatedRef.current ? 'OFF (interactive)' : 'ON (passthrough)');
+            dbgScene.setDebugState('hit', hit ? 'yes' : 'no');
+            dbgScene.setDebugState('drag', draggingRef.current ? 'active' : (inDragGrace ? 'grace' : 'no'));
+            dbgScene.setDebugState('btn', leftPressed ? 'L' : (_rightPressed ? 'R' : (anyPressed ? '?' : '-')));
+            dbgScene.setDebugState('cursor', Math.round(localX) + ',' + Math.round(localY));
+          }
+
         } catch { /* poll error — skip */ }
       };
 
