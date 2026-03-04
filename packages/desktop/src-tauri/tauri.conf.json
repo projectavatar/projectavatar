@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Project Avatar",
-        "width": 800,
-        "height": 800,
+        "width": 1,
+        "height": 1,
         "minWidth": 200,
         "minHeight": 200,
         "decorations": false,

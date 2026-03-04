@@ -108,32 +108,28 @@ fn set_window_rect(window: tauri::Window, x: i32, y: i32, width: u32, height: u3
     }
 }
 
-/// Default window size.
-const DEFAULT_WIDTH: u32 = 800;
-const DEFAULT_HEIGHT: u32 = 800;
-
 /// Called by the frontend when it's ready.
-/// Sets a small default window at bottom-right, hides from taskbar, enables click-through.
+/// Sets window to full monitor height, square-capped width. Positioned at bottom of primary monitor.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Position at bottom-right of primary monitor
-    let (x, y) = match window.primary_monitor() {
+    let (width, height, x, y) = match window.primary_monitor() {
         Ok(Some(monitor)) => {
             let size = monitor.size();
             let pos = monitor.position();
-            (
-                pos.x + size.width as i32 - DEFAULT_WIDTH as i32 - 50,
-                pos.y + size.height as i32 - DEFAULT_HEIGHT as i32 - 100,
-            )
+            let h = size.height;
+            let w = std::cmp::min(size.width, h); // square, capped at screen width
+            // Center horizontally on the monitor
+            let x = pos.x + (size.width as i32 - w as i32) / 2;
+            (w, h, x, pos.y)
         }
-        _ => (100, 100),
+        _ => (800, 800, 0, 0),
     };
 
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())?;
     window
-        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT }))
+        .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
         .map_err(|e| e.to_string())?;
 
     // Hide from taskbar
@@ -147,7 +143,7 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     // Windows transparency workaround
     #[cfg(target_os = "windows")]
     {
-        let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+        let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width, height });
         if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
             width: current.width + 1,
             height: current.height + 1,
