@@ -169,10 +169,10 @@ export function useClickThrough(
         if (!scene) return;
 
         try {
-          const state = await invoke('get_cursor_state') as [number, number, boolean] | null;
+          const state = await invoke('get_cursor_state') as [number, number, boolean, boolean, boolean] | null;
           if (!state || cancelled) return;
 
-          const [screenX, screenY, buttonPressed] = state;
+          const [screenX, screenY, leftPressed, _rightPressed, anyPressed] = state;
           const winPos = await win.outerPosition();
           const winSize = await win.outerSize();
           const scale = await win.scaleFactor();
@@ -211,11 +211,11 @@ export function useClickThrough(
           // By activating on hover (before click), click-through is already
           // OFF when the user clicks, so the click registers immediately.
 
-          if (hit && buttonPressed && activatedRef.current && !draggingRef.current) {
+          if (hit && leftPressed && activatedRef.current && !draggingRef.current) {
             draggingRef.current = true;
             void invoke('start_drag');
           }
-          if (!buttonPressed) {
+          if (!anyPressed) {
             draggingRef.current = false;
           }
 
@@ -227,7 +227,7 @@ export function useClickThrough(
               setHovered(true);
               void setIgnoreCursor(invoke, false);
             }
-          } else if (!buttonPressed) {
+          } else if (!anyPressed) {
             if (activatedRef.current) {
               activatedRef.current = false;
               setHovered(false);

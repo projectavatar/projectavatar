@@ -23,14 +23,17 @@ fn is_mouse_button_pressed() -> bool {
 }
 
 /// Combines cursor position + button state in a single IPC call.
+/// Returns (x, y, leftPressed, rightPressed, anyPressed).
 #[tauri::command]
-fn get_cursor_state() -> Option<(i32, i32, bool)> {
+fn get_cursor_state() -> Option<(i32, i32, bool, bool, bool)> {
     match Mouse::get_mouse_position() {
         Mouse::Position { x, y } => {
             let device_state = DeviceState::new();
             let mouse: MouseState = device_state.get_mouse();
-            let pressed = mouse.button_pressed.iter().skip(1).any(|&b| b);
-            Some((x, y, pressed))
+            let left = mouse.button_pressed.get(1).copied().unwrap_or(false);
+            let right = mouse.button_pressed.get(3).copied().unwrap_or(false);
+            let any = mouse.button_pressed.iter().skip(1).any(|&b| b);
+            Some((x, y, left, right, any))
         }
         Mouse::Error => None,
     }

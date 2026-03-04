@@ -84,12 +84,7 @@ export function DesktopApp() {
     return () => { document.body.style.cursor = ''; };
   }, [hovered, settingsOpen]);
 
-  // Opacity: 0.8 default, 1.0 on hover
-  useEffect(() => {
-    document.body.style.opacity = hovered ? '1' : '0.8';
-    document.body.style.transition = 'opacity 0.2s ease';
-    return () => { document.body.style.opacity = ''; document.body.style.transition = ''; };
-  }, [hovered]);
+
 
   return (
     <>
