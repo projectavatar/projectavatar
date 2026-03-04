@@ -245,14 +245,17 @@ export function useClickThrough(
           }
           if (!_rightPressed && rightSynthesizedRef.current) {
             rightSynthesizedRef.current = false;
+            // OrbitControls listens for pointerup on the owner document,
+            // not the canvas. Also release pointer capture if active.
             const canvas = sceneRef.current?.renderer?.domElement;
             if (canvas) {
-              canvas.dispatchEvent(new PointerEvent('pointerup', {
-                button: 2, buttons: 0,
-                clientX: localX, clientY: localY,
-                bubbles: true, cancelable: true,
-              }));
+              try { canvas.releasePointerCapture(1); } catch { /* ok */ }
             }
+            document.dispatchEvent(new PointerEvent('pointerup', {
+              button: 2, buttons: 0,
+              clientX: localX, clientY: localY,
+              bubbles: true, cancelable: true,
+            }));
           }
           if (!anyPressed) {
             if (draggingRef.current) {
