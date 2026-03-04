@@ -140,8 +140,6 @@ export function useClickThrough(
 
   const activatedRef = useRef(false);
   const draggingRef = useRef(false);
-  const dragEndTimeRef = useRef(0);
-  const DRAG_GRACE_MS = 500;
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
 
@@ -221,7 +219,6 @@ export function useClickThrough(
 
           if (!anyPressed) {
             if (draggingRef.current) {
-              dragEndTimeRef.current = Date.now();
               // Re-focus after drag so next interaction works.
               void invoke('set_focus');
               window.focus();
@@ -229,9 +226,8 @@ export function useClickThrough(
             draggingRef.current = false;
           }
 
-          const inDragGrace = (Date.now() - dragEndTimeRef.current) < DRAG_GRACE_MS;
 
-          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current || inDragGrace;
+          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {
@@ -251,7 +247,7 @@ export function useClickThrough(
           if (dbgScene) {
             dbgScene.setDebugState('ct', activatedRef.current ? 'OFF (interactive)' : 'ON (passthrough)');
             dbgScene.setDebugState('hit', hit ? 'yes' : 'no');
-            dbgScene.setDebugState('drag', draggingRef.current ? 'active' : (inDragGrace ? 'grace' : 'no'));
+            dbgScene.setDebugState('drag', draggingRef.current ? 'active' : 'no');
             dbgScene.setDebugState('btn', leftPressed ? 'L' : (_rightPressed ? 'R' : (anyPressed ? '?' : '-')));
             dbgScene.setDebugState('cursor', Math.round(localX) + ',' + Math.round(localY));
           }
