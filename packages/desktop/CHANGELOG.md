@@ -1,7 +1,7 @@
 # Desktop Changelog
 
 
-## 0.8.0
+## 0.9.0
 
 ### Added
 - **Tray: Move to Screen** — submenu lists all connected monitors with name and resolution. Click to move the avatar to that screen.
