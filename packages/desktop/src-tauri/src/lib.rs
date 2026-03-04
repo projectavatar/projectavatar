@@ -87,13 +87,13 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Move the avatar to a specific monitor by index (called from tray menu via event).
+/// Move the avatar window to fill the given monitor coordinates.
 #[tauri::command]
 fn move_to_monitor(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
     apply_monitor(&window, x, y, width, height)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct MonitorInfo {
     name: String,
     x: i32,
@@ -124,6 +124,8 @@ pub fn run() {
         ])
         .setup(|app| {
             let all_monitors = app.available_monitors().unwrap_or_default();
+            let primary_name = app.primary_monitor().ok().flatten()
+                .and_then(|m| m.name().cloned());
 
             let mut monitor_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
             let mut monitor_infos: Vec<MonitorInfo> = Vec::new();
@@ -136,7 +138,7 @@ pub fn run() {
                 } else {
                     format!("{} ({}x{})", name, size.width, size.height)
                 };
-                let is_primary = i == 0;
+                let is_primary = primary_name.as_deref() == Some(&name);
                 monitor_items.push(
                     CheckMenuItem::with_id(app, &format!("monitor_{}", i), &label, true, is_primary, None::<&str>)?
                 );

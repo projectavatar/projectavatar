@@ -552,6 +552,19 @@ export class AvatarScene {
     this.camera.setViewOffset(w, h, this._panOffsetX, this._panOffsetY, w, h);
   }
 
+  /** Set pan offset programmatically (e.g. proportional transfer on monitor switch). */
+  setPan(x: number, y: number): void {
+    this._panOffsetX = x;
+    this._panOffsetY = y;
+    this._applyViewOffset();
+    this._schedulePanSave();
+  }
+
+  /** Get current pan offset. */
+  getPan(): { x: number; y: number } {
+    return { x: this._panOffsetX, y: this._panOffsetY };
+  }
+
   /** Reset pan offset (double-click or programmatic). */
   resetPan(): void {
     this._panOffsetX = 0;
