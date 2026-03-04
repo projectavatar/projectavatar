@@ -67,6 +67,21 @@ export function DesktopApp() {
     return () => { unlisten?.(); };
   }, [setSettingsOpen]);
 
+  // Listen for tray "Move to Screen" event
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen('move-to-monitor', async (event) => {
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const { x, y, width, height } = event.payload as { x: number; y: number; width: number; height: number };
+          await invoke('move_to_monitor', { x, y, width, height });
+        } catch { /* skip */ }
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => { /* Not in Tauri runtime */ });
+    return () => { unlisten?.(); };
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => e.preventDefault();
     window.addEventListener('contextmenu', handler);

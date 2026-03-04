@@ -14,7 +14,6 @@ fn get_cursor_position() -> Option<(i32, i32)> {
     }
 }
 
-/// Returns true if any mouse button is currently pressed.
 #[tauri::command]
 fn is_mouse_button_pressed() -> bool {
     let device_state = DeviceState::new();
@@ -22,7 +21,6 @@ fn is_mouse_button_pressed() -> bool {
     mouse.button_pressed.iter().skip(1).any(|&b| b)
 }
 
-/// Combines cursor position + button state in a single IPC call.
 #[tauri::command]
 fn get_cursor_state() -> Option<(i32, i32, bool)> {
     match Mouse::get_mouse_position() {
@@ -43,8 +41,8 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
-/// Move the window to fill a specific monitor.
-fn move_to_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
+/// Position and size a window to fill a monitor, with Windows transparency workaround.
+fn apply_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())?;
@@ -52,7 +50,6 @@ fn move_to_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u
         .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
         .map_err(|e| e.to_string())?;
 
-    // Windows transparency workaround
     #[cfg(target_os = "windows")]
     {
         let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width, height });
@@ -70,11 +67,8 @@ fn move_to_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u
     Ok(())
 }
 
-/// Called by the frontend when it's ready (transparent, rendered).
-/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
 #[tauri::command]
 fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Default to primary monitor
     let (width, height, x, y) = match window.primary_monitor() {
         Ok(Some(monitor)) => {
             let size = monitor.size();
@@ -84,17 +78,19 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
         _ => (1920, 1080, 0, 0),
     };
 
-    move_to_monitor(&window, x, y, width, height)?;
-
-    // Hide from taskbar
+    apply_monitor(&window, x, y, width, height)?;
     let _ = window.set_skip_taskbar(true);
-
-    // Enable click-through
     window
         .set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+/// Move the avatar to a specific monitor by index (called from tray menu via event).
+#[tauri::command]
+fn move_to_monitor(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
+    apply_monitor(&window, x, y, width, height)
 }
 
 #[derive(Clone)]
@@ -123,16 +119,15 @@ pub fn run() {
             is_mouse_button_pressed,
             get_cursor_state,
             frontend_ready,
+            move_to_monitor,
         ])
         .setup(|app| {
-            // ── Enumerate monitors ───────────────────────────────────────
             let all_monitors = app.available_monitors().unwrap_or_default();
 
-            // Create monitor menu items
             let mut monitor_items: Vec<MenuItem<tauri::Wry>> = Vec::new();
             let mut monitor_infos: Vec<MonitorInfo> = Vec::new();
             for (i, monitor) in all_monitors.iter().enumerate() {
-                let name = monitor.name().unwrap_or_default();
+                let name = monitor.name().cloned().unwrap_or_default();
                 let size = monitor.size();
                 let pos = monitor.position();
                 let label = if name.is_empty() {
@@ -149,7 +144,6 @@ pub fn run() {
                 });
             }
 
-            // Build menu
             let monitor_refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
                 monitor_items.iter().map(|m| m as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
             let monitor_submenu = Submenu::with_items(app, "Move to Screen", true, &monitor_refs)?;
@@ -184,9 +178,11 @@ pub fn run() {
                         _ if id.starts_with("monitor_") => {
                             if let Ok(idx) = id.strip_prefix("monitor_").unwrap_or("").parse::<usize>() {
                                 if let Some(info) = monitor_infos.get(idx) {
-                                    if let Some(window) = app_handle.get_webview_window("main") {
-                                        let _ = move_to_monitor(&window, info.x, info.y, info.width, info.height);
-                                    }
+                                    // Emit event to frontend with monitor coords
+                                    let _ = app_handle.emit("move-to-monitor", serde_json::json!({
+                                        "x": info.x, "y": info.y,
+                                        "width": info.width, "height": info.height,
+                                    }));
                                 }
                             }
                         }
