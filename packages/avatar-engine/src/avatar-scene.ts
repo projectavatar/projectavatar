@@ -115,6 +115,7 @@ export class AvatarScene {
   private bodyCenter = new THREE.Vector3(0, 0, 0);
   private faceCenter = new THREE.Vector3(0, 0.5, 0);
   private framingEnabled = false;
+  private _framingLocked = false;
 
   constructor(canvas: HTMLCanvasElement, options?: AvatarSceneOptions) {
     this.scene = new THREE.Scene();
@@ -239,7 +240,7 @@ export class AvatarScene {
   setFramingPoints(body: THREE.Vector3, face: THREE.Vector3): void {
     this.bodyCenter.copy(body);
     this.faceCenter.copy(face);
-    this.framingEnabled = true;
+    if (!this._framingLocked) this.framingEnabled = true;
     this._updateFramingTarget();
 
     // Apply deferred spherical coords now that the orbit target is valid.
@@ -274,6 +275,7 @@ export class AvatarScene {
   /** Disable auto-framing (desktop mode — user controls the view). */
   disableFraming(): void {
     this.framingEnabled = false;
+    this._framingLocked = true;
   }
 
   /** Register an update callback invoked each frame with delta time. */
