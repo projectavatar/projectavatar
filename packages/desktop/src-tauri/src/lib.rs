@@ -1,7 +1,7 @@
 use mouse_position::mouse_position::Mouse;
 use device_query::{DeviceQuery, DeviceState, MouseState};
 use tauri::{
-    menu::{Menu, MenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, AppHandle, Manager,
 };
@@ -124,7 +124,7 @@ pub fn run() {
         .setup(|app| {
             let all_monitors = app.available_monitors().unwrap_or_default();
 
-            let mut monitor_items: Vec<MenuItem<tauri::Wry>> = Vec::new();
+            let mut monitor_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
             let mut monitor_infos: Vec<MonitorInfo> = Vec::new();
             for (i, monitor) in all_monitors.iter().enumerate() {
                 let name = monitor.name().cloned().unwrap_or_default();
@@ -135,8 +135,9 @@ pub fn run() {
                 } else {
                     format!("{} ({}x{})", name, size.width, size.height)
                 };
+                let is_primary = i == 0;
                 monitor_items.push(
-                    MenuItem::with_id(app, &format!("monitor_{}", i), &label, true, None::<&str>)?
+                    CheckMenuItem::with_id(app, &format!("monitor_{}", i), &label, true, is_primary, None::<&str>)?
                 );
                 monitor_infos.push(MonitorInfo {
                     x: pos.x, y: pos.y,
@@ -162,6 +163,9 @@ pub fn run() {
                 .cloned()
                 .expect("default window icon must be set in tauri.conf.json");
 
+            // Clone check items for the event handler
+            let check_items: Vec<_> = monitor_items.iter().map(|m| m.clone()).collect();
+
             TrayIconBuilder::new()
                 .icon(icon)
                 .tooltip("Project Avatar")
@@ -178,11 +182,14 @@ pub fn run() {
                         _ if id.starts_with("monitor_") => {
                             if let Ok(idx) = id.strip_prefix("monitor_").unwrap_or("").parse::<usize>() {
                                 if let Some(info) = monitor_infos.get(idx) {
-                                    // Emit event to frontend with monitor coords
                                     let _ = app_handle.emit("move-to-monitor", serde_json::json!({
                                         "x": info.x, "y": info.y,
                                         "width": info.width, "height": info.height,
                                     }));
+                                    // Update check marks
+                                    for (j, item) in check_items.iter().enumerate() {
+                                        let _ = item.set_checked(j == idx);
+                                    }
                                 }
                             }
                         }
