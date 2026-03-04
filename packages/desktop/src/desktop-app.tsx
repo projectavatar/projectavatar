@@ -191,6 +191,11 @@ export function DesktopApp() {
     };
   }, [avatarScene]);
 
+  // Disable auto-framing on desktop
+  useEffect(() => {
+    if (avatarScene) avatarScene.disableFraming();
+  }, [avatarScene]);
+
   useEffect(() => {
     setTheme('transparent');
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');

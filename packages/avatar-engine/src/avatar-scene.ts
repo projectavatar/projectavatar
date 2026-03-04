@@ -248,13 +248,32 @@ export class AvatarScene {
       const { distance, azimuthal, polar } = this.savedSpherical;
       const target = this.controls.target;
       const offset = new THREE.Vector3();
-      // Three.js setFromSphericalCoords(radius, phi, theta) —
-      // phi = polar angle from Y+, theta = azimuthal angle from Z+ in XZ plane
       offset.setFromSphericalCoords(distance, polar, azimuthal);
       this.camera.position.copy(target).add(offset);
       this.controls.update();
       this.savedSpherical = null;
     }
+  }
+
+  /**
+   * Check if the avatar's feet (bottom of rest bbox) are near the bottom
+   * of the viewport. Returns the NDC Y of the feet (-1 = bottom edge).
+   * Values near or below -1 mean feet are at/below the window edge.
+   */
+  getFeetNdcY(): number | null {
+    if (!this._restBbox) return null;
+    const bottomCenter = new THREE.Vector3(
+      (this._restBbox.min.x + this._restBbox.max.x) / 2,
+      this._restBbox.min.y,
+      (this._restBbox.min.z + this._restBbox.max.z) / 2,
+    );
+    bottomCenter.project(this.camera);
+    return bottomCenter.y; // NDC: -1 = bottom, +1 = top
+  }
+
+  /** Disable auto-framing (desktop mode — user controls the view). */
+  disableFraming(): void {
+    this.framingEnabled = false;
   }
 
   /** Register an update callback invoked each frame with delta time. */

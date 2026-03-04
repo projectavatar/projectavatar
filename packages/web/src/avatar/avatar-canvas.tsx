@@ -251,10 +251,12 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
     avatarScene.onUpdate((dt) => {
       const ctrl = animControllerRef.current;
 
-      // Switch idle mode based on zoom distance
+      // Switch idle mode based on zoom distance OR feet hitting bottom of viewport
       if (ctrl) {
         const dist = avatarScene.camera.position.length();
-        const wantGround = dist < ZOOM_GROUND_THRESHOLD;
+        const feetY = avatarScene.getFeetNdcY();
+        const feetAtBottom = feetY != null && feetY <= -0.85;
+        const wantGround = dist < ZOOM_GROUND_THRESHOLD || feetAtBottom;
         const currentMode = ctrl.getIdleMode();
         if (wantGround && currentMode === 'air') {
           ctrl.setIdleMode('ground');
