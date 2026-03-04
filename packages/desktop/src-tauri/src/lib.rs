@@ -60,6 +60,14 @@ fn set_focus(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 
+/// Move the window (keeps current size).
+#[tauri::command]
+fn set_window_position(window: tauri::Window, x: i32, y: i32) -> Result<(), String> {
+    window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .map_err(|e| e.to_string())
+}
+
 /// Resize the window (keeps current position).
 #[tauri::command]
 fn set_window_size(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
@@ -173,6 +181,7 @@ pub fn run() {
             get_cursor_state,
             frontend_ready,
             start_drag,
+            set_window_position,
             set_focus,
             set_window_size,
             set_window_rect,

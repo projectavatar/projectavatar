@@ -139,7 +139,6 @@ export function useClickThrough(
   onCursorNdcRef.current = onCursorNdc;
 
   const activatedRef = useRef(false);
-  const draggingRef = useRef(false);
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
 
@@ -211,23 +210,7 @@ export function useClickThrough(
           // By activating on hover (before click), click-through is already
           // OFF when the user clicks, so the click registers immediately.
 
-          if (hit && leftPressed && activatedRef.current && !draggingRef.current) {
-            draggingRef.current = true;
-            void invoke('start_drag');
-          }
-
-
-          if (!anyPressed) {
-            if (draggingRef.current) {
-              // Re-focus after drag so next interaction works.
-              void invoke('set_focus');
-              window.focus();
-            }
-            draggingRef.current = false;
-          }
-
-
-          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current;
+          const shouldBeActive = hit || forceActiveRef.current;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {
@@ -247,7 +230,7 @@ export function useClickThrough(
           if (dbgScene) {
             dbgScene.setDebugState('ct', activatedRef.current ? 'OFF (interactive)' : 'ON (passthrough)');
             dbgScene.setDebugState('hit', hit ? 'yes' : 'no');
-            dbgScene.setDebugState('drag', draggingRef.current ? 'active' : 'no');
+            dbgScene.setDebugState('drag', 'js');
             dbgScene.setDebugState('btn', leftPressed ? 'L' : (_rightPressed ? 'R' : (anyPressed ? '?' : '-')));
             dbgScene.setDebugState('cursor', Math.round(localX) + ',' + Math.round(localY));
           }
