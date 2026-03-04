@@ -221,29 +221,37 @@ export function useClickThrough(
 
           // Workaround: after start_drag, WebView2 may not forward the next
           // right-click to the DOM. Detect right-press from our poll and
-          // synthesize a pointerdown on the canvas so OrbitControls picks it up.
-          if (hit && _rightPressed && activatedRef.current && !draggingRef.current) {
+          // synthesize pointer events on the canvas so OrbitControls picks it up.
+          if (_rightPressed && activatedRef.current && !draggingRef.current) {
             const canvas = sceneRef.current?.renderer?.domElement;
-            if (canvas && !rightSynthesizedRef.current) {
-              rightSynthesizedRef.current = true;
-              canvas.dispatchEvent(new PointerEvent('pointerdown', {
-                button: 2, buttons: 2,
-                clientX: localX, clientY: localY,
-                bubbles: true, cancelable: true,
-              }));
-            }
-          }
-          if (!_rightPressed) {
-            if (rightSynthesizedRef.current) {
-              rightSynthesizedRef.current = false;
-              const canvas = sceneRef.current?.renderer?.domElement;
-              if (canvas) {
-                canvas.dispatchEvent(new PointerEvent('pointerup', {
-                  button: 2, buttons: 0,
+            if (canvas) {
+              if (!rightSynthesizedRef.current) {
+                // First detection — send pointerdown
+                rightSynthesizedRef.current = true;
+                canvas.dispatchEvent(new PointerEvent('pointerdown', {
+                  button: 2, buttons: 2,
+                  clientX: localX, clientY: localY,
+                  bubbles: true, cancelable: true,
+                }));
+              } else {
+                // Ongoing — send pointermove for smooth rotation
+                canvas.dispatchEvent(new PointerEvent('pointermove', {
+                  button: 2, buttons: 2,
                   clientX: localX, clientY: localY,
                   bubbles: true, cancelable: true,
                 }));
               }
+            }
+          }
+          if (!_rightPressed && rightSynthesizedRef.current) {
+            rightSynthesizedRef.current = false;
+            const canvas = sceneRef.current?.renderer?.domElement;
+            if (canvas) {
+              canvas.dispatchEvent(new PointerEvent('pointerup', {
+                button: 2, buttons: 0,
+                clientX: localX, clientY: localY,
+                bubbles: true, cancelable: true,
+              }));
             }
           }
           if (!anyPressed) {
