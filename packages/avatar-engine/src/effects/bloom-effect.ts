@@ -24,15 +24,6 @@ const FADE_SPEED = 2.0;
 
 // ─── BloomEffect ──────────────────────────────────────────────────────────────
 
-export interface ScissorRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  fullW: number;
-  fullH: number;
-}
-
 export class BloomEffect {
   private composer: EffectComposer | null = null;
   private renderTarget: THREE.WebGLRenderTarget | null = null;
@@ -41,9 +32,6 @@ export class BloomEffect {
   private targetStrength = 0;
   private currentStrength = 0;
   private baseStrength: number;
-
-  /** Active scissor rect — set each frame before render() when scissor is enabled. */
-  private _scissorRect: ScissorRect | null = null;
 
   // Stored for deferred construction
   private renderer: THREE.WebGLRenderer;
@@ -161,36 +149,12 @@ export class BloomEffect {
     this.bloomPass.strength = this.baseStrength * this.currentStrength;
   }
 
-  /** Set the scissor rect for the next render. Call before render() each frame. */
-  setScissorRect(rect: ScissorRect | null): void {
-    this._scissorRect = rect;
-  }
-
   /** Render the scene through the bloom pipeline. */
   render(): void {
-    if (!this.composer) return;
-    const rect = this._scissorRect;
-    if (rect) {
-      // Propagate scissor to the composer — all passes (render, bloom, SMAA, output)
-      // write into FBOs, but the GPU only processes fragments inside the scissor rect.
-      this.renderer.setScissorTest(true);
-      this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
-    }
-    this.composer.render();
-    if (rect) {
-      this.renderer.setScissorTest(false);
-    }
+    this.composer?.render();
   }
 
-  /**
-   * Update composer size on window resize.
-   *
-   * NOTE: On multi-monitor setups, bloom FBOs are allocated at full canvas size.
-   * Scissor test prevents wasted GPU compute, but the VRAM allocation remains.
-   * For dual 4K this is ~130MB (HalfFloat RGBA × 2 targets × 7680×2160).
-   * A future optimization could use viewport remapping to shrink FBOs to
-   * the scissor rect, but that requires changes to EffectComposer internals.
-   */
+  /** Update composer size on window resize. */
   setSize(width: number, height: number): void {
     const pixelRatio = this.renderer.getPixelRatio();
     this.renderTarget?.setSize(width * pixelRatio, height * pixelRatio);
