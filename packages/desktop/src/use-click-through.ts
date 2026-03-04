@@ -220,6 +220,13 @@ export function useClickThrough(
           if (!anyPressed) {
             if (draggingRef.current) {
               dragEndTimeRef.current = Date.now();
+              // start_drag captures the mouse at OS level — the browser
+              // never sees pointerdown/pointerup, leaving its pointer state
+              // stale. Dispatch synthetic pointerup to reset it.
+              const canvas = sceneRef.current?.renderer?.domElement;
+              if (canvas) {
+                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+              }
             }
             draggingRef.current = false;
           }
