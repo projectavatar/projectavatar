@@ -261,16 +261,19 @@ export function useClickThrough(
             if (draggingRef.current) {
               dragEndTimeRef.current = Date.now();
               // start_drag hands the mouse to the OS. After drag, the
-              // webview needs to be re-focused — otherwise the first click
-              // goes to re-focusing instead of the canvas.
-              // Re-focus at every level: Tauri window, browser window, canvas.
+              // webview needs a synthetic left click to reset its state —
+              // without it, right-click rotation gets stuck.
               void invoke('set_focus');
               window.focus();
-              document.body.focus();
               const canvas = sceneRef.current?.renderer?.domElement;
               if (canvas) {
                 canvas.focus();
-                canvas.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+                canvas.dispatchEvent(new PointerEvent('pointerdown', {
+                  button: 0, buttons: 1, bubbles: true, cancelable: true,
+                }));
+                canvas.dispatchEvent(new PointerEvent('pointerup', {
+                  button: 0, buttons: 0, bubbles: true, cancelable: true,
+                }));
               }
             }
             draggingRef.current = false;
