@@ -37,6 +37,35 @@ export function DesktopApp() {
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
   }, [setTheme, setAssetBaseUrl]);
 
+  // Restore saved monitor on launch (after frontend_ready sets primary).
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const saved = localStorage.getItem('desktop-monitor');
+        if (!saved) return;
+        const { name } = JSON.parse(saved);
+        if (!name) return;
+
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { availableMonitors } = await import('@tauri-apps/api/window');
+        const monitors = await availableMonitors();
+        const target = monitors.find(m => m.name === name);
+
+        if (target) {
+          const pos = target.position;
+          const size = target.size;
+          await invoke('move_to_monitor', {
+            x: pos.x, y: pos.y, width: size.width, height: size.height,
+          });
+        }
+        // If not found, stay on primary (frontend_ready already set it)
+      } catch { /* skip */ }
+    };
+    // Delay to let frontend_ready run first
+    const timer = setTimeout(restore, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Signal Rust that frontend is ready — expand 1×1 window to fullscreen.
   // The 200ms delay ensures:
   // 1. First transparent frame is rendered (no flash)
@@ -67,20 +96,54 @@ export function DesktopApp() {
     return () => { unlisten?.(); };
   }, [setSettingsOpen]);
 
-  // Listen for tray "Move to Screen" event
+  // Listen for tray "Move to Screen" event — proportional pan transfer + save
   useEffect(() => {
+    if (!avatarScene) return;
     let unlisten: (() => void) | null = null;
     import('@tauri-apps/api/event').then(({ listen }) => {
       listen('move-to-monitor', async (event) => {
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const { x, y, width, height } = event.payload as { x: number; y: number; width: number; height: number };
-          await invoke('move_to_monitor', { x, y, width, height });
+          const winMod = await import('@tauri-apps/api/window');
+          const win = winMod.getCurrentWindow() as unknown as {
+            outerSize(): Promise<{ width: number; height: number }>;
+            scaleFactor(): Promise<number>;
+          };
+
+          const target = event.payload as { x: number; y: number; width: number; height: number; name: string };
+          const oldSize = await win.outerSize();
+          const oldScale = await win.scaleFactor();
+          const oldW = oldSize.width / oldScale;
+          const oldH = oldSize.height / oldScale;
+          const newW = target.width / oldScale; // approximate
+          const newH = target.height / oldScale;
+
+          // Proportional pan transfer: scale panX/panY by size ratio
+          if (avatarScene && oldW > 0 && oldH > 0) {
+            const cam = avatarScene.camera;
+            // Read current pan from saved state
+            const saved = localStorage.getItem('avatar-camera');
+            if (saved) {
+              try {
+                const state = JSON.parse(saved);
+                if (typeof state.panX === 'number' && typeof state.panY === 'number') {
+                  state.panX = state.panX * (target.width / oldSize.width);
+                  state.panY = state.panY * (target.height / oldSize.height);
+                  localStorage.setItem('avatar-camera', JSON.stringify(state));
+                }
+              } catch { /* skip */ }
+            }
+          }
+
+          await invoke('move_to_monitor', { x: target.x, y: target.y, width: target.width, height: target.height });
+
+          // Save which monitor she's on
+          localStorage.setItem('desktop-monitor', JSON.stringify({ name: target.name }));
         } catch { /* skip */ }
       }).then((fn) => { unlisten = fn; });
     }).catch(() => { /* Not in Tauri runtime */ });
     return () => { unlisten?.(); };
-  }, []);
+  }, [avatarScene]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => e.preventDefault();

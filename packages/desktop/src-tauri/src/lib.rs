@@ -95,6 +95,7 @@ fn move_to_monitor(window: tauri::Window, x: i32, y: i32, width: u32, height: u3
 
 #[derive(Clone)]
 struct MonitorInfo {
+    name: String,
     x: i32,
     y: i32,
     width: u32,
@@ -140,6 +141,7 @@ pub fn run() {
                     CheckMenuItem::with_id(app, &format!("monitor_{}", i), &label, true, is_primary, None::<&str>)?
                 );
                 monitor_infos.push(MonitorInfo {
+                    name: name.clone(),
                     x: pos.x, y: pos.y,
                     width: size.width, height: size.height,
                 });
@@ -185,6 +187,7 @@ pub fn run() {
                                     let _ = app_handle.emit("move-to-monitor", serde_json::json!({
                                         "x": info.x, "y": info.y,
                                         "width": info.width, "height": info.height,
+                                        "name": info.name,
                                     }));
                                     // Update check marks
                                     for (j, item) in check_items.iter().enumerate() {
