@@ -60,7 +60,7 @@ export function DesktopApp() {
   useEffect(() => {
     if (!avatarScene) return;
     const MIN_SIZE = 400;
-    const POLL_MS = 500;
+    const POLL_MS = 20;
     const THRESHOLD = 20;
     const FILL_RATIO = 0.9;
 
