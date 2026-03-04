@@ -90,8 +90,8 @@ fn set_window_rect(window: tauri::Window, x: i32, y: i32, width: u32, height: u3
 }
 
 /// Default window size.
-const DEFAULT_WIDTH: u32 = 600;
-const DEFAULT_HEIGHT: u32 = 600;
+const DEFAULT_WIDTH: u32 = 800;
+const DEFAULT_HEIGHT: u32 = 800;
 
 /// Called by the frontend when it's ready.
 /// Sets a small default window at bottom-right, hides from taskbar, enables click-through.

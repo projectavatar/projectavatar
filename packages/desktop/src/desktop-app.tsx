@@ -56,64 +56,7 @@ export function DesktopApp() {
     return () => { cancelled = true; };
   }, []);
 
-  // Auto-resize window to fit avatar (always square, centered, single snap)
-  useEffect(() => {
-    if (!avatarScene) return;
-    const MIN_SIZE = 400;
-    const POLL_MS = 20;
-    const THRESHOLD = 20;
-    const FILL_RATIO = 0.9;
 
-    let lastPhysSize = 0;
-    let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-    let tauriWin: { scaleFactor(): Promise<number>; outerPosition(): Promise<{ x: number; y: number }>; outerSize(): Promise<{ width: number; height: number }> } | null = null;
-
-    const ensureTauri = async () => {
-      if (tauriInvoke) return true;
-      try {
-        const core = await import('@tauri-apps/api/core');
-        const winMod = await import('@tauri-apps/api/window');
-        tauriInvoke = core.invoke;
-        tauriWin = winMod.getCurrentWindow() as unknown as typeof tauriWin;
-        return true;
-      } catch { return false; }
-    };
-
-    const poll = async () => {
-      const fovFrac = avatarScene.getAvatarFovFraction();
-      if (fovFrac == null || !(await ensureTauri()) || !tauriInvoke || !tauriWin) return;
-
-      // fovFrac = how much of camera FOV the model fills.
-      // We want model to fill FILL_RATIO of the window.
-      const BASE_SIZE = 800;
-      const cssSize = Math.max(MIN_SIZE, Math.ceil(BASE_SIZE * fovFrac / FILL_RATIO));
-      const scale = await tauriWin.scaleFactor();
-      const newPhysSize = Math.round(cssSize * scale);
-
-      if (Math.abs(newPhysSize - lastPhysSize) < THRESHOLD * scale) return;
-
-      // Atomic move+resize via Win32 SetWindowPos (single OS call, no flicker).
-      // Adjust position so window stays centered.
-      const pos = await tauriWin.outerPosition();
-      const size = await tauriWin.outerSize();
-      const dx = Math.round((size.width - newPhysSize) / 2);
-      const dy = Math.round((size.height - newPhysSize) / 2);
-
-      await tauriInvoke('set_window_rect', {
-        x: pos.x + dx, y: pos.y + dy,
-        width: newPhysSize, height: newPhysSize,
-      });
-      lastPhysSize = newPhysSize;
-    };
-
-    const id = setInterval(poll, POLL_MS);
-    const initialId = setTimeout(poll, 2000);
-
-    return () => {
-      clearInterval(id);
-      clearTimeout(initialId);
-    };
-  }, [avatarScene]);
 
   // Listen for tray "Settings" menu event from Rust
   useEffect(() => {
