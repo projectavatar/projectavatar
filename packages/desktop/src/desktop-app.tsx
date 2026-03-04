@@ -80,7 +80,7 @@ export function DesktopApp() {
 
   // Cursor: grab on hover (but not when settings is open)
   useEffect(() => {
-    document.body.style.cursor = (hovered && !settingsOpen) ? 'default' : 'default';
+    document.body.style.cursor = (hovered && !settingsOpen) ? 'grab' : 'default';
     return () => { document.body.style.cursor = ''; };
   }, [hovered, settingsOpen]);
 

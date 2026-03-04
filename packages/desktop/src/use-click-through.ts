@@ -140,7 +140,6 @@ export function useClickThrough(
 
   const activatedRef = useRef(false);
   const draggingRef = useRef(false);
-  const altKeyRef = useRef(false);
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
 
@@ -156,12 +155,6 @@ export function useClickThrough(
   useEffect(() => {
     let cancelled = false;
     let pollId: ReturnType<typeof setInterval> | null = null;
-
-    // Track Alt key for drag modifier
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Alt') altKeyRef.current = true; };
-    const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'Alt') altKeyRef.current = false; };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
 
     const start = async () => {
       const tauri = await ensureTauri();
@@ -210,19 +203,23 @@ export function useClickThrough(
             }
           }
 
-          // Drag: Alt + click on avatar → initiate native OS window drag
-          if (hit && buttonPressed && altKeyRef.current && !draggingRef.current) {
+          // State machine:
+          // 1. hit + no button → activate (click-through OFF), show hover
+          // 2. hit + left button + already active → start OS drag
+          // 3. no hit + no button → deactivate (click-through ON)
+          //
+          // By activating on hover (before click), click-through is already
+          // OFF when the user clicks, so the click registers immediately.
+
+          if (hit && buttonPressed && activatedRef.current && !draggingRef.current) {
             draggingRef.current = true;
-            // Must disable click-through first so OS can grab the window
-            void setIgnoreCursor(invoke, false).then(() => {
-              void invoke('start_drag');
-            });
+            void invoke('start_drag');
           }
           if (!buttonPressed) {
             draggingRef.current = false;
           }
 
-          const shouldBeActive = (hit && !buttonPressed) || forceActiveRef.current || draggingRef.current;
+          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {
@@ -248,8 +245,6 @@ export function useClickThrough(
     return () => {
       cancelled = true;
       if (pollId) clearInterval(pollId);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
       void ensureTauri().then((t) => t && setIgnoreCursor(t.invoke, false));
     };
   }, []);
