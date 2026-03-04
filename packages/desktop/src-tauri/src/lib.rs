@@ -1,8 +1,9 @@
 use mouse_position::mouse_position::Mouse;
 use device_query::{DeviceQuery, DeviceState, MouseState};
+use std::sync::{Arc, Mutex};
 use tauri::{
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
+    tray::{TrayIcon, TrayIconBuilder},
     Emitter, AppHandle, Manager,
 };
 
@@ -14,7 +15,6 @@ fn get_cursor_position() -> Option<(i32, i32)> {
     }
 }
 
-/// Returns true if any mouse button is currently pressed.
 #[tauri::command]
 fn is_mouse_button_pressed() -> bool {
     let device_state = DeviceState::new();
@@ -22,7 +22,6 @@ fn is_mouse_button_pressed() -> bool {
     mouse.button_pressed.iter().skip(1).any(|&b| b)
 }
 
-/// Combines cursor position + button state in a single IPC call.
 #[tauri::command]
 fn get_cursor_state() -> Option<(i32, i32, bool)> {
     match Mouse::get_mouse_position() {
@@ -43,66 +42,8 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
-/// Returns the bounding rect (physical pixels) that spans all monitors.
-/// Falls back to the primary monitor, then to 1920×1080 at (0,0).
-/// Virtual screen info: bounds + max scale factor across all monitors.
-#[derive(serde::Serialize)]
-struct VirtualScreen {
-    x: i32,
-    y: i32,
-    width: u32,
-    height: u32,
-    max_scale_factor: f64,
-}
-
-fn compute_virtual_screen(window: &tauri::Window) -> VirtualScreen {
-    if let Ok(monitors) = window.available_monitors() {
-        if !monitors.is_empty() {
-            let mut min_x = i32::MAX;
-            let mut min_y = i32::MAX;
-            let mut max_x = i32::MIN;
-            let mut max_y = i32::MIN;
-            let mut max_scale: f64 = 1.0;
-
-            for monitor in &monitors {
-                let pos = monitor.position();
-                let size = monitor.size();
-                min_x = min_x.min(pos.x);
-                min_y = min_y.min(pos.y);
-                max_x = max_x.max(pos.x.saturating_add(size.width as i32));
-                max_y = max_y.max(pos.y.saturating_add(size.height as i32));
-                if monitor.scale_factor() > max_scale {
-                    max_scale = monitor.scale_factor();
-                }
-            }
-
-            let width = (max_x - min_x).max(0) as u32;
-            let height = (max_y - min_y).max(0) as u32;
-            return VirtualScreen { x: min_x, y: min_y, width, height, max_scale_factor: max_scale };
-        }
-    }
-
-    // Fallback: primary monitor
-    if let Ok(Some(monitor)) = window.primary_monitor() {
-        let size = monitor.size();
-        let pos = monitor.position();
-        return VirtualScreen {
-            x: pos.x, y: pos.y,
-            width: size.width, height: size.height,
-            max_scale_factor: monitor.scale_factor(),
-        };
-    }
-
-    VirtualScreen { x: 0, y: 0, width: 1920, height: 1080, max_scale_factor: 1.0 }
-}
-
-/// Called by the frontend when it's ready (transparent, rendered).
-/// Expands 1×1 window to span all monitors, hides from taskbar, enables click-through.
-#[tauri::command]
-fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    let screen = compute_virtual_screen(&window);
-    let (x, y, width, height) = (screen.x, screen.y, screen.width, screen.height);
-
+/// Position and size a window to fill a monitor, with Windows transparency workaround.
+fn apply_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())?;
@@ -110,15 +51,6 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
         .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
         .map_err(|e| e.to_string())?;
 
-    // Hide from taskbar
-    let _ = window.set_skip_taskbar(true);
-
-    // Enable click-through
-    window
-        .set_ignore_cursor_events(true)
-        .map_err(|e| e.to_string())?;
-
-    // Windows transparency workaround
     #[cfg(target_os = "windows")]
     {
         let current = window.outer_size().unwrap_or(tauri::PhysicalSize { width, height });
@@ -136,11 +68,101 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Returns the virtual screen info (bounds + max scale factor) in physical pixels.
-/// Used by the frontend to set correct pixel ratio and NDC coordinates.
 #[tauri::command]
-fn get_virtual_screen(window: tauri::Window) -> VirtualScreen {
-    compute_virtual_screen(&window)
+fn frontend_ready(window: tauri::Window) -> Result<(), String> {
+    let (width, height, x, y) = match window.primary_monitor() {
+        Ok(Some(monitor)) => {
+            let size = monitor.size();
+            let pos = monitor.position();
+            (size.width, size.height, pos.x, pos.y)
+        }
+        _ => (1920, 1080, 0, 0),
+    };
+
+    apply_monitor(&window, x, y, width, height)?;
+    let _ = window.set_skip_taskbar(true);
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Move the avatar window to fill the given monitor coordinates.
+#[tauri::command]
+fn move_to_monitor(window: tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
+    apply_monitor(&window, x, y, width, height)
+}
+
+#[derive(Clone, Debug)]
+struct MonitorInfo {
+    name: String,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+}
+
+/// Shared state for the active monitor name (used for checkmark).
+struct ActiveMonitorState {
+    name: Mutex<String>,
+}
+
+/// Shared state for the tray icon (needed to update menu on hot-plug).
+struct TrayState {
+    tray: Mutex<Option<TrayIcon>>,
+}
+
+/// Build the tray menu with the current monitor list.
+fn build_tray_menu(app: &AppHandle, active_name: &str) -> Result<(Menu<tauri::Wry>, Vec<MonitorInfo>), Box<dyn std::error::Error>> {
+    let all_monitors = app.available_monitors().unwrap_or_default();
+    let primary_name = app.primary_monitor().ok().flatten()
+        .and_then(|m| m.name().cloned());
+
+    let mut monitor_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
+    let mut monitor_infos: Vec<MonitorInfo> = Vec::new();
+
+    for (i, monitor) in all_monitors.iter().enumerate() {
+        let name = monitor.name().cloned().unwrap_or_default();
+        let size = monitor.size();
+        let pos = monitor.position();
+        let label = if name.is_empty() {
+            format!("Monitor {} ({}x{})", i + 1, size.width, size.height)
+        } else {
+            format!("{} ({}x{})", name, size.width, size.height)
+        };
+
+        // Check if this is the active monitor, or primary if no active set
+        let is_checked = if active_name.is_empty() {
+            primary_name.as_deref() == Some(&name)
+        } else {
+            name == active_name
+        };
+
+        monitor_items.push(
+            CheckMenuItem::with_id(app, &format!("monitor_{}", i), &label, true, is_checked, None::<&str>)?
+        );
+        monitor_infos.push(MonitorInfo {
+            name,
+            x: pos.x, y: pos.y,
+            width: size.width, height: size.height,
+        });
+    }
+
+    let monitor_refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        monitor_items.iter().map(|m| m as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+    let monitor_submenu = Submenu::with_items(app, "Move to Screen", true, &monitor_refs)?;
+
+    let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+    let menu = Menu::with_items(app, &[
+        &monitor_submenu as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+        &settings_item as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+        &quit_item as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+    ])?;
+
+    Ok((menu, monitor_infos))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -155,75 +177,124 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .manage(ActiveMonitorState { name: Mutex::new(String::new()) })
+        .manage(TrayState { tray: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![
             get_cursor_position,
             set_ignore_cursor_events,
             is_mouse_button_pressed,
             get_cursor_state,
             frontend_ready,
-            get_virtual_screen,
+            move_to_monitor,
         ])
         .setup(|app| {
-            // ── System tray ──────────────────────────────────────────────
-            let settings_item =
-                MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+            let app_handle = app.handle().clone();
+
+            // Build initial menu
+            let active = app.state::<ActiveMonitorState>().name.lock().unwrap().clone();
+            let (menu, monitor_infos) = build_tray_menu(&app_handle, &active)?;
 
             let icon = app
                 .default_window_icon()
                 .cloned()
                 .expect("default window icon must be set in tauri.conf.json");
 
-            TrayIconBuilder::new()
+            let monitor_infos = Arc::new(Mutex::new(monitor_infos));
+            let infos_for_event = Arc::clone(&monitor_infos);
+
+            let tray = TrayIconBuilder::new()
                 .icon(icon)
                 .tooltip("Project Avatar")
                 .menu(&menu)
-                .on_menu_event(|app_handle: &AppHandle, event| {
-                    match event.id.as_ref() {
+                .on_menu_event(move |app_handle: &AppHandle, event| {
+                    let id = event.id.as_ref();
+                    match id {
                         "settings" => {
-                            // Emit a Tauri event that the frontend listens for
                             let _ = app_handle.emit("tray-open-settings", ());
                         }
                         "quit" => {
                             app_handle.exit(0);
+                        }
+                        _ if id.starts_with("monitor_") => {
+                            if let Ok(idx) = id.strip_prefix("monitor_").unwrap_or("").parse::<usize>() {
+                                // Clone the info we need, then drop the lock
+                                let info = {
+                                    let infos = infos_for_event.lock().unwrap();
+                                    infos.get(idx).cloned()
+                                };
+                                if let Some(info) = info {
+                                    let _ = app_handle.emit("move-to-monitor", serde_json::json!({
+                                        "x": info.x, "y": info.y,
+                                        "width": info.width, "height": info.height,
+                                        "name": info.name,
+                                    }));
+                                    // Update active monitor state
+                                    if let Some(state) = app_handle.try_state::<ActiveMonitorState>() {
+                                        if let Ok(mut name) = state.name.lock() {
+                                            *name = info.name.clone();
+                                        }
+                                    }
+                                    // Rebuild menu with updated checkmarks
+                                    if let Some(tray_state) = app_handle.try_state::<TrayState>() {
+                                        if let Ok(tray_lock) = tray_state.tray.lock() {
+                                            if let Some(tray) = tray_lock.as_ref() {
+                                                if let Ok((new_menu, new_infos)) = build_tray_menu(app_handle, &info.name) {
+                                                    let _ = tray.set_menu(Some(new_menu));
+                                                    if let Ok(mut infos_mut) = infos_for_event.lock() {
+                                                        *infos_mut = new_infos;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         _ => {}
                     }
                 })
                 .build(app)?;
 
-            // Window starts at 1×1 (invisible). frontend_ready command
-            // expands it to fullscreen after the webview has rendered.
+            // Store tray icon for hot-plug updates
+            if let Ok(mut tray_lock) = app.state::<TrayState>().tray.lock() {
+                *tray_lock = Some(tray);
+            }
 
-            // ── Monitor hot-plug detection ───────────────────────────────
-            // Poll available monitors every 2s. When the layout changes,
-            // emit "monitors-changed" so the frontend can resize the window.
-            let main_window = app.get_webview_window("main")
-                .expect("main window must exist");
+            // ── Hot-plug monitor detection ──────────────────────────────
+            let poll_handle = app.handle().clone();
+            let poll_infos = Arc::clone(&monitor_infos);
             std::thread::spawn(move || {
-                let mut last_hash: u64 = 0;
+                let mut last_count = 0usize;
+                let mut last_names: Vec<String> = Vec::new();
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
-                    if let Ok(monitors) = main_window.available_monitors() {
-                        use std::hash::{Hash, Hasher};
-                        // Sort by position for order-independent hashing
-                        let mut entries: Vec<(i32, i32, u32, u32, u64)> = monitors.iter().map(|m| {
-                            let pos = m.position();
-                            let size = m.size();
-                            (pos.x, pos.y, size.width, size.height, m.scale_factor().to_bits())
-                        }).collect();
-                        entries.sort_by_key(|e| (e.0, e.1));
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        for entry in &entries {
-                            entry.hash(&mut hasher);
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+
+                    let monitors = poll_handle.available_monitors().unwrap_or_default();
+                    let names: Vec<String> = monitors.iter()
+                        .map(|m| m.name().cloned().unwrap_or_default())
+                        .collect();
+
+                    if names.len() != last_count || names != last_names {
+                        last_count = names.len();
+                        last_names = names;
+
+                        // Rebuild tray menu
+                        let active = poll_handle.try_state::<ActiveMonitorState>()
+                            .and_then(|s| s.name.lock().ok().map(|n| n.clone()))
+                            .unwrap_or_default();
+
+                        if let Ok((new_menu, new_infos)) = build_tray_menu(&poll_handle, &active) {
+                            if let Some(tray_state) = poll_handle.try_state::<TrayState>() {
+                                if let Ok(tray_lock) = tray_state.tray.lock() {
+                                    if let Some(tray) = tray_lock.as_ref() {
+                                        let _ = tray.set_menu(Some(new_menu));
+                                    }
+                                }
+                            }
+                            if let Ok(mut infos_mut) = poll_infos.lock() {
+                                *infos_mut = new_infos;
+                            }
                         }
-                        entries.len().hash(&mut hasher);
-                        let hash = hasher.finish();
-                        if hash != last_hash && last_hash != 0 {
-                            let _ = main_window.emit("monitors-changed", ());
-                        }
-                        last_hash = hash;
                     }
                 }
             });

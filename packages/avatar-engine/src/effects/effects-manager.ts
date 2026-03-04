@@ -9,7 +9,6 @@ import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { EnergyTrails } from './energy-trails.ts';
 import { BloomEffect } from './bloom-effect.ts';
-import type { ScissorRect } from './bloom-effect.ts';
 import { Holographic } from './holographic.ts';
 
 // ─── Effect state ─────────────────────────────────────────────────────────────
@@ -129,9 +128,8 @@ export class EffectsManager {
   }
 
   /** Render through bloom composer if active, otherwise return false. */
-  renderBloom(scissorRect?: ScissorRect | null): boolean {
+  renderBloom(): boolean {
     if (this.bloomEffect.isActive) {
-      this.bloomEffect.setScissorRect(scissorRect ?? null);
       this.bloomEffect.render();
       return true;
     }
