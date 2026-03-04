@@ -222,20 +222,9 @@ export function useClickThrough(
           if (!anyPressed) {
             if (draggingRef.current) {
               dragEndTimeRef.current = Date.now();
-              // start_drag hands the mouse to the OS. After drag, fire
-              // a synthetic right-click cycle to reset webview pointer state.
+              // Re-focus after drag so next interaction works.
               void invoke('set_focus');
               window.focus();
-              const canvas = sceneRef.current?.renderer?.domElement;
-              if (canvas) {
-                canvas.focus();
-                canvas.dispatchEvent(new PointerEvent('pointerdown', {
-                  button: 2, buttons: 2, bubbles: true, cancelable: true,
-                }));
-                canvas.dispatchEvent(new PointerEvent('pointerup', {
-                  button: 2, buttons: 0, bubbles: true, cancelable: true,
-                }));
-              }
             }
             draggingRef.current = false;
           }
