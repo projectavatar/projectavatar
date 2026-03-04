@@ -1,6 +1,14 @@
 # Desktop Changelog
 
 
+## 0.8.0
+
+### Added
+- **Tray: Move to Screen** — submenu lists all connected monitors with name and resolution. Click to move the avatar to that screen.
+
+### Removed
+- Multi-monitor scissor rendering (#106) — reverted due to 50% GPU compositor overhead
+
 ## 0.7.0
 
 ### Added

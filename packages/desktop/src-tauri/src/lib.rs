@@ -1,7 +1,7 @@
 use mouse_position::mouse_position::Mouse;
 use device_query::{DeviceQuery, DeviceState, MouseState};
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, Submenu},
     tray::TrayIconBuilder,
     Emitter, AppHandle, Manager,
 };
@@ -43,33 +43,13 @@ fn set_ignore_cursor_events(window: tauri::Window, ignore: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
-/// Called by the frontend when it's ready (transparent, rendered).
-/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
-#[tauri::command]
-fn frontend_ready(window: tauri::Window) -> Result<(), String> {
-    // Expand to primary monitor, fallback to 1920×1080 at (0,0)
-    let (width, height, x, y) = match window.primary_monitor() {
-        Ok(Some(monitor)) => {
-            let size = monitor.size();
-            let pos = monitor.position();
-            (size.width, size.height, pos.x, pos.y)
-        }
-        _ => (1920, 1080, 0, 0),
-    };
-
+/// Move the window to fill a specific monitor.
+fn move_to_monitor(window: &tauri::Window, x: i32, y: i32, width: u32, height: u32) -> Result<(), String> {
     window
         .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
         .map_err(|e| e.to_string())?;
     window
         .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
-        .map_err(|e| e.to_string())?;
-
-    // Hide from taskbar
-    let _ = window.set_skip_taskbar(true);
-
-    // Enable click-through
-    window
-        .set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
 
     // Windows transparency workaround
@@ -88,6 +68,41 @@ fn frontend_ready(window: tauri::Window) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Called by the frontend when it's ready (transparent, rendered).
+/// Expands 1×1 window to fullscreen, hides from taskbar, enables click-through.
+#[tauri::command]
+fn frontend_ready(window: tauri::Window) -> Result<(), String> {
+    // Default to primary monitor
+    let (width, height, x, y) = match window.primary_monitor() {
+        Ok(Some(monitor)) => {
+            let size = monitor.size();
+            let pos = monitor.position();
+            (size.width, size.height, pos.x, pos.y)
+        }
+        _ => (1920, 1080, 0, 0),
+    };
+
+    move_to_monitor(&window, x, y, width, height)?;
+
+    // Hide from taskbar
+    let _ = window.set_skip_taskbar(true);
+
+    // Enable click-through
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[derive(Clone)]
+struct MonitorInfo {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -110,11 +125,43 @@ pub fn run() {
             frontend_ready,
         ])
         .setup(|app| {
-            // ── System tray ──────────────────────────────────────────────
-            let settings_item =
-                MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            // ── Enumerate monitors ───────────────────────────────────────
+            let all_monitors = app.available_monitors().unwrap_or_default();
+
+            // Create monitor menu items
+            let mut monitor_items: Vec<MenuItem<tauri::Wry>> = Vec::new();
+            let mut monitor_infos: Vec<MonitorInfo> = Vec::new();
+            for (i, monitor) in all_monitors.iter().enumerate() {
+                let name = monitor.name().unwrap_or_default();
+                let size = monitor.size();
+                let pos = monitor.position();
+                let label = if name.is_empty() {
+                    format!("Monitor {} ({}x{})", i + 1, size.width, size.height)
+                } else {
+                    format!("{} ({}x{})", name, size.width, size.height)
+                };
+                monitor_items.push(
+                    MenuItem::with_id(app, &format!("monitor_{}", i), &label, true, None::<&str>)?
+                );
+                monitor_infos.push(MonitorInfo {
+                    x: pos.x, y: pos.y,
+                    width: size.width, height: size.height,
+                });
+            }
+
+            // Build menu
+            let monitor_refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+                monitor_items.iter().map(|m| m as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+            let monitor_submenu = Submenu::with_items(app, "Move to Screen", true, &monitor_refs)?;
+
+            let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+
+            let menu = Menu::with_items(app, &[
+                &monitor_submenu as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+                &settings_item as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+                &quit_item as &dyn tauri::menu::IsMenuItem<tauri::Wry>,
+            ])?;
 
             let icon = app
                 .default_window_icon()
@@ -125,22 +172,29 @@ pub fn run() {
                 .icon(icon)
                 .tooltip("Project Avatar")
                 .menu(&menu)
-                .on_menu_event(|app_handle: &AppHandle, event| {
-                    match event.id.as_ref() {
+                .on_menu_event(move |app_handle: &AppHandle, event| {
+                    let id = event.id.as_ref();
+                    match id {
                         "settings" => {
-                            // Emit a Tauri event that the frontend listens for
                             let _ = app_handle.emit("tray-open-settings", ());
                         }
                         "quit" => {
                             app_handle.exit(0);
+                        }
+                        _ if id.starts_with("monitor_") => {
+                            if let Ok(idx) = id.strip_prefix("monitor_").unwrap_or("").parse::<usize>() {
+                                if let Some(info) = monitor_infos.get(idx) {
+                                    if let Some(window) = app_handle.get_webview_window("main") {
+                                        let _ = move_to_monitor(&window, info.x, info.y, info.width, info.height);
+                                    }
+                                }
+                            }
                         }
                         _ => {}
                     }
                 })
                 .build(app)?;
 
-            // Window starts at 1×1 (invisible). frontend_ready command
-            // expands it to fullscreen after the webview has rendered.
             Ok(())
         })
         .run(tauri::generate_context!())
