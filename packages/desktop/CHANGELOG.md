@@ -5,6 +5,9 @@
 
 ### Added
 - **Tray: Move to Screen** — submenu lists all connected monitors with name and resolution. Click to move the avatar to that screen.
+- **Active monitor checkmark** — tray menu shows ✓ on the monitor she's currently on.
+- **Monitor persistence** — remembers which monitor she was on between restarts. Falls back to primary if that monitor is no longer connected.
+- **Proportional pan transfer** — when switching monitors, her pan position scales proportionally to the new resolution.
 
 ### Removed
 - Multi-monitor scissor rendering (#106) — reverted due to 50% GPU compositor overhead
