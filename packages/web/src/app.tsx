@@ -185,14 +185,16 @@ export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor
           </div>
         )}
 
-        {/* StatusBadge — auto-hide when idle, but always show during errors */}
-        <div style={{
-          opacity: uiVisible ? 1 : 0,
-          transition: 'opacity 0.3s ease',
-          pointerEvents: uiVisible ? 'auto' : 'none',
-        }}>
-          <StatusBadge />
-        </div>
+        {/* StatusBadge — auto-hide when idle, but always show during errors. Hidden in desktop mode. */}
+        {!hideSettings && (
+          <div style={{
+            opacity: uiVisible ? 1 : 0,
+            transition: 'opacity 0.3s ease',
+            pointerEvents: uiVisible ? 'auto' : 'none',
+          }}>
+            <StatusBadge />
+          </div>
+        )}
 
         {modelId && (
           <>
