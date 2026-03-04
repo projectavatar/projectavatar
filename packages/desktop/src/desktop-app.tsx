@@ -97,6 +97,100 @@ export function DesktopApp() {
     };
   }, [avatarScene]);
 
+  // Save window position on drag end, restore on launch.
+  // Also detect which monitor the window is on and resize to fit.
+  useEffect(() => {
+    if (!avatarScene) return;
+    let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+    let tauriWin: {
+      outerPosition(): Promise<{ x: number; y: number }>;
+      outerSize(): Promise<{ width: number; height: number }>;
+      scaleFactor(): Promise<number>;
+    } | null = null;
+
+    const ensureTauri = async () => {
+      if (tauriInvoke) return true;
+      try {
+        const core = await import('@tauri-apps/api/core');
+        const winMod = await import('@tauri-apps/api/window');
+        tauriInvoke = core.invoke;
+        tauriWin = winMod.getCurrentWindow() as unknown as typeof tauriWin;
+        return true;
+      } catch { return false; }
+    };
+
+    // Restore saved position on launch
+    const restore = async () => {
+      if (!(await ensureTauri()) || !tauriInvoke) return;
+      const saved = localStorage.getItem('desktop-window-pos');
+      if (saved) {
+        try {
+          const { x, y } = JSON.parse(saved);
+          await tauriInvoke('set_window_position', { x, y });
+        } catch { /* ignore invalid saved data */ }
+      }
+    };
+    // Delay restore slightly to let frontend_ready run first
+    const restoreTimer = setTimeout(restore, 500);
+
+    // Save position periodically (every 2s if moved)
+    let lastSavedX = 0;
+    let lastSavedY = 0;
+    const savePosition = async () => {
+      if (!(await ensureTauri()) || !tauriWin) return;
+      try {
+        const pos = await tauriWin.outerPosition();
+        if (pos.x !== lastSavedX || pos.y !== lastSavedY) {
+          lastSavedX = pos.x;
+          lastSavedY = pos.y;
+          localStorage.setItem('desktop-window-pos', JSON.stringify({ x: pos.x, y: pos.y }));
+        }
+      } catch { /* skip */ }
+    };
+    const saveInterval = setInterval(savePosition, 2000);
+
+    // Detect which monitor window is on and resize to fit
+    let lastMonitorKey = '';
+    const detectMonitor = async () => {
+      if (!(await ensureTauri()) || !tauriInvoke || !tauriWin) return;
+      try {
+        const monitors = await (await import('@tauri-apps/api/window')).availableMonitors();
+        const pos = await tauriWin!.outerPosition();
+        const size = await tauriWin!.outerSize();
+        const cx = pos.x + size.width / 2;
+        const cy = pos.y + size.height / 2;
+
+        // Find which monitor contains the window center
+        let best = monitors[0];
+        for (const m of monitors) {
+          const mp = m.position;
+          const ms = m.size;
+          if (cx >= mp.x && cx < mp.x + ms.width && cy >= mp.y && cy < mp.y + ms.height) {
+            best = m;
+            break;
+          }
+        }
+        if (!best) return;
+
+        const monitorKey = best.position.x + ',' + best.position.y + ',' + best.size.width + ',' + best.size.height;
+        if (monitorKey === lastMonitorKey) return;
+        lastMonitorKey = monitorKey;
+
+        // Resize to fit this monitor: height = monitor height, width = min(w, h)
+        const h = best.size.height;
+        const w = Math.min(best.size.width, h);
+        await tauriInvoke('set_window_size', { width: w, height: h });
+      } catch { /* skip */ }
+    };
+    const monitorInterval = setInterval(detectMonitor, 1000);
+
+    return () => {
+      clearTimeout(restoreTimer);
+      clearInterval(saveInterval);
+      clearInterval(monitorInterval);
+    };
+  }, [avatarScene]);
+
   useEffect(() => {
     setTheme('transparent');
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
