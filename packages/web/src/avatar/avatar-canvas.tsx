@@ -256,6 +256,8 @@ export function AvatarCanvas({ onSendSetModel, onStateMachine, onEffectsManager,
         const dist = avatarScene.camera.position.length();
         const feetY = avatarScene.getFeetNdcY();
         const feetAtBottom = feetY != null && feetY <= -0.85;
+        if (feetY != null) avatarScene.setDebugState('feetY', feetY.toFixed(3));
+        if (ctrl) avatarScene.setDebugState('idle', ctrl.getIdleMode());
         const wantGround = dist < ZOOM_GROUND_THRESHOLD || feetAtBottom;
         const currentMode = ctrl.getIdleMode();
         if (wantGround && currentMode === 'air') {
