@@ -126,6 +126,11 @@ export class StateMachine {
   }
 
   /** Get current state (read-only). */
+  /** Access the animation controller for direct idle mode control. */
+  get animationController(): AnimationController {
+    return this.animationCtrl;
+  }
+
   get current(): Readonly<AvatarState> {
     return this.state;
   }

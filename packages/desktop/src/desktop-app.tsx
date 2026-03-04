@@ -7,7 +7,7 @@ import { useStore } from '../../web/src/state/store.ts';
 import { useEscapeClose } from './window-chrome.tsx';
 import { Updater } from './updater.tsx';
 import { useClickThrough, CURSOR_POLL_MS } from './use-click-through.ts';
-import type { AvatarScene } from '@project-avatar/avatar-engine';
+import type { AvatarScene, StateMachine } from '@project-avatar/avatar-engine';
 
 export function DesktopApp() {
   const setTheme = useStore((s) => s.setTheme);
@@ -15,6 +15,11 @@ export function DesktopApp() {
   const settingsOpen = useStore((s) => s.settingsOpen);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
   const [avatarScene, setAvatarScene] = useState<AvatarScene | null>(null);
+  const [stateMachine, setStateMachine] = useState<StateMachine | null>(null);
+
+  const handleStateMachine = useCallback((sm: StateMachine | null) => {
+    setStateMachine(sm);
+  }, []);
 
   const projectCursorRef = useRef<((ndcX: number, ndcY: number) => void) | null>(null);
 
@@ -196,6 +201,55 @@ export function DesktopApp() {
     if (avatarScene) avatarScene.disableFraming();
   }, [avatarScene]);
 
+  // Ground mode: when window bottom is near screen bottom, switch to ground idle.
+  useEffect(() => {
+    if (!stateMachine || !avatarScene) return;
+    const GROUND_MARGIN_PX = 100; // within 100px of screen bottom → ground
+    let lastMode: 'air' | 'ground' | null = null;
+
+    const check = async () => {
+      try {
+        const winMod = await import('@tauri-apps/api/window');
+        const monitors = await winMod.availableMonitors();
+        const win = winMod.getCurrentWindow() as unknown as {
+          outerPosition(): Promise<{ x: number; y: number }>;
+          outerSize(): Promise<{ width: number; height: number }>;
+        };
+        const pos = await win.outerPosition();
+        const size = await win.outerSize();
+        const winBottom = pos.y + size.height;
+        const cx = pos.x + size.width / 2;
+
+        // Find which monitor
+        let monitorBottom = 1080;
+        for (const m of monitors) {
+          const mp = m.position;
+          const ms = m.size;
+          if (cx >= mp.x && cx < mp.x + ms.width) {
+            monitorBottom = mp.y + ms.height;
+            break;
+          }
+        }
+
+        const distFromBottom = monitorBottom - winBottom;
+        const wantGround = distFromBottom <= GROUND_MARGIN_PX;
+        const mode = wantGround ? 'ground' : 'air';
+
+        avatarScene.setDebugState('scrBot', distFromBottom + 'px');
+        avatarScene.setDebugState('idle', mode);
+
+        if (mode !== lastMode) {
+          lastMode = mode;
+          const ctrl = stateMachine.animationController;
+          if (ctrl) ctrl.setIdleMode(mode);
+        }
+      } catch { /* skip */ }
+    };
+
+    const id = setInterval(check, 500);
+    return () => clearInterval(id);
+  }, [stateMachine, avatarScene]);
+
   useEffect(() => {
     setTheme('transparent');
     setAssetBaseUrl(import.meta.env.VITE_ASSET_BASE_URL || 'https://app.projectavatar.io');
@@ -254,6 +308,7 @@ export function DesktopApp() {
     <>
       <App
         onScene={handleScene}
+        onStateMachine={handleStateMachine}
         cursorPollMs={CURSOR_POLL_MS}
         externalCursorPoll
         onProjectCursor={handleProjectCursor}

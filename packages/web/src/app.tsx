@@ -75,8 +75,9 @@ const connectingPillStyle: React.CSSProperties = {
  * even across WS reconnects. No wsReady state needed; the ref is the source
  * of truth and the warning covers the not-ready case.
  */
-export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor, activated, hideSettings }: {
+export function App({ onScene, onStateMachine: onStateMachineProp, cursorPollMs, externalCursorPoll, onProjectCursor, activated, hideSettings }: {
   onScene?: (scene: AvatarScene | null) => void;
+  onStateMachine?: (sm: StateMachine | null) => void;
   cursorPollMs?: number;
   externalCursorPoll?: boolean;
   onProjectCursor?: (fn: ((ndcX: number, ndcY: number) => void) | null) => void;
@@ -117,6 +118,7 @@ export function App({ onScene, cursorPollMs, externalCursorPoll, onProjectCursor
     (sm: StateMachine | null) => {
       stateMachineRef.current = sm;
       setStateMachine(sm);
+      onStateMachineProp?.(sm);
     },
     [],
   );
