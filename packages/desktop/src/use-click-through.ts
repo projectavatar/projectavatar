@@ -140,6 +140,8 @@ export function useClickThrough(
 
   const activatedRef = useRef(false);
   const draggingRef = useRef(false);
+  const dragEndTimeRef = useRef(0);
+  const DRAG_GRACE_MS = 500;
   const forceActiveRef = useRef(forceActive ?? false);
   forceActiveRef.current = forceActive ?? false;
 
@@ -216,10 +218,15 @@ export function useClickThrough(
             void invoke('start_drag');
           }
           if (!anyPressed) {
+            if (draggingRef.current) {
+              dragEndTimeRef.current = Date.now();
+            }
             draggingRef.current = false;
           }
 
-          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current;
+          const inDragGrace = (Date.now() - dragEndTimeRef.current) < DRAG_GRACE_MS;
+
+          const shouldBeActive = hit || forceActiveRef.current || draggingRef.current || inDragGrace;
 
           if (shouldBeActive) {
             if (!activatedRef.current) {
