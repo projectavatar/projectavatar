@@ -31,7 +31,9 @@ fn get_cursor_state() -> Option<(i32, i32, bool, bool, bool)> {
             let device_state = DeviceState::new();
             let mouse: MouseState = device_state.get_mouse();
             let left = mouse.button_pressed.get(1).copied().unwrap_or(false);
-            let right = mouse.button_pressed.get(3).copied().unwrap_or(false);
+            // device_query: index 2 = right on Windows, index 3 on Linux/macOS
+            let right = mouse.button_pressed.get(2).copied().unwrap_or(false)
+                || mouse.button_pressed.get(3).copied().unwrap_or(false);
             let any = mouse.button_pressed.iter().skip(1).any(|&b| b);
             Some((x, y, left, right, any))
         }
