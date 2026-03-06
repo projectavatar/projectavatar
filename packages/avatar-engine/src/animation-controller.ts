@@ -433,9 +433,6 @@ export class AnimationController {
 
     const crossfadeDuration = maxFadeIn;
 
-    // Track the longest fade duration actually used (for cleanup timing)
-    let maxActualFade = crossfadeDuration;
-
     // Build a map of outgoing sub-actions by body part for crossFadeTo matching
     const outgoingByGroup = new Map<BodyPart, SubAction[]>();
     for (const sub of this.activeSubActions) {
@@ -522,7 +519,7 @@ export class AnimationController {
               this.mixer.uncacheClip(clip);
             }
           }
-        }, (maxActualFade + 0.5) * 1000);
+        }, (crossfadeDuration + 0.5) * 1000);
       }
     }
 
