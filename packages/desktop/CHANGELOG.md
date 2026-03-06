@@ -1,6 +1,13 @@
 # Desktop Changelog
 
 
+## 0.9.1
+
+### Fixed
+- **Smooth animation crossfades** — Legs and feet no longer snap jaggedly during clip transitions. Root cause: `setEffectiveWeight()` was killing THREE.js crossfade interpolation every frame by calling `stopFading()` internally. Now sets `action.weight` directly to preserve fade blending.
+- **Unclaimed body parts stay put** — When an action only claims upper body (e.g. typing), legs/feet keep their current animation instead of crossfading to idle at time=0 (which caused a visible pose pop).
+- **Disabled crossfade time warp** — `crossFadeTo` no longer uses time scale warping, which caused jitter between clips with different durations.
+
 ## 0.9.0
 
 ### Added

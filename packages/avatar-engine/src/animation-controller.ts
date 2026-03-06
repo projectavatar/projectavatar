@@ -1,5 +1,5 @@
 /**
- * AnimationController — weight-based multi-clip blending with body part scoping.
+ * AnimationController - weight-based multi-clip blending with body part scoping.
  *
  * v3: Animation groups with weighted random selection.
  *   - Each action has multiple animation groups, each with a rarity weight
@@ -26,7 +26,7 @@ import type { BodyPart } from './body-parts.ts';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const DEFAULT_FADE_IN = 0.3;
+const DEFAULT_FADE_IN = 0.4;
 
 /** Finger bone name fragments for detecting finger animation tracks. */
 const FINGER_BONE_NAMES = [
@@ -50,11 +50,11 @@ export interface LayerState {
   idleLayer: boolean;
 }
 
-/** Info about an active animation clip — exposed for dev panel. */
+/** Info about an active animation clip - exposed for dev panel. */
 export interface ActiveClipInfo {
   /** FBX filename */
   name: string;
-  /** Current effective blend weight (0–1) */
+  /** Current effective blend weight (0-1) */
   weight: number;
   /** Current effective time scale */
   timeScale: number;
@@ -133,10 +133,10 @@ export class AnimationController {
   /** Whether the current action is looping and has multiple groups. */
   private isLoopCycling = false;
 
-  /** Procedural idle layer — hover/breathing on top of mixer clips. */
+  /** Procedural idle layer - hover/breathing on top of mixer clips. */
   private idleLayer: IdleLayer;
 
-  /** Layer toggle state — dev panel can enable/disable layers. */
+  /** Layer toggle state - dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
   /** Get the current idle layer bob offset (for prop sync). */
@@ -304,12 +304,12 @@ export class AnimationController {
     // Dynamically adjust leg/feet clip weights based on air↔ground blend.
     // In air mode, legs are dampened so idle layer dangle dominates.
     // In ground mode, clips have full leg control.
-    // This runs every frame so mode transitions are smooth — no stuck poses.
+    // This runs every frame so mode transitions are smooth - no stuck poses.
     this._updateLegWeights();
 
     // Procedural idle layer: hover bob, breathing, etc.
     // Runs AFTER mixer so additive offsets aren't overwritten by clips.
-    // Independent of FBX clips toggle — has its own toggle.
+    // Independent of FBX clips toggle - has its own toggle.
     this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
   }
 
@@ -397,7 +397,7 @@ export class AnimationController {
   // ─── Private: blended action playback ───────────────────────────────────
 
   /**
-   * Core blending logic — plays clips from the selected animation group.
+   * Core blending logic - plays clips from the selected animation group.
    *
    * 1. Select the group's clips (each with body part scoping + weight)
    * 2. For each body part group, collect clips that claim it
@@ -418,7 +418,7 @@ export class AnimationController {
 
     this.currentGroupIndex = groupIndex;
 
-    // Notify prop change — the primary clip determines the prop
+    // Notify prop change - the primary clip determines the prop
     const propBinding = this.registry.getPropBinding(action, groupIndex);
     this.onPropChange?.(propBinding);
     this.idleLayer.setPropActive(!!propBinding);
@@ -467,14 +467,14 @@ export class AnimationController {
         const normalizedWeight = totalWeight > 0 ? claimed.weight / totalWeight : 0;
         const sub = this._createSubAction(claimed.entry, group, normalizedWeight, false);
         if (sub) {
-          // crossFadeTo from matching outgoing action for smooth warped transition
           const outgoing = outgoingByGroup.get(group);
           const fadeDuration = crossfadeDuration;
 
           if (outgoing && outgoing.length > 0) {
             const outSub = outgoing.shift()!;
-            // crossFadeTo handles weight warping — synchronized fade with no gaps
-            outSub.action.crossFadeTo(sub.action, fadeDuration, true);
+            // crossFadeTo without time scale warping - warp causes jitter
+            // when clips have different durations
+            outSub.action.crossFadeTo(sub.action, fadeDuration, false);
           } else {
             sub.action.fadeIn(claimed.entry.fadeIn ?? DEFAULT_FADE_IN);
           }
@@ -487,48 +487,40 @@ export class AnimationController {
       }
     }
 
-    // For unclaimed body parts, crossfade outgoing actions to idle clip
-    // instead of fading to nothing (which causes quaternion spin).
-    // Use the first idle clip directly from clip data (not action groups,
-    // since action groups may exclude legs/feet for the idle layer).
-    const idleFallbackEntry = this._getIdleFallbackClip();
-    for (const [group, subs] of outgoingByGroup) {
+    // For unclaimed body parts, keep outgoing sub-actions running as-is.
+    // Previously we crossfaded to a new idle clip, but reset() on the new
+    // action snaps it to time=0 - different pose from the current playhead
+    // position, causing a visible leg/feet pop. Keeping the existing subs
+    // avoids the discontinuity entirely.
+    for (const [, subs] of outgoingByGroup) {
       if (subs.length === 0) continue;
-      const idleEntry = idleFallbackEntry;
-      if (idleEntry) {
-        const idleSub = this._createSubAction(idleEntry, group, 1.0, true);
-        if (idleSub) {
-          for (const sub of subs) {
-            const fadeDuration = sub.fadeOut ?? DEFAULT_FADE_IN;
-            sub.action.crossFadeTo(idleSub.action, fadeDuration, true);
-          }
-          idleSub.action.play();
-          this.activeSubActions.push(idleSub);
-          continue;
-        }
-      }
-      // No idle clip for this part — just fade out
+      // Carry forward - these body parts weren't claimed by the new action
       for (const sub of subs) {
-        sub.action.fadeOut(sub.fadeOut ?? DEFAULT_FADE_IN);
+        this.activeSubActions.push(sub);
       }
     }
 
-    // Clean up old actions after crossfade completes
+    // Clean up old actions after the longest actual crossfade completes.
+    // Skip carried-forward subs (unclaimed body parts kept running).
     if (previousSubActions.length > 0) {
-      const captured = [...previousSubActions];
-      setTimeout(() => {
-        const activeClipNames = new Set(
-          this.activeSubActions.map((s) => s.action.getClip().name),
-        );
-        for (const sub of captured) {
-          sub.action.stop();
-          const clip = sub.action.getClip();
-          this.mixer.uncacheAction(clip);
-          if (!activeClipNames.has(clip.name)) {
-            this.mixer.uncacheClip(clip);
+      const activeActions = new Set(this.activeSubActions.map((s) => s.action));
+      const toCleanup = previousSubActions.filter((s) => !activeActions.has(s.action));
+      if (toCleanup.length > 0) {
+        const captured = [...toCleanup];
+        setTimeout(() => {
+          const currentClipNames = new Set(
+            this.activeSubActions.map((s) => s.action.getClip().name),
+          );
+          for (const sub of captured) {
+            sub.action.stop();
+            const clip = sub.action.getClip();
+            this.mixer.uncacheAction(clip);
+            if (!currentClipNames.has(clip.name)) {
+              this.mixer.uncacheClip(clip);
+            }
           }
-        }
-      }, (crossfadeDuration + 0.5) * 1000);
+        }, (crossfadeDuration + 0.5) * 1000);
+      }
     }
 
     // Set up loop cycling for looping actions with multiple groups
@@ -599,11 +591,16 @@ export class AnimationController {
    * Dynamically adjust leg/feet sub-action weights based on air↔ground blend.
    *
    * In air mode (modeBlend → 0), leg/feet clips are dampened to AIR_LEG_WEIGHT
-   * so the idle layer’s procedural dangle dominates.
+   * so the idle layer's procedural dangle dominates.
    * In ground mode (modeBlend → 1), clips have full leg control.
    *
    * Runs every frame so transitions are smooth — no stuck leg poses
    * when switching ground → air.
+   *
+   * IMPORTANT: We set `action.weight` directly instead of `setEffectiveWeight()`
+   * because the latter calls `stopFading()` which kills any active crossfade
+   * interpolation. THREE.js computes effective weight as `weight * fadeInterpolant`,
+   * so setting `.weight` lets crossFadeTo blending continue uninterrupted.
    */
   private _updateLegWeights(): void {
     const blend = this.idleLayer.getModeBlend(); // 0=air, 1=ground
@@ -613,7 +610,9 @@ export class AnimationController {
         const airWeight = sub.baseWeight * AIR_LEG_WEIGHT;
         const groundWeight = sub.baseWeight;
         const targetWeight = THREE.MathUtils.lerp(airWeight, groundWeight, blend);
-        sub.action.setEffectiveWeight(targetWeight);
+        // Set .weight directly to preserve crossFadeTo interpolation
+        sub.action.weight = targetWeight;
+        sub.action.enabled = targetWeight > 0;
       }
     }
   }
@@ -636,23 +635,6 @@ export class AnimationController {
       const gesture = this.registry.getHandGesture(action, groupIndex) as HandGesture | undefined;
       this.idleLayer.setHandGesture(gesture ?? 'relaxed');
     }
-  }
-
-  /**
-   * Get the first idle clip entry with ALL body parts — used as fallback
-   * for unclaimed body parts during transitions.
-   */
-  private _getIdleFallbackClip(): import('./clip-registry.ts').ClipEntry | null {
-    const clipData = this.registry.getClipData('idle');
-    if (!clipData) return null;
-    return {
-      file: clipData.file,
-      weight: 1.0,
-      loop: clipData.loop,
-      fadeIn: clipData.fadeIn,
-      fadeOut: clipData.fadeOut,
-      bodyParts: ['head', 'torso', 'arms', 'legs', 'feet'],
-    };
   }
 
   /**
