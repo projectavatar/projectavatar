@@ -96,7 +96,12 @@ async function routeToChannel(
     }
   }
 
-  return stub.fetch(new Request(doUrl.toString(), { ...request, headers }));
+  const init: RequestInit = {
+    method: request.method,
+    headers,
+    body: request.body,
+  };
+  return stub.fetch(new Request(doUrl.toString(), init));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
