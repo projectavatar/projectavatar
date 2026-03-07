@@ -1,5 +1,6 @@
 import { validateAvatarEvent, isValidModelId } from '../../shared/src/schema.js';
 import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS, KEEPALIVE } from '../../shared/src/constants.js';
+import { RateLimiter } from './rate-limit.js';
 import type {
   AvatarEvent,
   ChannelState,
@@ -193,8 +194,12 @@ export class Channel implements DurableObject {
    */
   private sessions: Map<string, SessionEntry> = new Map();
 
+  /** Rate limiter backed by DO SQL storage — atomic, no KV needed. */
+  readonly rateLimiter: RateLimiter;
+
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
+    this.rateLimiter = new RateLimiter(state.storage.sql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -210,6 +215,16 @@ export class Channel implements DurableObject {
 
     if (url.pathname === '/state' && request.method === 'GET') {
       return this.handleGetState();
+    }
+
+    if (url.pathname === '/rate-limit') {
+      const kind = url.searchParams.get('kind') as 'push' | 'stream';
+      const id = url.searchParams.get('id') || 'unknown';
+      if (kind !== 'push' && kind !== 'stream') {
+        return jsonResponse({ error: 'Invalid kind' }, 400);
+      }
+      const result = this.rateLimiter.check(kind, id);
+      return jsonResponse(result, result.allowed ? 200 : 429);
     }
 
     return new Response('Not Found', { status: 404 });

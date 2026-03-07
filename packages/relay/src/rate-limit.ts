@@ -1,5 +1,4 @@
 import { RATE_LIMITS } from '../../shared/src/constants.js';
-import type { Env } from './types.js';
 
 interface RateLimitResult {
   allowed: boolean;
@@ -7,41 +6,63 @@ interface RateLimitResult {
 }
 
 /**
- * Sliding window rate limiter using Cloudflare KV.
- * Key: `rl:<kind>:<identifier>:<window-minute>`
+ * Rate limiter using Durable Object SQL storage.
+ *
+ * Uses a simple sliding-window counter with SQL for atomic increment.
+ * Replaces the previous KV-based implementation which had race conditions
+ * under concurrent requests (get-then-put is not atomic in KV).
+ *
+ * SQL storage in the Channel DO is transactional — no race conditions.
+ * Old entries are lazily cleaned up on each check.
  */
-export async function checkRateLimit(
-  env: Env,
-  kind: 'push' | 'stream',
-  identifier: string,
-): Promise<RateLimitResult> {
-  const windowMinute = Math.floor(Date.now() / 60_000);
-  const key = `rl:${kind}:${identifier}:${windowMinute}`;
+export class RateLimiter {
+  private initialized = false;
 
-  const limit = kind === 'push' ? RATE_LIMITS.pushPerMinute : RATE_LIMITS.streamConnectionsPerMinute;
+  constructor(private sql: SqlStorage) {}
 
-  try {
-    // Known limitation: KV get-then-put is not atomic. Under high concurrency,
-    // two requests in the same window can both read count=N, both pass the check,
-    // and both write N+1. This means the actual limit may be slightly exceeded.
-    // Acceptable for this use case — the rate limiter is a soft guard against
-    // accidental abuse, not a hard security boundary. For strict enforcement,
-    // move counting to a Durable Object with transactional storage.
-    const raw = await env.RATE_LIMIT_KV.get(key);
-    const count = raw ? parseInt(raw, 10) : 0;
+  private ensureTable(): void {
+    if (this.initialized) return;
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY,
+        count INTEGER NOT NULL DEFAULT 0,
+        window_minute INTEGER NOT NULL
+      )
+    `);
+    this.initialized = true;
+  }
+
+  check(kind: 'push' | 'stream', identifier: string): RateLimitResult {
+    this.ensureTable();
+
+    const windowMinute = Math.floor(Date.now() / 60_000);
+    const key = `${kind}:${identifier}`;
+    const limit = kind === 'push' ? RATE_LIMITS.pushPerMinute : RATE_LIMITS.streamConnectionsPerMinute;
+
+    // Atomic read + increment in a single transaction
+    // Clean up stale entries from previous windows
+    this.sql.exec(`DELETE FROM rate_limits WHERE window_minute < ?`, windowMinute - 1);
+
+    const row = this.sql.exec(
+      `SELECT count FROM rate_limits WHERE key = ? AND window_minute = ?`,
+      key, windowMinute,
+    ).one() as { count: number } | null;
+
+    const count = row?.count ?? 0;
 
     if (count >= limit) {
-      // Seconds remaining in the current minute window
       const secondsIntoMinute = (Date.now() / 1000) % 60;
       const retryAfterSeconds = Math.ceil(60 - secondsIntoMinute);
       return { allowed: false, retryAfterSeconds };
     }
 
-    // Increment with TTL of 120s (2 minutes — covers the current and next window)
-    await env.RATE_LIMIT_KV.put(key, String(count + 1), { expirationTtl: 120 });
-    return { allowed: true, retryAfterSeconds: 0 };
-  } catch {
-    // If KV fails, allow the request (availability > rate limiting)
+    // Upsert: increment or insert
+    this.sql.exec(
+      `INSERT INTO rate_limits (key, count, window_minute) VALUES (?, 1, ?)
+       ON CONFLICT(key) DO UPDATE SET count = count + 1, window_minute = ?`,
+      key, windowMinute, windowMinute,
+    );
+
     return { allowed: true, retryAfterSeconds: 0 };
   }
 }

@@ -1,5 +1,4 @@
 import { isValidToken, tokenToChannelName } from './auth.js';
-import { checkRateLimit } from './rate-limit.js';
 import { CORS_HEADERS } from '../../shared/src/constants.js';
 import type { Env } from './types.js';
 
@@ -39,8 +38,8 @@ export default {
         return errorResponse('Invalid token format', 400);
       }
 
-      // Rate limit by token
-      const rl = await checkRateLimit(env, 'push', token);
+      // Rate limit by token (via DO SQL storage)
+      const rl = await checkRateLimitViaDO(env, token, 'push', token);
       if (!rl.allowed) {
         return rateLimitResponse(rl.retryAfterSeconds);
       }
@@ -57,9 +56,9 @@ export default {
         return errorResponse('Invalid token format', 400);
       }
 
-      // Rate limit by IP
+      // Rate limit by IP (via DO SQL storage)
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-      const rl = await checkRateLimit(env, 'stream', clientIp);
+      const rl = await checkRateLimitViaDO(env, token, 'stream', clientIp);
       if (!rl.allowed) {
         return rateLimitResponse(rl.retryAfterSeconds);
       }
@@ -78,9 +77,7 @@ export default {
 
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       // Reusing the 'stream' rate limit bucket — intentional shortcut for v1.1.
-      // The /state endpoint is lighter than a WS upgrade but shares the same quota.
-      // If /state polling becomes a concern, add a dedicated 'state' bucket.
-      const rl = await checkRateLimit(env, 'stream', clientIp);
+      const rl = await checkRateLimitViaDO(env, token, 'stream', clientIp);
       if (!rl.allowed) {
         return rateLimitResponse(rl.retryAfterSeconds);
       }
@@ -91,6 +88,23 @@ export default {
     return new Response('Not Found', { status: 404, headers: CORS_HEADERS });
   },
 };
+
+// ─── Rate Limit via Durable Object ───────────────────────────────────────────
+
+async function checkRateLimitViaDO(
+  env: Env,
+  token: string,
+  kind: 'push' | 'stream',
+  identifier: string,
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  const channelName = await tokenToChannelName(token);
+  const id = env.CHANNEL.idFromName(channelName);
+  const stub = env.CHANNEL.get(id);
+
+  const url = `https://do/rate-limit?kind=${kind}&id=${encodeURIComponent(identifier)}`;
+  const res = await stub.fetch(url);
+  return res.json();
+}
 
 // ─── Route to Durable Object ─────────────────────────────────────────────────
 
