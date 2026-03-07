@@ -3,7 +3,7 @@ import type { AvatarEvent } from '../../shared/src/schema.js';
 export interface Env {
   CHANNEL: DurableObjectNamespace;
   RELAY_VERSION: string;
-  RATE_LIMIT_KV: KVNamespace;
+  // KV removed — rate limiting now uses DO SQL storage
 }
 
 export interface WebSocketMessage {

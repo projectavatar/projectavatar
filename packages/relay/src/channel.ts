@@ -1,5 +1,6 @@
 import { validateAvatarEvent, isValidModelId } from '../../shared/src/schema.js';
 import { PROTOCOL_VERSION, RATE_LIMITS, CORS_HEADERS, KEEPALIVE } from '../../shared/src/constants.js';
+import { RateLimiter } from './rate-limit.js';
 import type {
   AvatarEvent,
   ChannelState,
@@ -193,8 +194,12 @@ export class Channel implements DurableObject {
    */
   private sessions: Map<string, SessionEntry> = new Map();
 
+  /** Rate limiter backed by DO SQL storage — atomic, no KV needed. */
+  readonly rateLimiter: RateLimiter;
+
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
+    this.rateLimiter = new RateLimiter(state.storage.sql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -255,6 +260,18 @@ export class Channel implements DurableObject {
   private async handlePush(request: Request): Promise<Response> {
     if (request.method !== 'POST') {
       return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    // Rate limit by token (extracted from X-Rate-Limit-Id header, set by Worker)
+    const rateLimitId = request.headers.get('X-Rate-Limit-Id');
+    if (rateLimitId) {
+      const rl = this.rateLimiter.check('push', rateLimitId);
+      if (!rl.allowed) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds), ...CORS_HEADERS },
+        });
+      }
     }
 
     let text: string;
@@ -361,6 +378,18 @@ export class Channel implements DurableObject {
   // ─── WebSocket Stream Handler ──────────────────────────────────────────────
 
   private async handleStream(request: Request): Promise<Response> {
+    // Rate limit by IP (extracted from X-Rate-Limit-Id header, set by Worker)
+    const rateLimitId = request.headers.get('X-Rate-Limit-Id');
+    if (rateLimitId) {
+      const rl = this.rateLimiter.check('stream', rateLimitId);
+      if (!rl.allowed) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds), ...CORS_HEADERS },
+        });
+      }
+    }
+
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });

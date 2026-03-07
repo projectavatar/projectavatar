@@ -11,9 +11,7 @@ class_name = "Channel"
 tag = "v1"
 new_sqlite_classes = ["Channel"]
 
-[[kv_namespaces]]
-binding = "RATE_LIMIT_KV"
-id = "0015334731bc4df2bf1d68c0811d2097"
+# KV removed — rate limiting moved to Durable Object SQL storage
 
 [vars]
 RELAY_VERSION = "1.0.0"
