@@ -217,16 +217,6 @@ export class Channel implements DurableObject {
       return this.handleGetState();
     }
 
-    if (url.pathname === '/rate-limit') {
-      const kind = url.searchParams.get('kind') as 'push' | 'stream';
-      const id = url.searchParams.get('id') || 'unknown';
-      if (kind !== 'push' && kind !== 'stream') {
-        return jsonResponse({ error: 'Invalid kind' }, 400);
-      }
-      const result = this.rateLimiter.check(kind, id);
-      return jsonResponse(result, result.allowed ? 200 : 429);
-    }
-
     return new Response('Not Found', { status: 404 });
   }
 
@@ -270,6 +260,18 @@ export class Channel implements DurableObject {
   private async handlePush(request: Request): Promise<Response> {
     if (request.method !== 'POST') {
       return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    // Rate limit by token (extracted from X-Rate-Limit-Id header, set by Worker)
+    const rateLimitId = request.headers.get('X-Rate-Limit-Id');
+    if (rateLimitId) {
+      const rl = this.rateLimiter.check('push', rateLimitId);
+      if (!rl.allowed) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds), ...CORS_HEADERS },
+        });
+      }
     }
 
     let text: string;
@@ -376,6 +378,18 @@ export class Channel implements DurableObject {
   // ─── WebSocket Stream Handler ──────────────────────────────────────────────
 
   private async handleStream(request: Request): Promise<Response> {
+    // Rate limit by IP (extracted from X-Rate-Limit-Id header, set by Worker)
+    const rateLimitId = request.headers.get('X-Rate-Limit-Id');
+    if (rateLimitId) {
+      const rl = this.rateLimiter.check('stream', rateLimitId);
+      if (!rl.allowed) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
+          status: 429,
+          headers: { 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds), ...CORS_HEADERS },
+        });
+      }
+    }
+
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });

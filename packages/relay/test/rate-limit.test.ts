@@ -4,48 +4,46 @@ import { RateLimiter } from '../src/rate-limit.js';
 // ─── Mock SQL storage (mimics DO SqlStorage) ────────────────────────────────
 
 class MockSqlStorage {
-  private tables = new Map<string, Map<string, Record<string, unknown>>>();
+  private rows = new Map<string, { count: number; window_minute: number }>();
 
   exec(query: string, ...params: unknown[]): { one(): Record<string, unknown> | null } {
-    const q = query.trim().toUpperCase();
+    const q = query.trim();
+    const upper = q.toUpperCase();
 
-    if (q.startsWith('CREATE TABLE')) {
-      this.tables.set('rate_limits', new Map());
+    if (upper.startsWith('CREATE TABLE')) {
       return { one: () => null };
     }
 
-    if (q.startsWith('DELETE')) {
+    if (upper.startsWith('DELETE')) {
+      // DELETE FROM rate_limits WHERE window_minute < ?
       const windowMinute = params[0] as number;
-      const table = this.tables.get('rate_limits');
-      if (table) {
-        for (const [k, row] of table) {
-          if ((row['window_minute'] as number) < windowMinute) {
-            table.delete(k);
-          }
+      for (const [k, row] of this.rows) {
+        if (row.window_minute < windowMinute) {
+          this.rows.delete(k);
         }
       }
       return { one: () => null };
     }
 
-    if (q.startsWith('SELECT')) {
+    if (upper.startsWith('SELECT')) {
+      // SELECT count FROM rate_limits WHERE key = ? AND window_minute = ?
       const key = params[0] as string;
       const windowMinute = params[1] as number;
-      const table = this.tables.get('rate_limits');
-      const compositeKey = `${key}:${windowMinute}`;
-      const row = table?.get(compositeKey);
-      return { one: () => row && (row['window_minute'] as number) === windowMinute ? row : null };
+      const compositeKey = `${key}|${windowMinute}`;
+      const row = this.rows.get(compositeKey);
+      return { one: () => row ? { count: row.count } : null };
     }
 
-    if (q.startsWith('INSERT')) {
+    if (upper.startsWith('INSERT')) {
+      // INSERT ... ON CONFLICT(key, window_minute) DO UPDATE SET count = count + 1
       const key = params[0] as string;
       const windowMinute = params[1] as number;
-      const table = this.tables.get('rate_limits')!;
-      const compositeKey = `${key}:${windowMinute}`;
-      const existing = table.get(compositeKey);
-      if (existing && (existing['window_minute'] as number) === windowMinute) {
-        existing['count'] = (existing['count'] as number) + 1;
+      const compositeKey = `${key}|${windowMinute}`;
+      const existing = this.rows.get(compositeKey);
+      if (existing) {
+        existing.count += 1;
       } else {
-        table.set(compositeKey, { key, count: 1, window_minute: windowMinute });
+        this.rows.set(compositeKey, { count: 1, window_minute: windowMinute });
       }
       return { one: () => null };
     }
@@ -102,8 +100,14 @@ describe('RateLimiter (DO SQL)', () => {
     for (let i = 0; i < 60; i++) {
       limiter.check('push', 'token-a');
     }
-    // token-b should still be allowed
     const result = limiter.check('push', 'token-b');
+    expect(result.allowed).toBe(true);
+  });
+
+  it('fails open when SQL throws', () => {
+    const broken = { exec: () => { throw new Error('SQL error'); } };
+    const brokenLimiter = new RateLimiter(broken as any);
+    const result = brokenLimiter.check('push', 'token-x');
     expect(result.allowed).toBe(true);
   });
 });

@@ -38,13 +38,7 @@ export default {
         return errorResponse('Invalid token format', 400);
       }
 
-      // Rate limit by token (via DO SQL storage)
-      const rl = await checkRateLimitViaDO(env, token, 'push', token);
-      if (!rl.allowed) {
-        return rateLimitResponse(rl.retryAfterSeconds);
-      }
-
-      return routeToChannel(env, token, '/push', request);
+      return routeToChannel(env, token, '/push', request, { 'X-Rate-Limit-Id': token });
     }
 
     // ── Stream endpoint: GET /stream/:token (WebSocket) ─────────────────────
@@ -56,14 +50,8 @@ export default {
         return errorResponse('Invalid token format', 400);
       }
 
-      // Rate limit by IP (via DO SQL storage)
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-      const rl = await checkRateLimitViaDO(env, token, 'stream', clientIp);
-      if (!rl.allowed) {
-        return rateLimitResponse(rl.retryAfterSeconds);
-      }
-
-      return routeToChannel(env, token, '/stream', request);
+      return routeToChannel(env, token, '/stream', request, { 'X-Rate-Limit-Id': clientIp });
     }
 
     // ── Channel state: GET /channel/:token/state ────────────────────────────
@@ -77,34 +65,12 @@ export default {
 
       const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
       // Reusing the 'stream' rate limit bucket — intentional shortcut for v1.1.
-      const rl = await checkRateLimitViaDO(env, token, 'stream', clientIp);
-      if (!rl.allowed) {
-        return rateLimitResponse(rl.retryAfterSeconds);
-      }
-
-      return routeToChannel(env, token, '/state', request);
+      return routeToChannel(env, token, '/state', request, { 'X-Rate-Limit-Id': clientIp });
     }
 
     return new Response('Not Found', { status: 404, headers: CORS_HEADERS });
   },
 };
-
-// ─── Rate Limit via Durable Object ───────────────────────────────────────────
-
-async function checkRateLimitViaDO(
-  env: Env,
-  token: string,
-  kind: 'push' | 'stream',
-  identifier: string,
-): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
-  const channelName = await tokenToChannelName(token);
-  const id = env.CHANNEL.idFromName(channelName);
-  const stub = env.CHANNEL.get(id);
-
-  const url = `https://do/rate-limit?kind=${kind}&id=${encodeURIComponent(identifier)}`;
-  const res = await stub.fetch(url);
-  return res.json();
-}
 
 // ─── Route to Durable Object ─────────────────────────────────────────────────
 
@@ -113,6 +79,7 @@ async function routeToChannel(
   token: string,
   doPath: string,
   request: Request,
+  extraHeaders?: Record<string, string>,
 ): Promise<Response> {
   const channelName = await tokenToChannelName(token);
   const id = env.CHANNEL.idFromName(channelName);
@@ -122,7 +89,14 @@ async function routeToChannel(
   const doUrl = new URL(request.url);
   doUrl.pathname = doPath;
 
-  return stub.fetch(new Request(doUrl.toString(), request));
+  const headers = new Headers(request.headers);
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) {
+      headers.set(k, v);
+    }
+  }
+
+  return stub.fetch(new Request(doUrl.toString(), { ...request, headers }));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -134,16 +108,4 @@ function errorResponse(message: string, status: number): Response {
   });
 }
 
-function rateLimitResponse(retryAfterSeconds: number): Response {
-  return new Response(
-    JSON.stringify({ error: 'Rate limit exceeded' }),
-    {
-      status: 429,
-      headers: {
-        'Content-Type': 'application/json',
-        'Retry-After': String(retryAfterSeconds),
-        ...CORS_HEADERS,
-      },
-    },
-  );
-}
+
