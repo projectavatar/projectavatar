@@ -103,6 +103,7 @@ function toClientEvent(event: AvatarEvent): AvatarEvent {
     prop:      event.prop,
     intensity: event.intensity,
     color:     event.color,
+    talking:   event.talking,
   };
   return clean;
 }

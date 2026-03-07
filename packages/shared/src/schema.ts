@@ -40,7 +40,6 @@ export type EmotionBlend = Partial<Record<PrimaryEmotion, WordIntensity>>;
 
 export const ACTIONS = [
   'idle',
-  'talking',
   'typing',
   'nodding',
   'laughing',
@@ -87,6 +86,8 @@ export interface AvatarEvent {
   intensity?: Intensity;
   /** Optional CSS color name — overrides engine-computed VFX color. */
   color?: string;
+  /** Whether the avatar mouth animation is active. Orthogonal to body action. */
+  talking?: boolean;
   /**
    * Opaque string identifying the agent session that pushed this event.
    * Used by the relay for multi-session arbitration.
@@ -161,8 +162,13 @@ export function validateAvatarEvent(event: unknown): ValidationResult {
     return { ok: false, error: 'priority must be a non-negative integer when provided' };
   }
 
+  // ── talking (optional) ─────────────────────────────────────────────────
+  if (e.talking !== undefined && typeof e.talking !== 'boolean') {
+    return { ok: false, error: 'talking must be a boolean when provided' };
+  }
+
   // ── reject unknown fields ────────────────────────────────────────────────
-  const allowedKeys = new Set(['emotions', 'action', 'prop', 'intensity', 'color', 'sessionId', 'priority']);
+  const allowedKeys = new Set(['emotions', 'action', 'prop', 'intensity', 'color', 'talking', 'sessionId', 'priority']);
   for (const key of Object.keys(e)) {
     if (!allowedKeys.has(key)) {
       return { ok: false, error: `Unknown field: ${key}` };

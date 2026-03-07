@@ -1,6 +1,17 @@
 # Desktop Changelog
 
 
+## 0.10.0
+
+### Added
+- **TalkingLayer** — procedural mouth animation when the agent generates tokens. Visemes (`aa`, `ih`, `ou`, `ee`, `oh`) cycle with weighted random selection, variable hold times, phrase breaks, and head micro-nods.
+- **Mouth expression suppression** — emotion expressions that deform the mouth (`happy`, `sad`, `angry`, `surprised`) are scaled down while talking so visemes drive the mouth cleanly.
+- **`talking` event field** — new boolean on `AvatarEvent`, independent of body actions. The avatar talks while typing, searching, or performing any animation.
+- **TalkingLayer dev panel toggle** — manual preview trigger (defaults off).
+
+### Changed
+- **`'talking'` removed from ACTIONS** — replaced by the `talking: boolean` field. Body actions no longer compete with mouth animation.
+
 ## 0.9.1
 
 ### Fixed

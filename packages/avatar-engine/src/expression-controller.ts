@@ -28,14 +28,32 @@ const PRIMARY_BLEND_SHAPES: Record<PrimaryEmotion, ExpressionTarget[]> = {
   interest: [{ name: 'neutral', weight: 0.6 }, { name: 'lookUp', weight: 0.2 }],
 };
 
+/**
+ * Expressions that deform the mouth. When the TalkingLayer is active,
+ * these are scaled down so viseme blend shapes can drive the mouth.
+ * Expressions NOT in this set (e.g. 'lookUp', 'neutral') are unaffected.
+ */
+const MOUTH_AFFECTING_EXPRESSIONS = new Set(['happy', 'sad', 'angry', 'surprised']);
+
 export class ExpressionController {
   private vrm: VRM;
   private targetWeights = new Map<string, number>();
   private currentWeights = new Map<string, number>();
   private blendSpeed = 3.0;
 
+  /** 0–1: how much to suppress mouth-affecting expressions (driven by TalkingLayer). */
+  private _mouthSuppression = 0;
+
   constructor(vrm: VRM) {
     this.vrm = vrm;
+  }
+
+  /**
+   * Set mouth suppression factor (0 = full expression, 1 = fully suppressed).
+   * Called by AnimationController when talking state changes.
+   */
+  setMouthSuppression(amount: number): void {
+    this._mouthSuppression = Math.max(0, Math.min(1, amount));
   }
 
   /**
@@ -85,7 +103,11 @@ export class ExpressionController {
         this.vrm.expressionManager.setValue(name, 0);
       } else {
         this.currentWeights.set(name, next);
-        this.vrm.expressionManager.setValue(name, next);
+        // Suppress mouth-affecting expressions when talking layer is active
+        const effective = MOUTH_AFFECTING_EXPRESSIONS.has(name)
+          ? next * (1 - this._mouthSuppression)
+          : next;
+        this.vrm.expressionManager.setValue(name, effective);
       }
     }
   }

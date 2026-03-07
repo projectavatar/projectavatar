@@ -19,6 +19,7 @@ import { loadMixamoAnimation } from './mixamo-loader.ts';
 import { loadVRMAAnimation } from './vrma-loader.ts';
 import type { ClipRegistry, ClipEntry, ClipPropBinding } from './clip-registry.ts';
 import { IdleLayer } from './idle-layer.ts';
+import { TalkingLayer } from './talking-layer.ts';
 import type { AssetResolver } from './asset-resolver.ts';
 import type { IdleMode, HandGesture } from './idle-layer.ts';
 import { BODY_PARTS, BODY_PART_BONES } from './body-parts.ts';
@@ -48,6 +49,8 @@ export interface LayerState {
   blink: boolean;
   /** Procedural idle layer (hover/breathing) */
   idleLayer: boolean;
+  /** Procedural mouth visemes when talking */
+  talkingLayer: boolean;
 }
 
 /** Info about an active animation clip - exposed for dev panel. */
@@ -73,6 +76,7 @@ const DEFAULT_LAYERS: LayerState = {
   expressions: true,
   blink: true,
   idleLayer: true,
+  talkingLayer: false,
 };
 
 /** Human-readable labels for each animation layer. */
@@ -81,6 +85,7 @@ export const LAYER_LABELS: Record<keyof LayerState, string> = {
   expressions: 'Expressions',
   blink: 'Blink',
   idleLayer: 'Idle Layer',
+  talkingLayer: 'Talking',
 };
 
 // ─── Sub-action: one mixer action per (clip × body-part-group) ────────────────
@@ -136,6 +141,9 @@ export class AnimationController {
   /** Procedural idle layer - hover/breathing on top of mixer clips. */
   private idleLayer: IdleLayer;
 
+  /** Procedural mouth animation layer - visemes when talking. */
+  private talkingLayer: TalkingLayer;
+
   /** Layer toggle state - dev panel can enable/disable layers. */
   layers: LayerState = { ...DEFAULT_LAYERS };
 
@@ -158,6 +166,7 @@ export class AnimationController {
     this.assetResolver = assetResolver ?? null;
     this.mixer = new THREE.AnimationMixer(vrm.scene);
     this.idleLayer = new IdleLayer(vrm, 'air');
+    this.talkingLayer = new TalkingLayer(vrm);
   }
 
   /**
@@ -261,6 +270,10 @@ export class AnimationController {
       this.idleLayer.setEnabled(enabled);
     }
 
+    if (layer === 'talkingLayer') {
+      this.talkingLayer.setTalking(enabled);
+    }
+
     if (layer === 'fbxClips') {
       const allSubs = this.activeSubActions;
       for (const sub of allSubs) {
@@ -311,6 +324,12 @@ export class AnimationController {
     // Runs AFTER mixer so additive offsets aren't overwritten by clips.
     // Independent of FBX clips toggle - has its own toggle.
     this.idleLayer.update(dt, this._loaded, this.layers.fbxClips);
+
+    // Procedural talking layer: mouth visemes + head micro-nods.
+    // Runs AFTER idle layer so head nods are additive on top of idle bob.
+    if (this.layers.talkingLayer) {
+      this.talkingLayer.update(dt);
+    }
   }
 
   getActiveClips(): ActiveClipInfo[] {
@@ -342,6 +361,22 @@ export class AnimationController {
   /** Get the current idle layer mode. */
   getIdleMode(): IdleMode {
     return this.idleLayer.getMode();
+  }
+
+  /** Start or stop talking mouth animation. */
+  setTalking(active: boolean): void {
+    if (active) this.layers.talkingLayer = true; // ensure layer is enabled when programmatically triggered
+    this.talkingLayer.setTalking(active);
+  }
+
+  /** Whether the talking layer is currently animating. */
+  get isTalking(): boolean {
+    return this.talkingLayer.isTalking;
+  }
+
+  /** Current talking master blend (0–1), for mouth expression suppression. */
+  getTalkingBlend(): number {
+    return this.talkingLayer.getMasterBlend();
   }
 
   /** Set camera for head tracking in idle layer. */
@@ -392,6 +427,7 @@ export class AnimationController {
       this.durationTimer = null;
     }
     this.idleLayer.dispose();
+    this.talkingLayer.dispose();
   }
 
   // ─── Private: blended action playback ───────────────────────────────────

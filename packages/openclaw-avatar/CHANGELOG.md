@@ -1,5 +1,22 @@
 # @projectavatar/openclaw-avatar
 
+## 2.2.0
+
+### New Features
+
+- **Automatic talking detection** — subscribes to `runtime.events.onAgentEvent` to detect assistant token streaming. Sends `talking: true` on first token, `talking: false` on lifecycle end/error. No explicit `avatar_signal` needed for mouth animation.
+- **`talking` as separate event axis** — new `talking?: boolean` field on `AvatarEvent`, independent of `action`. The avatar can talk while typing, searching, or performing any body animation.
+
+### Breaking Changes
+
+- **`'talking'` removed from ACTIONS enum** — previously a body action, now a separate boolean field. Agents sending `action: 'talking'` will get a validation error. Use the `talking: true` field instead (handled automatically by the plugin).
+
+### Internal
+
+- State machine handles `talking` with no cooldown (immediate toggle)
+- Relay client passes `talking` through push/validation
+- TTS tool-map entry changed from `action: 'talking'` to `action: 'idle'`
+
 ## 2.0.1
 
 ### Patch Changes
