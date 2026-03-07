@@ -124,7 +124,7 @@ describe('ONE_SHOT_ACTIONS', () => {
   it('does not contain sustained/looping actions', () => {
     expect(ONE_SHOT_ACTIONS.has('idle')).toBe(false);
     expect(ONE_SHOT_ACTIONS.has('typing')).toBe(false);
-    expect(ONE_SHOT_ACTIONS.has('talking')).toBe(false);
+    expect(ONE_SHOT_ACTIONS.has('searching')).toBe(false);
     expect(ONE_SHOT_ACTIONS.has('searching')).toBe(false);
   });
 });

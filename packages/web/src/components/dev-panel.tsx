@@ -201,6 +201,7 @@ export function DevPanel({ stateMachine }: DevPanelProps) {
     expressions: true,
     blink: true,
     idleLayer: true,
+    talkingLayer: false,
   });
 
   const logRef = useRef<HTMLDivElement>(null);

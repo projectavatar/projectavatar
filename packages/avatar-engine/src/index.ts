@@ -26,6 +26,9 @@ export type { EventLogEntry } from './state-machine.ts';
 export { loadMixamoAnimation } from './mixamo-loader.ts';
 export { loadVRMAAnimation } from './vrma-loader.ts';
 
+// ─── Talking layer ────────────────────────────────────────────────────────────
+export { TalkingLayer } from './talking-layer.ts';
+
 // ─── Idle layer ───────────────────────────────────────────────────────────────
 export { IdleLayer } from './idle-layer.ts';
 export type { IdleMode, HandGesture } from './idle-layer.ts';

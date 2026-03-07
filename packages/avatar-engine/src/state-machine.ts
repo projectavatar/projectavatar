@@ -57,6 +57,7 @@ export interface EventLogEntry {
   action: Action;
   intensity?: Intensity;
   color?: string;
+  talking?: boolean;
   dominant?: PrimaryEmotion | null;
   source: 'relay' | 'dev-panel' | 'system';
 }
@@ -161,6 +162,12 @@ export class StateMachine {
     // Empty emotions + idle = real idle (no inference).
     const hasExplicitEmotions = Object.keys(event.emotions).length > 0;
     const action = (event.action === 'idle' && hasExplicitEmotions) ? inferAction(blend) : event.action;
+
+    // Talking layer: driven by explicit talking field, independent of action
+    if (event.talking !== undefined) {
+      this.animationCtrl.setTalking(event.talking);
+    }
+
     if (action !== prev.action) {
       this.state.action = action;
       this.animationCtrl.playAction(action, this.state.intensity);
@@ -246,6 +253,8 @@ export class StateMachine {
 
     const layers = this.animationCtrl.layers;
     if (layers.expressions) {
+      // Suppress mouth-affecting emotions when talking layer is active
+      this.expressionCtrl.setMouthSuppression(this.animationCtrl.getTalkingBlend());
       this.expressionCtrl.update(delta, layers.expressions);
     }
     if (layers.blink) {
@@ -264,6 +273,7 @@ export class StateMachine {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+    this.animationCtrl.setTalking(false);
     this.vfxManager?.clear();
     this.vfxManager = null;
     this.propManager.clear();
@@ -278,6 +288,8 @@ export class StateMachine {
       // Don't snap action to idle immediately — let the decay-driven
       // action inference handle the transition smoothly.
       this.decay.startDecay();
+      // Stop talking when idle decay starts
+      this.animationCtrl.setTalking(false);
     }, this.idleTimeoutMs);
   }
 
@@ -288,6 +300,7 @@ export class StateMachine {
       action: event.action,
       intensity: event.intensity,
       color: event.color,
+      talking: event.talking,
       dominant: blend.dominant,
       source,
     });

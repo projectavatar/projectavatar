@@ -30,7 +30,7 @@ export const TOOL_SIGNAL_MAP: Record<string, ToolRule> = {
   },
 
   tts: {
-    before:     { emotions: { joy: 'medium' }, action: 'talking' },
+    before:     { emotions: { joy: 'medium' }, action: 'idle' },
     after:      { emotions: { joy: 'high' }, action: 'greeting' },
   },
 

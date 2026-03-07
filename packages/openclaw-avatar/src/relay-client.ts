@@ -27,6 +27,7 @@ function isValidEvent(event: AvatarEvent): boolean {
   if (event.prop !== undefined && !PROP_SET.has(event.prop)) return false;
   if (event.intensity !== undefined && !INTENSITY_SET.has(event.intensity)) return false;
   if (event.color !== undefined && typeof event.color !== 'string') return false;
+  if (event.talking !== undefined && typeof event.talking !== 'boolean') return false;
   return true;
 }
 
@@ -49,6 +50,7 @@ export function createRelayClient(cfg: PluginConfig, token: string): RelayClient
       prop:      signal.prop      ?? current.prop,
       intensity: signal.intensity ?? current.intensity,
       color:     signal.color     ?? current.color,
+      talking:   signal.talking   ?? current.talking,
     };
 
     if (!isValidEvent(event)) {

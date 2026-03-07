@@ -151,6 +151,46 @@ const plugin: OpenClawPluginDefinition = {
       };
     });
 
+    // ── Agent event subscription (talking layer) ──────────────────────────
+    // Subscribe to onAgentEvent for automatic talking detection.
+    // When the agent starts generating tokens (assistant stream), send talking: true.
+    // When the agent finishes (lifecycle end), send talking: false.
+    const runtime = (api as Record<string, unknown>).runtime as
+      | { events?: { onAgentEvent?: (handler: (evt: { stream: string; runId: string; data?: Record<string, unknown> }) => void) => () => void } }
+      | undefined;
+
+    if (runtime?.events?.onAgentEvent) {
+      let currentTalkingRunId: string | null = null;
+
+      const unsubAgentEvent = runtime.events.onAgentEvent((evt) => {
+        if (!evt) return;
+
+        // Assistant token stream → start talking
+        if (evt.stream === 'assistant' && typeof evt.data?.text === 'string') {
+          if (currentTalkingRunId !== evt.runId) {
+            currentTalkingRunId = evt.runId;
+            sm.transition({ talking: true });
+          }
+          return;
+        }
+
+        // Lifecycle end/error → stop talking
+        if (evt.stream === 'lifecycle') {
+          const phase = evt.data?.phase;
+          if (phase === 'end' || phase === 'error') {
+            if (currentTalkingRunId === evt.runId || currentTalkingRunId === null) {
+              currentTalkingRunId = null;
+              sm.transition({ talking: false });
+            }
+          }
+        }
+      });
+
+      api.logger.info('[ProjectAvatar] Subscribed to onAgentEvent for talking layer.');
+    } else {
+      api.logger.info('[ProjectAvatar] runtime.events.onAgentEvent not available — talking layer will only respond to explicit avatar_signal calls.');
+    }
+
     // ── Avatar signal tool — always registered ────────────────────────────────
 
     api.registerTool(createAvatarTool(sm));

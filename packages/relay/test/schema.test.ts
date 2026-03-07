@@ -100,7 +100,7 @@ describe('validateAvatarEvent', () => {
   });
 
   it('accepts all valid actions', () => {
-    const actions = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'];
+    const actions = ['idle', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'];
     for (const action of actions) {
       expect(validateAvatarEvent({ emotions: {}, action })).toEqual({ ok: true });
     }

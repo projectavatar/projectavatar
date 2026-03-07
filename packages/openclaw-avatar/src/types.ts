@@ -20,7 +20,7 @@ export type WordIntensity = typeof WORD_INTENSITIES[number];
 export type EmotionBlend = Partial<Record<PrimaryEmotion, WordIntensity>>;
 
 // ── Actions ─────────────────────────────────────────────────────────────────
-export const ACTIONS = ['idle', 'talking', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
+export const ACTIONS = ['idle', 'typing', 'nodding', 'laughing', 'celebrating', 'dismissive', 'searching', 'nervous', 'sad', 'plotting', 'greeting'] as const;
 export type Action = typeof ACTIONS[number];
 
 // ── Props ───────────────────────────────────────────────────────────────────
@@ -45,6 +45,8 @@ export interface AvatarEvent {
   prop?:      Prop;
   intensity?: Intensity;
   color?:     string;
+  /** Whether the avatar mouth animation is active. Orthogonal to body action. */
+  talking?: boolean;
   /** Opaque session identifier for relay multi-session arbitration. */
   sessionId?: string;
   /** Session priority (lower = higher). Defaults to 0 in relay when absent. */
@@ -52,7 +54,7 @@ export interface AvatarEvent {
 }
 
 /** A partial update — only the display fields. sessionId/priority are relay concerns. */
-export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotions' | 'action' | 'prop' | 'intensity' | 'color'>>;
+export type AvatarSignal = Partial<Pick<AvatarEvent, 'emotions' | 'action' | 'prop' | 'intensity' | 'color' | 'talking'>>;
 
 /**
  * Session metadata attached to each relay push.

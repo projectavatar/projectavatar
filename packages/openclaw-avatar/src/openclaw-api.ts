@@ -11,6 +11,21 @@
  * stubs keep the build clean.
  */
 
+// ── Agent event stubs (for talking layer) ───────────────────────────────────
+
+export type AgentEventData = {
+  stream: string;
+  runId: string;
+  seq: number;
+  data?: Record<string, unknown>;
+};
+
+export type PluginRuntime = {
+  events: {
+    onAgentEvent: (handler: (evt: AgentEventData) => void) => () => void;
+  };
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTool = any;
 
